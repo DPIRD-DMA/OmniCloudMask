@@ -1,0 +1,4 @@
+maxar data
+omnicloudmask/__pycache__
+omnicloudmask/models/*.pth
+test data
