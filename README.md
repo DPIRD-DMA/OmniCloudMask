@@ -31,7 +31,7 @@ To predict cloud and cloud shadow masks from a numpy array representing the Red,
 import numpy as np
 from omnicloudmask import predict_from_array
 
-# Example input array
+# Example input array, in practice this should be Red, Green and NIR bands
 input_array = np.random.rand(3, 1024, 1024)
 
 # Predict cloud and cloud shadow masks
@@ -46,7 +46,7 @@ To predict cloud and cloud shadow masks for a list of Sentinel-2 scenes:
 from pathlib import Path
 from omnicloudmask import predict_from_load_func, load_s2,
 
-# Paths to scenes
+# Paths to scenes (L1C and or L2A)
 scene_paths = [Path("path/to/scene1.SAFE"), Path("path/to/scene2.SAFE")]
 
 # Predict masks for scenes
