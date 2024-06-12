@@ -2,21 +2,22 @@ import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from threading import Thread
-from typing import Callable, Optional, Union, Generator
+from typing import Callable, Generator, Optional, Union
 
 import numpy as np
 import torch
-from tqdm.auto import tqdm
 from rasterio.profiles import Profile
+from tqdm.auto import tqdm
 
+from .__version__ import __version__
+from .download_models import get_models
 from .model_utils import (
+    create_gradient_mask,
     default_device,
+    get_torch_dtype,
     inference_and_store,
     load_model,
-    create_gradient_mask,
-    get_torch_dtype,
 )
-from .download_models import get_models
 from .raster_utils import (
     get_patch,
     make_patch_indexes,
@@ -251,7 +252,6 @@ def coordinator(
 
 def predict_from_array(
     input_array: np.ndarray,
-    model_paths: Union[Path, str, list[Path], list[str]] = [],
     patch_size: int = 1000,
     patch_overlap: int = 300,
     batch_size: int = 1,
@@ -266,7 +266,6 @@ def predict_from_array(
 
     Args:
         input_array (np.ndarray): A numpy array with shape (3, height, width) representing the Red, Green and NIR bands.
-        model_paths (Union[Path, str, list[Path], list[str]], optional): Paths to the models to be used for prediction. Defaults to an empty list, which triggers loading default models.
         patch_size (int, optional): Size of the patches for inference. Defaults to 1000.
         patch_overlap (int, optional): Overlap between patches for inference. Defaults to 300.
         batch_size (int, optional): Number of patches to process in a batch. Defaults to 1.
@@ -285,17 +284,11 @@ def predict_from_array(
     inference_device = torch.device(inference_device)
     mosaic_device = torch.device(mosaic_device)
 
-    if model_paths == []:
-        model_paths = get_models()
-
-    if not isinstance(model_paths, list):
-        model_paths = [Path(model_paths)]
-
     inference_dtype = get_torch_dtype(inference_dtype)
 
     models = [
         load_model(model_path, inference_device, inference_dtype)
-        for model_path in model_paths
+        for model_path in get_models()
     ]
 
     pred_tracker = coordinator(
@@ -319,7 +312,6 @@ def predict_from_array(
 def predict_from_load_func(
     scene_paths: Union[list[Path], list[str]],
     load_func: Callable,
-    model_paths: Union[Path, str, list[Path], list[str]] = [],
     patch_size: int = 1000,
     patch_overlap: int = 300,
     batch_size: int = 1,
@@ -328,7 +320,6 @@ def predict_from_load_func(
     inference_dtype: Union[torch.dtype, str] = torch.float32,
     export_confidence: bool = False,
     no_data_value: int = 0,
-    version: str = "",
     overwrite: bool = True,
     apply_no_data_mask: bool = True,
 ) -> list[Path]:
@@ -338,7 +329,6 @@ def predict_from_load_func(
     Args:
         scene_paths (Union[list[Path], list[str]]): A list of paths to the scene files to be processed.
         load_func (Callable): A function to load the scene data. This function should take an input_path parameter and return a R,G,NIR numpy array and a rasterio for export profile, several load func are provided within data_loaders.py
-        model_paths (Union[Path, str, list[Path], list[str]], optional): Paths to the models to be used for prediction. Defaults to an empty list, which triggers loading default models.
         patch_size (int, optional): Size of the patches for inference. Defaults to 1000.
         patch_overlap (int, optional): Overlap between patches for inference. Defaults to 300.
         batch_size (int, optional): Number of patches to process in a batch. Defaults to 1.
@@ -347,7 +337,6 @@ def predict_from_load_func(
         inference_dtype (Union[torch.dtype, str], optional): Data type for inference. Defaults to torch.float32.
         export_confidence (bool, optional): If True, exports confidence maps instead of with predicted classes. Defaults to False.
         no_data_value (int, optional): Value within input scenes that specifies no data region. Defaults to 0.
-        version (str, optional): Version string to append to output file names. Defaults to an empty string.
         overwrite (bool, optional): If False, skips scenes that already have a prediction file. Defaults to True.
         apply_no_data_mask (bool, optional): If True, applies a no-data mask to the predictions. Defaults to True.
 
@@ -362,17 +351,11 @@ def predict_from_load_func(
     inference_device = torch.device(inference_device)
     mosaic_device = torch.device(mosaic_device)
 
-    if model_paths == []:
-        model_paths = get_models()
-
-    if not isinstance(model_paths, list):
-        model_paths = [Path(model_paths)]
-
     inference_dtype = get_torch_dtype(inference_dtype)
 
     models = [
         load_model(model_path, inference_device, inference_dtype)
-        for model_path in model_paths
+        for model_path in get_models()
     ]
 
     pbar = tqdm(
@@ -382,7 +365,7 @@ def predict_from_load_func(
 
     for scene_path in scene_paths:
         scene_path = Path(scene_path)
-        file_name = f"{scene_path.stem}_{version}_OCM.tif"
+        file_name = f"{scene_path.stem}_OCM_v{__version__.replace('.','_')}.tif"
         output_path = scene_path.parent / file_name
         pred_paths.append(output_path)
 

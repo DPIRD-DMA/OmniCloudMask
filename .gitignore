@@ -1,4 +1,5 @@
-maxar data
+maxar data/
 omnicloudmask/__pycache__
 omnicloudmask/models/*.pth
-test data
+test data/
+Sentinel-2 data/

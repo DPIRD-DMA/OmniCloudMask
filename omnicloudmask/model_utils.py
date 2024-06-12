@@ -15,7 +15,6 @@ def load_model(
     if not model_path.is_file():
         raise FileNotFoundError(f"Model file not found at: {model_path}")
 
-    print(f"Loading {model_path.name}")
     try:
         model = torch.load(model_path, map_location="cpu")
     except Exception as e:
@@ -106,17 +105,6 @@ def channel_norm(patch: np.ndarray, nodata_value: Optional[int] = 0) -> np.ndarr
         # Fill original nodata values with 0
         out_array[id][~mask] = 0
     return out_array
-
-
-# def min_max_norm(patch: np.ndarray) -> np.ndarray:
-#     return patch / 10000
-
-
-# def zscore_norm(patch: np.ndarray) -> np.ndarray:
-#     means = np.array([2155.5945377423823, 2112.9302670533243, 3324.4512751038783])
-#     stds = np.array([1006.7389681440443, 943.8715713188193, 1051.333860275818])
-
-#     return (patch - means[:, None, None]) / stds[:, None, None]
 
 
 def store_results(
