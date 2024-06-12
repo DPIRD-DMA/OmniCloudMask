@@ -46,13 +46,22 @@ def load_s2_l2a(
 
     band_files = {}
     for band_name, native_resolution in zip(required_bands, resolution_list):
+        # try to get correct res first, if not found, try to get 10m res
         try:
             band = list(input_path.rglob(f"*{band_name}_{native_resolution}m.jp2"))[0]
 
         except IndexError:
-            raise ValueError(
-                f"Band {band_name} and resolution of {native_resolution} not found in {input_path}"
-            )
+            if resolution == 20:
+                try:
+                    band = list(input_path.rglob(f"*{band_name}_{10}m.jp2"))[0]
+                except IndexError:
+                    raise ValueError(
+                        f"Band {band_name} and resolution of {native_resolution} not found in {input_path} and fallback 10m resolution also not found"
+                    )
+            else:
+                raise ValueError(
+                    f"Band {band_name} and resolution of {native_resolution} not found in {input_path}"
+                )
         band_files[band_name] = band
 
     data = []
@@ -75,8 +84,18 @@ def load_s2_l2a(
                         ),
                     )
                 )
-
+    # update profile with new resolution
+    profile["transform"] = rio.transform.from_origin(  # type: ignore
+        profile["transform"][2],
+        profile["transform"][5],
+        resolution,
+        resolution,
+    )
     data = np.array(data)
+    # update profile with new width and height
+    profile["height"] = data.shape[1]
+    profile["width"] = data.shape[2]
+
     return data, profile
 
 
@@ -120,8 +139,16 @@ def load_s2_l1c(
                         ),
                     )
                 )
-
+    profile["transform"] = rio.transform.from_origin(  # type: ignore
+        profile["transform"][2],
+        profile["transform"][5],
+        resolution,
+        resolution,
+    )
     data = np.array(data)
+    # update profile with new width and height
+    profile["height"] = data.shape[1]
+    profile["width"] = data.shape[2]
     return data, profile
 
 

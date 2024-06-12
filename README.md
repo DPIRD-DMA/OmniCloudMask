@@ -1,6 +1,8 @@
 # OmniCloudMask
 
-OmniCloudMask is a Python library for state of the art cloud and cloud shadow segmentation in high to moderate resolution satellite imagery.
+OmniCloudMask is a Python library for state-of-the-art cloud and cloud shadow segmentation in high to moderate resolution satellite imagery.
+
+As a successor to the CloudS2Mask library, OmniCloudMask offers higher accuracy while supporting a wide range of resolutions, sensors, and processing levels.
 
 ## Features
 
