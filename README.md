@@ -53,6 +53,16 @@ scene_paths = [Path("path/to/scene1.SAFE"), Path("path/to/scene2.SAFE")]
 pred_paths = predict_from_load_func(scene_paths, load_s2)
 ```
 
+## Usage tips
+
+-   If using an NVIDIA GPU make sure to increase the default 'batch_size'.
+-   In most cases setting 'inference_dtype' to "bf16" should improve processing speed, if your hardware supports it.
+-   If you are running out of VRAM even with a batch_size of 1 try setting the 'mosaic_device' device to 'cpu'.
+-   Make sure if you are using imagery above 10 m res to downsample it before passing it to OmniCloudMask.
+-   If you are processing many files try to use the 'predict_from_load_func' as it preloads data during inference, resulting in faster processing.
+-   If some rare cases OmniCloudMask may fail to detect cloud if the raster data is clipped by sensor saturation or preprocessing, this results in image regions with no remaining texture to enable detection. To resolve this simply preprocess these regions and set the areas to 0, the no data value.
+-   OmniCloudMask expects Red, Green and NIR bands, however if you don't have a NIR band then we have seen reasonable results passing Red Green BLUE bands into the model instead.
+
 ## Parameters
 
 ### `predict_from_load_func`
@@ -82,16 +92,6 @@ pred_paths = predict_from_load_func(scene_paths, load_s2)
 -   `export_confidence (bool)`: If True, exports confidence maps instead of predicted classes. Defaults to False.
 -   `no_data_value (int)`: Value within input scenes that specifies no data region. Defaults to 0.
 -   `apply_no_data_mask (bool)`: If True, applies a no-data mask to the predictions. Defaults to True.
-
-## Usage tips
-
--   If using an NVIDIA GPU make sure to increase the default 'batch_size'.
--   In most cases setting 'inference_dtype' to "bf16" should improve processing speed, if your hardware supports it.
--   If you are running out of VRAM even with a batch_size of 1 try setting the 'mosaic_device' device to 'cpu'.
--   Make sure if you are using imagery above 10 m res to downsample it before passing it to OmniCloudMask.
--   If you are processing many files try to use the 'predict_from_load_func' as it preloads data during inference, resulting in faster processing.
--   If some rare cases OmniCloudMask may fail to detect cloud if the raster data is clipped by sensor saturation or preprocessing, this results in image regions with no remaining texture to enable detection. To resolve this simply preprocess these regions and set the areas to 0, the no data value.
--   OmniCloudMask expects Red, Green and NIR bands, however if you don't have a NIR band then we have seen reasonable results passing Red Green BLUE bands into the model instead.
 
 ## Contributing
 
