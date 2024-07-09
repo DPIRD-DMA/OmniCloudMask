@@ -17,7 +17,11 @@ As a successor to the CloudS2Mask library, OmniCloudMask offers higher accuracy 
 
 ## Installation
 
-To install the package, use the following command:
+To install the package, use one of the following command:
+
+```bash
+pip install omnicloudmask
+```
 
 ```bash
 pip install git+https://github.com/DPIRD-DMA/OmniCloudMask.git
@@ -62,7 +66,7 @@ pred_paths = predict_from_load_func(scene_paths, load_s2)
 -   If you are running out of VRAM even with a batch_size of 1 try setting the 'mosaic_device' device to 'cpu'.
 -   Make sure if you are using imagery above 10 m res to downsample it before passing it to OmniCloudMask.
 -   If you are processing many files try to use the 'predict_from_load_func' as it preloads data during inference, resulting in faster processing.
--   If some rare cases OmniCloudMask may fail to detect cloud if the raster data is clipped by sensor saturation or preprocessing, this results in image regions with no remaining texture to enable detection. To resolve this simply preprocess these regions and set the areas to 0, the no data value.
+-   In some rare cases OmniCloudMask may fail to detect cloud if the raster data is clipped by sensor saturation or preprocessing, this results in image regions with no remaining texture to enable detection. To resolve this simply preprocess these regions and set the areas to 0, the no data value.
 -   OmniCloudMask expects Red, Green and NIR bands, however if you don't have a NIR band then we have seen reasonable results passing Red Green BLUE bands into the model instead.
 
 ## Parameters
@@ -101,7 +105,7 @@ Contributions are welcome! Please submit a pull request or open an issue to disc
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License
 
 ## Acknowledgements
 

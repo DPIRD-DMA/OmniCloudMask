@@ -3,3 +3,6 @@ omnicloudmask/__pycache__
 omnicloudmask/models/*.pth
 test data/
 Sentinel-2 data/
+build/*
+omnicloudmask.egg-info/*
+dist/*
