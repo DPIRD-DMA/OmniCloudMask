@@ -13,7 +13,7 @@ setup(
     packages=find_packages(),
     install_requires=[
         "fastai>=2.7",
-        "timm>=0.9",
+        "timm>=0.9,<1.0.4",
         "tqdm>=4.0",
         "rasterio>=1.3",
         "gdown>=5.1.0",

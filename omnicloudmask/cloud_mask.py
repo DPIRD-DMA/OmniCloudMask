@@ -256,7 +256,7 @@ def predict_from_array(
     patch_overlap: int = 300,
     batch_size: int = 1,
     inference_device: Union[str, torch.device] = default_device(),
-    mosaic_device: Union[str, torch.device] = default_device(),
+    mosaic_device: Optional[Union[str, torch.device]] = None,
     inference_dtype: Union[torch.dtype, str] = torch.float32,
     export_confidence: bool = False,
     no_data_value: int = 0,
@@ -270,7 +270,7 @@ def predict_from_array(
         patch_overlap (int, optional): Overlap between patches for inference. Defaults to 300.
         batch_size (int, optional): Number of patches to process in a batch. Defaults to 1.
         inference_device (Union[str, torch.device], optional): Device to use for inference (e.g., 'cpu', 'cuda', 'mps'). Defaults to the device returned by default_device().
-        mosaic_device (Union[str, torch.device], optional): Device to use for mosaicking patches. Defaults to the device returned by default_device().
+        mosaic_device (Union[str, torch.device], optional): Device to use for mosaicking patches. Defaults to inference device.
         inference_dtype (Union[torch.dtype, str], optional): Data type for inference. Defaults to torch.float32.
         export_confidence (bool, optional): If True, exports confidence maps instead of with predicted classes. Defaults to False.
         no_data_value (int, optional): Value within input scenes that specifies no data region. Defaults to 0.
@@ -282,7 +282,10 @@ def predict_from_array(
     """
 
     inference_device = torch.device(inference_device)
-    mosaic_device = torch.device(mosaic_device)
+    if mosaic_device is None:
+        mosaic_device = inference_device
+    else:
+        mosaic_device = torch.device(mosaic_device)
 
     inference_dtype = get_torch_dtype(inference_dtype)
 
@@ -316,7 +319,7 @@ def predict_from_load_func(
     patch_overlap: int = 300,
     batch_size: int = 1,
     inference_device: Union[str, torch.device] = default_device(),
-    mosaic_device: Union[str, torch.device] = default_device(),
+    mosaic_device: Optional[Union[str, torch.device]] = None,
     inference_dtype: Union[torch.dtype, str] = torch.float32,
     export_confidence: bool = False,
     no_data_value: int = 0,
@@ -333,7 +336,7 @@ def predict_from_load_func(
         patch_overlap (int, optional): Overlap between patches for inference. Defaults to 300.
         batch_size (int, optional): Number of patches to process in a batch. Defaults to 1.
         inference_device (Union[str, torch.device], optional): Device to use for inference (e.g., 'cpu', 'cuda', 'mps'). Defaults to the device returned by default_device().
-        mosaic_device (Union[str, torch.device], optional): Device to use for mosaicking patches. Defaults to the device returned by default_device().
+        mosaic_device (Union[str, torch.device], optional): Device to use for mosaicking patches. Defaults to inference device.
         inference_dtype (Union[torch.dtype, str], optional): Data type for inference. Defaults to torch.float32.
         export_confidence (bool, optional): If True, exports confidence maps instead of with predicted classes. Defaults to False.
         no_data_value (int, optional): Value within input scenes that specifies no data region. Defaults to 0.
@@ -349,7 +352,10 @@ def predict_from_load_func(
     save_executor = ThreadPoolExecutor(max_workers=1)
 
     inference_device = torch.device(inference_device)
-    mosaic_device = torch.device(mosaic_device)
+    if mosaic_device is None:
+        mosaic_device = inference_device
+    else:
+        mosaic_device = torch.device(mosaic_device)
 
     inference_dtype = get_torch_dtype(inference_dtype)
 
