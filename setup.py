@@ -1,8 +1,14 @@
 from setuptools import find_packages, setup
+import os
+
+version = {}
+with open(os.path.join("omnicloudmask", "__version__.py")) as fp:
+    exec(fp.read(), version)
+
 
 setup(
     name="omnicloudmask",
-    version="1.0.1",
+    version=version["__version__"],
     description="""Python library for cloud and cloud shadow segmentation in high to moderate resolution satellite imagery""",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
