@@ -15,6 +15,15 @@ As a successor to the CloudS2Mask library, OmniCloudMask offers higher accuracy 
 -   Known to work well with Sentinel-2, Landsat 8, PlanetScope and Maxar
 -   Supports inference on cuda, mps and cpu
 
+## Try in Colab
+
+[![Colab_Button]][Link]
+
+[Link]: https://colab.research.google.com/drive/1d53lg2yiSbqhrzDWlJoS5rjHgRLRJ3WY?usp=sharing 'Try OmniCloudMask In Colab'
+
+[Colab_Button]: https://img.shields.io/badge/Try%20in%20Colab-grey?style=for-the-badge&logo=google-colab
+
+
 ## Installation
 
 To install the package, use one of the following command:
