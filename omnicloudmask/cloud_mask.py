@@ -103,32 +103,37 @@ def run_models_on_array(
         inference_device=inference_device,
         inference_dtype=inference_dtype,
     )
-    inf_thread = Thread()
+
     for patch_batch, index_batch in input_tensor_gen:
-        if inf_thread.is_alive():
-            inf_thread.join()
-
-        inf_thread = Thread(
-            target=inference_and_store,
-            kwargs={
-                "models": models,
-                "patch_batch": patch_batch,
-                "index_batch": index_batch,
-                "pred_tracker": pred_tracker,
-                "gradient": gradient,
-                "grad_tracker": grad_tracker,
-            },
+        inference_and_store(
+            models=models,
+            patch_batch=patch_batch,
+            index_batch=index_batch,
+            pred_tracker=pred_tracker,
+            gradient=gradient,
+            grad_tracker=grad_tracker,
         )
-        inf_thread.start()
-
-    if inf_thread.is_alive():
-        inf_thread.join()
 
 
 def check_patch_size(
     input_array: np.ndarray, no_data_value: int, patch_size: int, patch_overlap: int
 ) -> tuple[int, int]:
     """Used to check the inputs and adjust the patch size and overlap if necessary."""
+    # check the shape of the input array
+    if len(input_array.shape) != 3:
+        raise ValueError(
+            f"Input array must have 3 dimensions, found {len(input_array.shape)}. The input should be in format (bands (red,green,NIR), height, width)."
+        )
+
+    # check the width and height are greater than 10 pixels
+    if min(input_array.shape[1], input_array.shape[2]) < 10:
+        raise ValueError(
+            f"Input array must have a width and height greater than 10 pixels, found shape {input_array.shape}. The input should be in format (bands (red,green,NIR), height, width)."
+        )
+    if min(input_array.shape[1], input_array.shape[2]) < 50:
+        warnings.warn(
+            f"Input width or height is less than 50 pixels, found shape {input_array.shape}. Such a small image may not provide adequate spatial context for the model."
+        )
 
     # if the input has a lot of no data values and the patch size is larger than half the image size, we reduce the patch size and overlap
     if np.count_nonzero(input_array == no_data_value) / input_array.size > 0.3:
@@ -140,6 +145,7 @@ def check_patch_size(
             warnings.warn(
                 f"Significant no-data areas detected. Adjusting patch size to {patch_size}px and overlap to {patch_overlap}px to minimize no-data patches."
             )
+
     # if the patch size is larger than the image size, we reduce the patch size and overlap
     if patch_size > min(input_array.shape[1], input_array.shape[2]):
         patch_size = min(input_array.shape[1], input_array.shape[2])
@@ -250,6 +256,68 @@ def coordinator(
     return pred_tracker_np
 
 
+# def predict_from_array(
+#     input_array: np.ndarray,
+#     patch_size: int = 1000,
+#     patch_overlap: int = 300,
+#     batch_size: int = 1,
+#     inference_device: Union[str, torch.device] = default_device(),
+#     mosaic_device: Optional[Union[str, torch.device]] = None,
+#     inference_dtype: Union[torch.dtype, str] = torch.float32,
+#     export_confidence: bool = False,
+#     no_data_value: int = 0,
+#     apply_no_data_mask: bool = True,
+# ) -> np.ndarray:
+#     """Predict a cloud and cloud shadow mask from a Red, Green and NIR numpy array, with a spatial res between 10 m and 50 m.
+
+#     Args:
+#         input_array (np.ndarray): A numpy array with shape (3, height, width) representing the Red, Green and NIR bands.
+#         patch_size (int, optional): Size of the patches for inference. Defaults to 1000.
+#         patch_overlap (int, optional): Overlap between patches for inference. Defaults to 300.
+#         batch_size (int, optional): Number of patches to process in a batch. Defaults to 1.
+#         inference_device (Union[str, torch.device], optional): Device to use for inference (e.g., 'cpu', 'cuda', 'mps'). Defaults to the device returned by default_device().
+#         mosaic_device (Union[str, torch.device], optional): Device to use for mosaicking patches. Defaults to inference device.
+#         inference_dtype (Union[torch.dtype, str], optional): Data type for inference. Defaults to torch.float32.
+#         export_confidence (bool, optional): If True, exports confidence maps instead of with predicted classes. Defaults to False.
+#         no_data_value (int, optional): Value within input scenes that specifies no data region. Defaults to 0.
+#         apply_no_data_mask (bool, optional): If True, applies a no-data mask to the predictions. Defaults to True.
+
+#     Returns:
+#         np.ndarray: A numpy array with shape (1, height, width) or (4, height, width if export_confidence = True) representing the predicted cloud and cloud shadow mask.
+
+#     """
+
+#     inference_device = torch.device(inference_device)
+#     if mosaic_device is None:
+#         mosaic_device = inference_device
+#     else:
+#         mosaic_device = torch.device(mosaic_device)
+
+#     inference_dtype = get_torch_dtype(inference_dtype)
+
+#     models = [
+#         load_model(model_path, inference_device, inference_dtype)
+#         for model_path in get_models()
+#     ]
+
+#     pred_tracker = coordinator(
+#         input_array=input_array,
+#         models=models,
+#         inference_device=inference_device,
+#         mosaic_device=mosaic_device,
+#         inference_dtype=inference_dtype,
+#         export_confidence=export_confidence,
+#         patch_size=patch_size,
+#         patch_overlap=patch_overlap,
+#         batch_size=batch_size,
+#         no_data_value=no_data_value,
+#         export_to_disk=False,
+#         apply_no_data_mask=apply_no_data_mask,
+#     )
+
+#     return pred_tracker
+
+
 def predict_from_array(
     input_array: np.ndarray,
     patch_size: int = 1000,
@@ -261,6 +329,7 @@ def predict_from_array(
     export_confidence: bool = False,
     no_data_value: int = 0,
     apply_no_data_mask: bool = True,
+    custom_model_paths: Union[list[Union[str, Path]], Union[str, Path]] = [],
 ) -> np.ndarray:
     """Predict a cloud and cloud shadow mask from a Red, Green and NIR numpy array, with a spatial res between 10 m and 50 m.
 
@@ -275,6 +344,7 @@ def predict_from_array(
         export_confidence (bool, optional): If True, exports confidence maps instead of with predicted classes. Defaults to False.
         no_data_value (int, optional): Value within input scenes that specifies no data region. Defaults to 0.
         apply_no_data_mask (bool, optional): If True, applies a no-data mask to the predictions. Defaults to True.
+        custom_model_paths (Union[list[Union[str, Path]], Union[str, Path]], optional): A list of paths to custom models to use for prediction. Defaults to [].
 
     Returns:
         np.ndarray: A numpy array with shape (1, height, width) or (4, height, width if export_confidence = True) representing the predicted cloud and cloud shadow mask.
@@ -288,10 +358,19 @@ def predict_from_array(
         mosaic_device = torch.device(mosaic_device)
 
     inference_dtype = get_torch_dtype(inference_dtype)
+    # if no custom model paths are provided, use the default models
+    if not custom_model_paths:
+        model_paths = get_models()
+    else:
+        # if not a list of paths, convert to a list
+        if not isinstance(custom_model_paths, list):
+            custom_model_paths = [custom_model_paths]
+        # convert all paths to Path objects
+        model_paths = [Path(model_path) for model_path in custom_model_paths]
 
     models = [
         load_model(model_path, inference_device, inference_dtype)
-        for model_path in get_models()
+        for model_path in model_paths
     ]
 
     pred_tracker = coordinator(

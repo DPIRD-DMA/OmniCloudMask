@@ -12,4 +12,5 @@ __all__ = [
     "load_ls8",
     "load_multiband",
     "load_s2",
+    "__version__",
 ]

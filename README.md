@@ -107,6 +107,7 @@ pred_paths = predict_from_load_func(scene_paths, load_s2)
 -   `export_confidence (bool)`: If True, exports confidence maps instead of predicted classes. Defaults to False.
 -   `no_data_value (int)`: Value within input scenes that specifies no data region. Defaults to 0.
 -   `apply_no_data_mask (bool)`: If True, applies a no-data mask to the predictions. Defaults to True.
+-   `custom_model_paths (Union[list[Union[str, Path]], Union[str, Path]])`: If set these models will be used for inference.
 
 ## Contributing
 
