@@ -40,7 +40,7 @@ pip install git+https://github.com/DPIRD-DMA/OmniCloudMask.git
 
 ### Predict from Array
 
-To predict cloud and cloud shadow masks from a numpy array representing the Red, Green, and NIR bands:
+To predict cloud and cloud shadow masks from a numpy array representing the Red, Green, and NIR bands, predictions are returned as a numpy array:
 
 ```python
 import numpy as np
@@ -55,7 +55,7 @@ pred_mask = predict_from_array(input_array)
 
 ### Predict from Load Function
 
-To predict cloud and cloud shadow masks for a list of Sentinel-2 scenes:
+To predict cloud and cloud shadow masks for a list of Sentinel-2 scenes, predictions are saved to disk along side the inputs as geotiffs, a list of predictions file paths is returned:
 
 ```python
 from pathlib import Path
@@ -67,6 +67,12 @@ scene_paths = [Path("path/to/scene1.SAFE"), Path("path/to/scene2.SAFE")]
 # Predict masks for scenes
 pred_paths = predict_from_load_func(scene_paths, load_s2)
 ```
+## Output
+- Output classes are defined by the CloudSEN12 [paper](https://www.nature.com/articles/s41597-022-01878-2) and [dataset](https://cloudsen12.github.io/) used for training.
+- 0 = Clear
+- 1 = Thick cloud
+- 2 = Thin Cloud
+- 3 = Cloud Shadow
 
 ## Usage tips
 
