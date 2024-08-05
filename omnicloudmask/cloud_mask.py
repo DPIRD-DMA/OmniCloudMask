@@ -256,68 +256,6 @@ def coordinator(
     return pred_tracker_np
 
 
-# def predict_from_array(
-#     input_array: np.ndarray,
-#     patch_size: int = 1000,
-#     patch_overlap: int = 300,
-#     batch_size: int = 1,
-#     inference_device: Union[str, torch.device] = default_device(),
-#     mosaic_device: Optional[Union[str, torch.device]] = None,
-#     inference_dtype: Union[torch.dtype, str] = torch.float32,
-#     export_confidence: bool = False,
-#     no_data_value: int = 0,
-#     apply_no_data_mask: bool = True,
-# ) -> np.ndarray:
-#     """Predict a cloud and cloud shadow mask from a Red, Green and NIR numpy array, with a spatial res between 10 m and 50 m.
-
-#     Args:
-#         input_array (np.ndarray): A numpy array with shape (3, height, width) representing the Red, Green and NIR bands.
-#         patch_size (int, optional): Size of the patches for inference. Defaults to 1000.
-#         patch_overlap (int, optional): Overlap between patches for inference. Defaults to 300.
-#         batch_size (int, optional): Number of patches to process in a batch. Defaults to 1.
-#         inference_device (Union[str, torch.device], optional): Device to use for inference (e.g., 'cpu', 'cuda', 'mps'). Defaults to the device returned by default_device().
-#         mosaic_device (Union[str, torch.device], optional): Device to use for mosaicking patches. Defaults to inference device.
-#         inference_dtype (Union[torch.dtype, str], optional): Data type for inference. Defaults to torch.float32.
-#         export_confidence (bool, optional): If True, exports confidence maps instead of with predicted classes. Defaults to False.
-#         no_data_value (int, optional): Value within input scenes that specifies no data region. Defaults to 0.
-#         apply_no_data_mask (bool, optional): If True, applies a no-data mask to the predictions. Defaults to True.
-
-#     Returns:
-#         np.ndarray: A numpy array with shape (1, height, width) or (4, height, width if export_confidence = True) representing the predicted cloud and cloud shadow mask.
-
-#     """
-
-#     inference_device = torch.device(inference_device)
-#     if mosaic_device is None:
-#         mosaic_device = inference_device
-#     else:
-#         mosaic_device = torch.device(mosaic_device)
-
-#     inference_dtype = get_torch_dtype(inference_dtype)
-
-#     models = [
-#         load_model(model_path, inference_device, inference_dtype)
-#         for model_path in get_models()
-#     ]
-
-#     pred_tracker = coordinator(
-#         input_array=input_array,
-#         models=models,
-#         inference_device=inference_device,
-#         mosaic_device=mosaic_device,
-#         inference_dtype=inference_dtype,
-#         export_confidence=export_confidence,
-#         patch_size=patch_size,
-#         patch_overlap=patch_overlap,
-#         batch_size=batch_size,
-#         no_data_value=no_data_value,
-#         export_to_disk=False,
-#         apply_no_data_mask=apply_no_data_mask,
-#     )
-
-#     return pred_tracker
-
-
 def predict_from_array(
     input_array: np.ndarray,
     patch_size: int = 1000,
@@ -330,6 +268,7 @@ def predict_from_array(
     no_data_value: int = 0,
     apply_no_data_mask: bool = True,
     custom_model_paths: Union[list[Union[str, Path]], Union[str, Path]] = [],
+    pred_classes: int = 4,
 ) -> np.ndarray:
     """Predict a cloud and cloud shadow mask from a Red, Green and NIR numpy array, with a spatial res between 10 m and 50 m.
 
@@ -345,6 +284,7 @@ def predict_from_array(
         no_data_value (int, optional): Value within input scenes that specifies no data region. Defaults to 0.
         apply_no_data_mask (bool, optional): If True, applies a no-data mask to the predictions. Defaults to True.
         custom_model_paths (Union[list[Union[str, Path]], Union[str, Path]], optional): A list of paths to custom models to use for prediction. Defaults to [].
+        pred_classes (int, optional): Number of classes to predict. Defaults to 4, to be used with custom models.
 
     Returns:
         np.ndarray: A numpy array with shape (1, height, width) or (4, height, width if export_confidence = True) representing the predicted cloud and cloud shadow mask.
@@ -386,6 +326,7 @@ def predict_from_array(
         no_data_value=no_data_value,
         export_to_disk=False,
         apply_no_data_mask=apply_no_data_mask,
+        pred_classes=pred_classes,
     )
 
     return pred_tracker
