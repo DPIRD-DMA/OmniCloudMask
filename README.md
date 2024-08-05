@@ -70,7 +70,7 @@ pred_paths = predict_from_load_func(scene_paths, load_s2)
 ## Output
 - Output classes are defined by the CloudSEN12 [paper](https://www.nature.com/articles/s41597-022-01878-2) and [dataset](https://cloudsen12.github.io/) used for training.
 - 0 = Clear
-- 1 = Thick cloud
+- 1 = Thick Cloud
 - 2 = Thin Cloud
 - 3 = Cloud Shadow
 
