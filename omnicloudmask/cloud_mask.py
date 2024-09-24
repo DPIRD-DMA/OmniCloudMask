@@ -16,6 +16,7 @@ from .model_utils import (
     default_device,
     get_torch_dtype,
     inference_and_store,
+    load_model_from_weights,
     load_model,
 )
 from .raster_utils import (
@@ -230,13 +231,13 @@ def coordinator(
         )
 
     if apply_no_data_mask:
-        pred_tracker = mask_prediction(input_array, pred_tracker_np, no_data_value)
+        pred_tracker_np = mask_prediction(input_array, pred_tracker_np, no_data_value)
 
     if export_to_disk:
         export_profile = profile.copy()
         export_profile.update(
-            dtype=pred_tracker.dtype,
-            count=pred_tracker.shape[0],
+            dtype=pred_tracker_np.dtype,
+            count=pred_tracker_np.shape[0],
             compress="lzw",
             nodata=0,
             driver="GTiff",
@@ -267,7 +268,7 @@ def predict_from_array(
     export_confidence: bool = False,
     no_data_value: int = 0,
     apply_no_data_mask: bool = True,
-    custom_model_paths: Union[list[Union[str, Path]], Union[str, Path]] = [],
+    custom_models: Union[list[torch.nn.Module], torch.nn.Module] = [],
     pred_classes: int = 4,
 ) -> np.ndarray:
     """Predict a cloud and cloud shadow mask from a Red, Green and NIR numpy array, with a spatial res between 10 m and 50 m.
@@ -283,7 +284,7 @@ def predict_from_array(
         export_confidence (bool, optional): If True, exports confidence maps instead of with predicted classes. Defaults to False.
         no_data_value (int, optional): Value within input scenes that specifies no data region. Defaults to 0.
         apply_no_data_mask (bool, optional): If True, applies a no-data mask to the predictions. Defaults to True.
-        custom_model_paths (Union[list[Union[str, Path]], Union[str, Path]], optional): A list of paths to custom models to use for prediction. Defaults to [].
+        custom_models Union[list[torch.nn.Module], torch.nn.Module], optional): A list or singular custom torch models to use for prediction. Defaults to [].
         pred_classes (int, optional): Number of classes to predict. Defaults to 4, to be used with custom models.
 
     Returns:
@@ -299,19 +300,25 @@ def predict_from_array(
 
     inference_dtype = get_torch_dtype(inference_dtype)
     # if no custom model paths are provided, use the default models
-    if not custom_model_paths:
-        model_paths = get_models()
+    if not custom_models:
+        models = []
+        for model_details in get_models():
+            models.append(
+                load_model_from_weights(
+                    model_name=model_details["timm_model_name"],
+                    weights_path=model_details["Path"],
+                    device=inference_device,
+                    dtype=inference_dtype,
+                )
+            )
     else:
-        # if not a list of paths, convert to a list
-        if not isinstance(custom_model_paths, list):
-            custom_model_paths = [custom_model_paths]
-        # convert all paths to Path objects
-        model_paths = [Path(model_path) for model_path in custom_model_paths]
+        # if not a list, make it a list of models
+        if not isinstance(custom_models, list):
+            custom_models = [custom_models]
 
-    models = [
-        load_model(model_path, inference_device, inference_dtype)
-        for model_path in model_paths
-    ]
+        models = [
+            model.to(inference_dtype).to(inference_device) for model in custom_models
+        ]
 
     pred_tracker = coordinator(
         input_array=input_array,
@@ -379,10 +386,16 @@ def predict_from_load_func(
 
     inference_dtype = get_torch_dtype(inference_dtype)
 
-    models = [
-        load_model(model_path, inference_device, inference_dtype)
-        for model_path in get_models()
-    ]
+    models = []
+    for model_details in get_models():
+        models.append(
+            load_model_from_weights(
+                model_name=model_details["timm_model_name"],
+                weights_path=model_details["Path"],
+                device=inference_device,
+                dtype=inference_dtype,
+            )
+        )
 
     pbar = tqdm(
         total=len(scene_paths),

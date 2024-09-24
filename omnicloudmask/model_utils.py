@@ -1,27 +1,11 @@
 from pathlib import Path
 from typing import Optional, Union
+from functools import partial
 
 import numpy as np
 import torch
-
-
-def load_model(
-    model_path: Union[Path, str],
-    device: torch.device,
-    dtype: torch.dtype = torch.float32,
-) -> torch.nn.Module:
-    """Load a PyTorch model from a file and move it to the specified device and dtype."""
-    model_path = Path(model_path)
-    if not model_path.is_file():
-        raise FileNotFoundError(f"Model file not found at: {model_path}")
-
-    try:
-        model = torch.load(model_path, map_location="cpu")
-    except Exception as e:
-        raise RuntimeError(f"Error loading model: {e}")
-
-    model.eval()
-    return model.to(dtype).to(device)
+import timm
+from fastai.vision.learner import create_unet_model
 
 
 def get_torch_dtype(dtype: Union[torch.dtype, str]) -> torch.dtype:
@@ -167,3 +151,52 @@ def default_device() -> torch.device:
     elif torch.backends.mps.is_available():
         return torch.device("mps")
     return torch.device("cpu")
+
+
+def load_model(
+    model_path: Union[Path, str],
+    device: torch.device,
+    dtype: torch.dtype = torch.float32,
+) -> torch.nn.Module:
+    """Load a PyTorch model from a file and move it to the specified device and dtype."""
+    model_path = Path(model_path)
+    if not model_path.is_file():
+        raise FileNotFoundError(f"Model file not found at: {model_path}")
+
+    try:
+        model = torch.load(model_path, map_location="cpu")
+    except Exception as e:
+        raise RuntimeError(f"Error loading model: {e}")
+
+    model.eval()
+    return model.to(dtype).to(device)
+
+
+def load_model_from_weights(
+    model_name: str,
+    weights_path: Union[Path, str],
+    device: torch.device,
+    dtype: torch.dtype = torch.float32,
+    in_chans: int = 3,
+    n_out: int = 4,
+) -> torch.nn.Module:
+    """Build Fastai DynamicUnet model from timm model and load weights from file"""
+    timm_model = partial(
+        timm.create_model,
+        model_name=model_name,
+        pretrained=False,
+        in_chans=in_chans,
+    )
+
+    model = create_unet_model(
+        arch=timm_model,
+        n_out=n_out,
+        img_size=(509, 509),
+        act_cls=torch.nn.Mish,
+        pretrained=False,
+    )
+
+    model.load_state_dict(torch.load(weights_path, weights_only=True))
+    model.eval()
+
+    return model.to(dtype).to(device)

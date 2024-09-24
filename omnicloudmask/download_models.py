@@ -16,7 +16,7 @@ def download_file_from_google_drive(file_id: str, destination: Path) -> None:
     gdown.download(url, str(destination), quiet=False)
 
 
-def get_models() -> list[Path]:
+def get_models() -> list[dict]:
     """
     Downloads the model weights from Google Drive and saves them locally.
     """
@@ -30,6 +30,7 @@ def get_models() -> list[Path]:
         model_dir = Path(__file__).resolve().parent / "models"
         model_dir.mkdir(exist_ok=True)
         destination = model_dir / str(row["file_name"])
+        timm_model_name = row["timm_model_name"]
 
         if not destination.exists():
             # print(f"Downloading {row['file_name']} to {destination}...")
@@ -38,5 +39,5 @@ def get_models() -> list[Path]:
         elif destination.stat().st_size <= 1024 * 1024:
             # print(f"Downloading {row['file_name']} to {destination}...")
             download_file_from_google_drive(file_id, destination)
-        model_paths.append(destination)
+        model_paths.append({"Path": destination, "timm_model_name": timm_model_name})
     return model_paths

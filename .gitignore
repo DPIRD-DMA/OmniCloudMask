@@ -6,3 +6,6 @@ Sentinel-2 data/
 build/*
 omnicloudmask.egg-info/*
 dist/*
+omnicloudmask/models/state files/*
+Maxar data/*
+speed test.ipynb
