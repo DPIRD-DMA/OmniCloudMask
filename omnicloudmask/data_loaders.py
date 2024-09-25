@@ -128,15 +128,15 @@ def load_multiband(
 
 
 def load_ls8(
-    input_path: Union[Path, str], resolution: int = 30
+    input_path: Union[Path, str],
+    resolution: int = 30,
+    required_bands=["B4", "B3", "B5"],
 ) -> tuple[np.ndarray, Profile]:
     """Load a Landsat 8 image from a folder containing the bands"""
     if resolution != 30:
         raise ValueError("Resolution must be 30")
 
     input_path = Path(input_path)
-
-    required_bands = ["B4", "B3", "B5"]
 
     band_files = {}
     for band_name in required_bands:
