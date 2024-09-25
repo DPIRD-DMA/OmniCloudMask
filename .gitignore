@@ -9,3 +9,6 @@ dist/*
 omnicloudmask/models/state files/*
 Maxar data/*
 speed test.ipynb
+playground.ipynb
+.coverage
+tests/__pycache__/*
