@@ -1,29 +1,32 @@
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
-from .model_utils import channel_norm
 import rasterio as rio
 from rasterio.profiles import Profile
-from pathlib import Path
+
+from .model_utils import channel_norm
 
 
 def get_patch(
     input_array: np.ndarray,
     index: tuple,
     no_data_value: Optional[int] = 0,
-) -> tuple[Optional[np.ndarray], tuple[int, int, int, int]]:
+) -> tuple[Optional[np.ndarray], Optional[tuple[int, int, int, int]]]:
     """Extract a patch from a 3D array and normalize it. If the patch is entirely nodata, return None.
     If the patch contains nodata, try to move patches to reduce nodata regions in patches.
     """
+    assert input_array.ndim == 3, "Input array must have 3 dimensions"
+
     top, bottom, left, right = index
     patch = input_array[:, top:bottom, left:right].astype(np.float32)
 
     if patch.sum() == 0:
-        return None, index
+        return None, None
 
     if no_data_value is None:
         if np.all(patch == no_data_value):
-            return None, index
+            return None, None
 
     if np.any(patch == 0):
         max_bottom, max_right = input_array.shape[1:3]
@@ -52,6 +55,9 @@ def get_patch(
                 left -= 1
         patch = input_array[:, top:bottom, left:right].astype(np.float32)
         index = (top, bottom, left, right)
+
+    # trim index bottom and right to match patch shape
+    index = (top, top + patch.shape[1], left, left + patch.shape[2])
     return channel_norm(patch, no_data_value), index
 
 
@@ -59,6 +65,11 @@ def mask_prediction(
     scene: np.ndarray, pred_tracker_np: np.ndarray, no_data_value: int = 0
 ) -> np.ndarray:
     """Create a no data mask from a raster scene."""
+    assert scene.ndim == 3, "Scene must have 3 dimensions"
+    assert pred_tracker_np.ndim == 3, "Prediction tracker must have 3 dimensions"
+    assert (
+        scene.shape[1:] == pred_tracker_np.shape[1:]
+    ), "Scene and prediction tracker must have the same shape"
     mask = np.all(scene != no_data_value, axis=0).astype(np.uint8)
     pred_tracker_np *= mask
     return pred_tracker_np
@@ -71,6 +82,15 @@ def make_patch_indexes(
     patch_overlap: int = 300,
 ) -> list[tuple[int, int, int, int]]:
     """Create a list of patch indexes for a given shape and patch size."""
+    assert patch_size > patch_overlap, "Patch size must be greater than patch overlap"
+    assert patch_overlap >= 0, "Patch overlap must be greater than or equal to 0"
+    assert patch_size > 0, "Patch size must be greater than 0"
+    assert (
+        patch_size <= array_width
+    ), "Patch size must be less than or equal to array width"
+    assert (
+        patch_size <= array_height
+    ), "Patch size must be less than or equal to array height"
 
     stride = patch_size - patch_overlap
 

@@ -1,10 +1,10 @@
+from functools import partial
 from pathlib import Path
 from typing import Optional, Union
-from functools import partial
 
 import numpy as np
-import torch
 import timm
+import torch
 from fastai.vision.learner import create_unet_model
 
 
@@ -21,7 +21,7 @@ def get_torch_dtype(dtype: Union[torch.dtype, str]) -> torch.dtype:
             "bf16": torch.bfloat16,
         }
         try:
-            return dtype_mapping[dtype]
+            return dtype_mapping[dtype.lower()]
         except KeyError:
             raise ValueError(
                 f"Invalid dtype: {dtype}. Must be one of {list(dtype_mapping.keys())}"
@@ -100,6 +100,12 @@ def store_results(
 ) -> None:
     """Store the results of the model inference in the pred_tracker and grad_tracker tensors."""
     # Store the predictions in the pred_tracker tensor
+    assert pred_batch.ndim == 4, "pred_batch must have 4 dimensions, (B, class, H, W)"
+    assert pred_batch.shape[0] == len(index_batch), "Batch size must match index_batch"
+    assert pred_batch.shape[1] == pred_tracker.shape[0], "Number of classes must match"
+    assert pred_batch.shape[2] == gradient.shape[0], "Height must match gradient"
+    assert pred_batch.shape[3] == gradient.shape[1], "Width must match gradient"
+
     pred_batch *= gradient[None, None, :, :]
 
     for pred, index in zip(pred_batch.to(pred_tracker.device), index_batch):
