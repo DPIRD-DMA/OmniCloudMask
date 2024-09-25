@@ -11,7 +11,7 @@ from omnicloudmask.model_utils import (
     create_gradient_mask,
     default_device,
     get_torch_dtype,
-    inference_and_store,
+    # inference_and_store,
     load_model_from_weights,
     store_results,
 )
