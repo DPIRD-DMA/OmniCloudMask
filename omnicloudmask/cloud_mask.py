@@ -17,7 +17,6 @@ from .model_utils import (
     get_torch_dtype,
     inference_and_store,
     load_model_from_weights,
-    load_model,
 )
 from .raster_utils import (
     get_patch,
@@ -169,6 +168,7 @@ def coordinator(
     models: list[torch.nn.Module],
     inference_dtype: torch.dtype,
     export_confidence: bool,
+    softmax_output: bool,
     inference_device: torch.device,
     mosaic_device: torch.device,
     patch_size: int,
@@ -215,11 +215,15 @@ def coordinator(
     )
 
     if export_confidence:
-        pred_tracker = torch.clip(
-            (torch.nn.functional.softmax((pred_tracker / grad_tracker), 0) + 0.001),
-            0.001,
-            0.999,
-        )
+        pred_tracker_norm = pred_tracker / grad_tracker
+        if softmax_output:
+            pred_tracker = torch.clip(
+                (torch.nn.functional.softmax(pred_tracker_norm, 0) + 0.001),
+                0.001,
+                0.999,
+            )
+        else:
+            pred_tracker = pred_tracker_norm
 
         pred_tracker_np = pred_tracker.float().numpy(force=True)
 
@@ -266,6 +270,7 @@ def predict_from_array(
     mosaic_device: Optional[Union[str, torch.device]] = None,
     inference_dtype: Union[torch.dtype, str] = torch.float32,
     export_confidence: bool = False,
+    softmax_output: bool = True,
     no_data_value: int = 0,
     apply_no_data_mask: bool = True,
     custom_models: Union[list[torch.nn.Module], torch.nn.Module] = [],
@@ -281,7 +286,8 @@ def predict_from_array(
         inference_device (Union[str, torch.device], optional): Device to use for inference (e.g., 'cpu', 'cuda', 'mps'). Defaults to the device returned by default_device().
         mosaic_device (Union[str, torch.device], optional): Device to use for mosaicking patches. Defaults to inference device.
         inference_dtype (Union[torch.dtype, str], optional): Data type for inference. Defaults to torch.float32.
-        export_confidence (bool, optional): If True, exports confidence maps instead of with predicted classes. Defaults to False.
+        export_confidence (bool, optional): If True, exports confidence maps instead of predicted classes. Defaults to False.
+        softmax_output (bool, optional): If True, applies a softmax to the output, only used if export_confidence = True. Defaults to True.
         no_data_value (int, optional): Value within input scenes that specifies no data region. Defaults to 0.
         apply_no_data_mask (bool, optional): If True, applies a no-data mask to the predictions. Defaults to True.
         custom_models Union[list[torch.nn.Module], torch.nn.Module], optional): A list or singular custom torch models to use for prediction. Defaults to [].
@@ -327,6 +333,7 @@ def predict_from_array(
         mosaic_device=mosaic_device,
         inference_dtype=inference_dtype,
         export_confidence=export_confidence,
+        softmax_output=softmax_output,
         patch_size=patch_size,
         patch_overlap=patch_overlap,
         batch_size=batch_size,
@@ -349,9 +356,11 @@ def predict_from_load_func(
     mosaic_device: Optional[Union[str, torch.device]] = None,
     inference_dtype: Union[torch.dtype, str] = torch.float32,
     export_confidence: bool = False,
+    softmax_output: bool = True,
     no_data_value: int = 0,
     overwrite: bool = True,
     apply_no_data_mask: bool = True,
+    output_dir: Optional[Union[Path, str]] = None,
 ) -> list[Path]:
     """
     Predicts cloud and cloud shadow masks for a list of scenes using a specified loading function.
@@ -365,10 +374,12 @@ def predict_from_load_func(
         inference_device (Union[str, torch.device], optional): Device to use for inference (e.g., 'cpu', 'cuda', 'mps'). Defaults to the device returned by default_device().
         mosaic_device (Union[str, torch.device], optional): Device to use for mosaicking patches. Defaults to inference device.
         inference_dtype (Union[torch.dtype, str], optional): Data type for inference. Defaults to torch.float32.
-        export_confidence (bool, optional): If True, exports confidence maps instead of with predicted classes. Defaults to False.
+        export_confidence (bool, optional): If True, exports confidence maps instead of predicted classes. Defaults to False.
+        softmax_output (bool, optional): If True, applies a softmax to the output, only used if export_confidence = True. Defaults to True.
         no_data_value (int, optional): Value within input scenes that specifies no data region. Defaults to 0.
         overwrite (bool, optional): If False, skips scenes that already have a prediction file. Defaults to True.
         apply_no_data_mask (bool, optional): If True, applies a no-data mask to the predictions. Defaults to True.
+        output_dir (Optional[Union[Path, str]], optional): Directory to save the prediction files. Defaults to None. If None, the predictions will be saved in the same directory as the input scene.
 
     Returns:
         list[Path]: A list of paths to the output prediction files.
@@ -405,7 +416,13 @@ def predict_from_load_func(
     for scene_path in scene_paths:
         scene_path = Path(scene_path)
         file_name = f"{scene_path.stem}_OCM_v{__version__.replace('.','_')}.tif"
-        output_path = scene_path.parent / file_name
+
+        if output_dir is None:
+            output_path = scene_path.parent / file_name
+        else:
+            Path(output_dir).mkdir(parents=True, exist_ok=True)
+            output_path = Path(output_dir) / file_name
+
         pred_paths.append(output_path)
 
         if output_path.exists() and not overwrite:
@@ -427,6 +444,7 @@ def predict_from_load_func(
                 "models": models,
                 "inference_dtype": inference_dtype,
                 "export_confidence": export_confidence,
+                "softmax_output": softmax_output,
                 "inference_device": inference_device,
                 "mosaic_device": mosaic_device,
                 "patch_size": patch_size,
