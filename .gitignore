@@ -12,3 +12,4 @@ speed test.ipynb
 playground.ipynb
 .coverage
 tests/__pycache__/*
+*.tif.aux.xml

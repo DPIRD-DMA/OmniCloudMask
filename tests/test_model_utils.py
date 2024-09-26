@@ -115,7 +115,9 @@ def test_create_gradient_mask_device():
     dtype = torch.float32
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     mask = create_gradient_mask(patch_size, patch_overlap, device, dtype)
-    assert mask.device == device, f"Expected device {device}, got {mask.device}"
+    assert (
+        mask.device.type == device.type
+    ), f"Expected device {device.type}, got {mask.device.type}"
 
 
 def test_create_gradient_mask_values():
@@ -519,8 +521,12 @@ def test_store_results_device_handling():
         pred_tracker, expected
     ), f"Expected {expected}, got {pred_tracker}"
     assert (
-        pred_tracker.device == device
-    ), f"Expected device {device}, got {pred_tracker.device}"
+        pred_tracker.device.type == device.type
+    ), f"Expected device type {device.type}, got {pred_tracker.device.type}"
+    if device.type == "cuda":
+        assert pred_tracker.is_cuda, "Expected pred_tracker to be on CUDA device"
+    elif device.type == "cpu":
+        assert not pred_tracker.is_cuda, "Expected pred_tracker to be on CPU device"
 
 
 def test_store_results_empty_batch():
