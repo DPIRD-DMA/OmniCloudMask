@@ -97,9 +97,11 @@ pred_paths = predict_from_load_func(scene_paths, load_s2)
 -   `mosaic_device (Union[str, torch.device])`: Device to use for mosaicking patches. Defaults to the device returned by default_device().
 -   `inference_dtype (Union[torch.dtype, str])`: Data type for inference. Defaults to torch.float32.
 -   `export_confidence (bool)`: If True, exports confidence maps instead of predicted classes. Defaults to False.
+-   `softmax_output (bool)`: If True, applies a softmax to the output, only used if export_confidence = True. Defaults to True.
 -   `no_data_value (int)`: Value within input scenes that specifies no data region. Defaults to 0.
 -   `overwrite (bool)`: If False, skips scenes that already have a prediction file. Defaults to True.
 -   `apply_no_data_mask (bool)`: If True, applies a no-data mask to the predictions. Defaults to True.
+-   `output_dir (Optional[Union[Path, str]], optional)`: Directory to save the prediction files. Defaults to None. If None, the predictions will be saved in the same directory as the input scene.
 
 ### `predict_from_array`
 
@@ -111,9 +113,10 @@ pred_paths = predict_from_load_func(scene_paths, load_s2)
 -   `mosaic_device (Union[str, torch.device])`: Device to use for mosaicking patches. Defaults to the device returned by default_device().
 -   `inference_dtype (Union[torch.dtype, str])`: Data type for inference. Defaults to torch.float32.
 -   `export_confidence (bool)`: If True, exports confidence maps instead of predicted classes. Defaults to False.
+-   `softmax_output (bool)`: If True, applies a softmax to the output, only used if export_confidence = True. Defaults to True.
 -   `no_data_value (int)`: Value within input scenes that specifies no data region. Defaults to 0.
 -   `apply_no_data_mask (bool)`: If True, applies a no-data mask to the predictions. Defaults to True.
--   `custom_model_paths (Union[list[Union[str, Path]], Union[str, Path]])`: If set these models will be used for inference.
+-   `custom_models Union[list[torch.nn.Module], torch.nn.Module], optional)`: A list or singular custom torch models to use for prediction. Defaults to [].
 
 ## Contributing
 
