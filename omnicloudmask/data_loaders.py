@@ -50,17 +50,17 @@ def open_s2_bands(
             except IndexError:
                 raise ValueError(f"Band {band_name} not found in {input_path}")
         else:
-            try:
-                for search_resolution in [10, 20, 60]:
-                    band_paths = list(
-                        input_path.rglob(f"*{band_name}_{search_resolution}m.jp2")
-                    )
-                    if band_paths:
-                        band = band_paths[0]
-                        break
-
-            except IndexError:
+            band = None
+            for search_resolution in [10, 20, 60]:
+                band_paths = list(
+                    input_path.rglob(f"*{band_name}_{search_resolution}m.jp2")
+                )
+                if band_paths:
+                    band = band_paths[0]
+                    break
+            if not band:
                 raise ValueError(f"Band {band_name} not found in {input_path}")
+
         with rio.open(band) as src:
             profile = src.profile
             native_resolution = int(src.res[0])
