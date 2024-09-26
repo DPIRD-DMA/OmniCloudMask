@@ -1,12 +1,11 @@
 maxar data/
 omnicloudmask/__pycache__
-omnicloudmask/models/*.pth
+omnicloudmask/models/*PT.pth
 test data/
 Sentinel-2 data/
 build/*
 omnicloudmask.egg-info/*
 dist/*
-omnicloudmask/models/state files/*
 Maxar data/*
 speed test.ipynb
 playground.ipynb
