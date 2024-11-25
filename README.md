@@ -4,6 +4,7 @@ OmniCloudMask is a Python library for state-of-the-art cloud and cloud shadow se
 
 As a successor to the CloudS2Mask library, OmniCloudMask offers higher accuracy while supporting a wide range of resolutions, sensors, and processing levels.
 
+
 ## Features
 
 -   Process imagery resolutions from 10 m to 50 m, (higher resolutions can be down sampled to 10 m).
@@ -23,6 +24,8 @@ As a successor to the CloudS2Mask library, OmniCloudMask offers higher accuracy 
 
 [Colab_Button]: https://img.shields.io/badge/Try%20in%20Colab-grey?style=for-the-badge&logo=google-colab
 
+## How it works
+[![Sensor agnostic Deep Learning with OmniCloudMask](http://img.youtube.com/vi/eoKctlbsoMs/0.jpg)](http://www.youtube.com/watch?v=eoKctlbsoMs "Sensor agnostic Deep Learning with OmniCloudMask")
 
 ## Installation
 
