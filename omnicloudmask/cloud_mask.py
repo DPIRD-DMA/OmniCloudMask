@@ -398,6 +398,7 @@ def predict_from_load_func(
         overwrite (bool, optional): If False, skips scenes that already have a prediction file. Defaults to True.
         apply_no_data_mask (bool, optional): If True, applies a no-data mask to the predictions. Defaults to True.
         output_dir (Optional[Union[Path, str]], optional): Directory to save the prediction files. Defaults to None. If None, the predictions will be saved in the same directory as the input scene.
+        custom_models Union[list[torch.nn.Module], torch.nn.Module], optional): A list or singular custom torch models to use for prediction. Defaults to [].
         destination_model_dir Union[str, Path, None]: Directory to save the model weights. Defaults to None.
     Returns:
         list[Path]: A list of paths to the output prediction files.

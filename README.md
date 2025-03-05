@@ -104,7 +104,10 @@ pred_paths = predict_from_load_func(scene_paths, load_s2)
 -   `no_data_value (int)`: Value within input scenes that specifies no data region. Defaults to 0.
 -   `overwrite (bool)`: If False, skips scenes that already have a prediction file. Defaults to True.
 -   `apply_no_data_mask (bool)`: If True, applies a no-data mask to the predictions. Defaults to True.
--   `output_dir (Optional[Union[Path, str]], optional)`: Directory to save the prediction files. Defaults to None. If None, the predictions will be saved in the same directory as the input scene.
+-   `output_dir (Optional[Union[Path, str]], optional)`: Directory to save the prediction files. Defaults to None. If None, the predictions will 
+be saved in the same directory as the input scene.
+-   `custom_models (Union[list[torch.nn.Module], torch.nn.Module], optional)`: A list or singular custom torch models to use for prediction. Defaults to [].
+-   `destination_model_dir (Union[str, Path, None])`: Directory to save the model weights. Defaults to None.
 
 ### `predict_from_array`
 
@@ -119,7 +122,10 @@ pred_paths = predict_from_load_func(scene_paths, load_s2)
 -   `softmax_output (bool)`: If True, applies a softmax to the output, only used if export_confidence = True. Defaults to True.
 -   `no_data_value (int)`: Value within input scenes that specifies no data region. Defaults to 0.
 -   `apply_no_data_mask (bool)`: If True, applies a no-data mask to the predictions. Defaults to True.
--   `custom_models Union[list[torch.nn.Module], torch.nn.Module], optional)`: A list or singular custom torch models to use for prediction. Defaults to [].
+-   `custom_models (Union[list[torch.nn.Module], torch.nn.Module], optional)`: A list or singular custom torch models to use for prediction.
+-   `pred_classes (int, optional)` :  Number of classes to predict. Defaults to 4, to be used with custom models.
+-   `destination_model_dir (Union[str, Path, None])` : Directory to save the model weights. Defaults to None.
+Defaults to [].
 
 ## Contributing
 
