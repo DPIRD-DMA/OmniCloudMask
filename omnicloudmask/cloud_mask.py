@@ -275,6 +275,7 @@ def predict_from_array(
     apply_no_data_mask: bool = True,
     custom_models: Union[list[torch.nn.Module], torch.nn.Module] = [],
     pred_classes: int = 4,
+    destination_model_dir: str = None
 ) -> np.ndarray:
     """Predict a cloud and cloud shadow mask from a Red, Green and NIR numpy array, with a spatial res between 10 m and 50 m.
 
@@ -308,7 +309,7 @@ def predict_from_array(
     # if no custom model paths are provided, use the default models
     if not custom_models:
         models = []
-        for model_details in get_models():
+        for model_details in get_models(model_dir=destination_model_dir):
             models.append(
                 load_model_from_weights(
                     model_name=model_details["timm_model_name"],
@@ -361,6 +362,7 @@ def predict_from_load_func(
     overwrite: bool = True,
     apply_no_data_mask: bool = True,
     output_dir: Optional[Union[Path, str]] = None,
+    destination_model_dir: str = None
 ) -> list[Path]:
     """
     Predicts cloud and cloud shadow masks for a list of scenes using a specified loading function.
@@ -398,7 +400,7 @@ def predict_from_load_func(
     inference_dtype = get_torch_dtype(inference_dtype)
 
     models = []
-    for model_details in get_models():
+    for model_details in get_models(model_dir=destination_model_dir):
         models.append(
             load_model_from_weights(
                 model_name=model_details["timm_model_name"],
