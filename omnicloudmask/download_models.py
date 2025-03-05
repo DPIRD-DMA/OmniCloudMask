@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Union
 
 import pandas as pd
 import gdown
@@ -17,9 +18,8 @@ def download_file_from_google_drive(file_id: str, destination: Path) -> None:
 
 
 def get_models(
-            force_download: bool = False,
-            model_dir: str = None
-        ) -> list[dict]:
+    force_download: bool = False, model_dir: Union[str, Path, None] = None
+) -> list[dict]:
     """
     Downloads the model weights from Google Drive and saves them locally.
     """
@@ -30,20 +30,20 @@ def get_models(
 
     for _, row in df.iterrows():
         file_id = str(row["google_drive_id"])
+
         if model_dir is not None:
-            destination = Path(model_dir) / str(row["file_name"])
+            model_dir = Path(model_dir)
         else:
             model_dir = Path(__file__).resolve().parent / "models"
-            model_dir.mkdir(exist_ok=True)
-            destination = model_dir / str(row["file_name"])
+
+        model_dir.mkdir(exist_ok=True)
+        destination = model_dir / str(row["file_name"])
         timm_model_name = row["timm_model_name"]
 
         if not destination.exists() or force_download:
-            # print(f"Downloading {row['file_name']} to {destination}...")
             download_file_from_google_drive(file_id, destination)
 
         elif destination.stat().st_size <= 1024 * 1024:
-            # print(f"Downloading {row['file_name']} to {destination}...")
             download_file_from_google_drive(file_id, destination)
         model_paths.append({"Path": destination, "timm_model_name": timm_model_name})
     return model_paths
