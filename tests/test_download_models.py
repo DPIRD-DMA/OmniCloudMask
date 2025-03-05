@@ -8,6 +8,7 @@ from omnicloudmask.model_utils import (
 
 
 def test_get_models():
+    # Test with default model directory
     models = get_models(force_download=True)
     assert len(models) == 2
     for model in models:
@@ -16,7 +17,36 @@ def test_get_models():
         assert isinstance(model["timm_model_name"], str)
 
 
+def test_get_models_custom_dir():
+    # Test with custom model directory
+    model_dir = Path.cwd() / "custom_models"
+    model_dir.mkdir(exist_ok=True)
+    models = get_models(force_download=True, model_dir=model_dir)
+    assert len(models) == 2
+    for model in models:
+        # Check if the model is downloaded to the custom directory
+        assert Path(model["Path"]).exists()
+        assert model["Path"].parent == model_dir
+        assert Path(model["Path"]).stat().st_size > 1024 * 1024
+        assert isinstance(model["timm_model_name"], str)
+
+
+def test_get_models_custom_dir_str():
+    # Test with custom model directory
+    model_dir = Path.cwd() / "custom_models"
+    model_dir.mkdir(exist_ok=True)
+    models = get_models(force_download=True, model_dir=str(model_dir))
+    assert len(models) == 2
+    for model in models:
+        # Check if the model is downloaded to the custom directory
+        assert Path(model["Path"]).exists()
+        assert model["Path"].parent == model_dir
+        assert Path(model["Path"]).stat().st_size > 1024 * 1024
+        assert isinstance(model["timm_model_name"], str)
+
+
 def test_load_model_from_weights():
+    # Test loading models from weights
     models = []
     for model_details in get_models():
         models.append(

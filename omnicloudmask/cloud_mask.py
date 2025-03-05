@@ -261,52 +261,12 @@ def coordinator(
     return pred_tracker_np
 
 
-def predict_from_array(
-    input_array: np.ndarray,
-    patch_size: int = 1000,
-    patch_overlap: int = 300,
-    batch_size: int = 1,
-    inference_device: Union[str, torch.device] = default_device(),
-    mosaic_device: Optional[Union[str, torch.device]] = None,
-    inference_dtype: Union[torch.dtype, str] = torch.float32,
-    export_confidence: bool = False,
-    softmax_output: bool = True,
-    no_data_value: int = 0,
-    apply_no_data_mask: bool = True,
-    custom_models: Union[list[torch.nn.Module], torch.nn.Module] = [],
-    pred_classes: int = 4,
-    destination_model_dir: str = None
-) -> np.ndarray:
-    """Predict a cloud and cloud shadow mask from a Red, Green and NIR numpy array, with a spatial res between 10 m and 50 m.
-
-    Args:
-        input_array (np.ndarray): A numpy array with shape (3, height, width) representing the Red, Green and NIR bands.
-        patch_size (int, optional): Size of the patches for inference. Defaults to 1000.
-        patch_overlap (int, optional): Overlap between patches for inference. Defaults to 300.
-        batch_size (int, optional): Number of patches to process in a batch. Defaults to 1.
-        inference_device (Union[str, torch.device], optional): Device to use for inference (e.g., 'cpu', 'cuda', 'mps'). Defaults to the device returned by default_device().
-        mosaic_device (Union[str, torch.device], optional): Device to use for mosaicking patches. Defaults to inference device.
-        inference_dtype (Union[torch.dtype, str], optional): Data type for inference. Defaults to torch.float32.
-        export_confidence (bool, optional): If True, exports confidence maps instead of predicted classes. Defaults to False.
-        softmax_output (bool, optional): If True, applies a softmax to the output, only used if export_confidence = True. Defaults to True.
-        no_data_value (int, optional): Value within input scenes that specifies no data region. Defaults to 0.
-        apply_no_data_mask (bool, optional): If True, applies a no-data mask to the predictions. Defaults to True.
-        custom_models Union[list[torch.nn.Module], torch.nn.Module], optional): A list or singular custom torch models to use for prediction. Defaults to [].
-        pred_classes (int, optional): Number of classes to predict. Defaults to 4, to be used with custom models.
-
-    Returns:
-        np.ndarray: A numpy array with shape (1, height, width) or (4, height, width if export_confidence = True) representing the predicted cloud and cloud shadow mask.
-
-    """
-
-    inference_device = torch.device(inference_device)
-    if mosaic_device is None:
-        mosaic_device = inference_device
-    else:
-        mosaic_device = torch.device(mosaic_device)
-
-    inference_dtype = get_torch_dtype(inference_dtype)
-    # if no custom model paths are provided, use the default models
+def collect_models(
+    custom_models: Union[list[torch.nn.Module], torch.nn.Module],
+    inference_device: torch.device,
+    inference_dtype: torch.dtype,
+    destination_model_dir: Union[str, Path, None] = None,
+) -> list[torch.nn.Module]:
     if not custom_models:
         models = []
         for model_details in get_models(model_dir=destination_model_dir):
@@ -326,6 +286,61 @@ def predict_from_array(
         models = [
             model.to(inference_dtype).to(inference_device) for model in custom_models
         ]
+    return models
+
+
+def predict_from_array(
+    input_array: np.ndarray,
+    patch_size: int = 1000,
+    patch_overlap: int = 300,
+    batch_size: int = 1,
+    inference_device: Union[str, torch.device] = default_device(),
+    mosaic_device: Optional[Union[str, torch.device]] = None,
+    inference_dtype: Union[torch.dtype, str] = torch.float32,
+    export_confidence: bool = False,
+    softmax_output: bool = True,
+    no_data_value: int = 0,
+    apply_no_data_mask: bool = True,
+    custom_models: Union[list[torch.nn.Module], torch.nn.Module] = [],
+    pred_classes: int = 4,
+    destination_model_dir: Union[str, Path, None] = None,
+) -> np.ndarray:
+    """Predict a cloud and cloud shadow mask from a Red, Green and NIR numpy array, with a spatial res between 10 m and 50 m.
+
+    Args:
+        input_array (np.ndarray): A numpy array with shape (3, height, width) representing the Red, Green and NIR bands.
+        patch_size (int, optional): Size of the patches for inference. Defaults to 1000.
+        patch_overlap (int, optional): Overlap between patches for inference. Defaults to 300.
+        batch_size (int, optional): Number of patches to process in a batch. Defaults to 1.
+        inference_device (Union[str, torch.device], optional): Device to use for inference (e.g., 'cpu', 'cuda', 'mps'). Defaults to the device returned by default_device().
+        mosaic_device (Union[str, torch.device], optional): Device to use for mosaicking patches. Defaults to inference device.
+        inference_dtype (Union[torch.dtype, str], optional): Data type for inference. Defaults to torch.float32.
+        export_confidence (bool, optional): If True, exports confidence maps instead of predicted classes. Defaults to False.
+        softmax_output (bool, optional): If True, applies a softmax to the output, only used if export_confidence = True. Defaults to True.
+        no_data_value (int, optional): Value within input scenes that specifies no data region. Defaults to 0.
+        apply_no_data_mask (bool, optional): If True, applies a no-data mask to the predictions. Defaults to True.
+        custom_models Union[list[torch.nn.Module], torch.nn.Module], optional): A list or singular custom torch models to use for prediction. Defaults to [].
+        pred_classes (int, optional): Number of classes to predict. Defaults to 4, to be used with custom models.
+        destination_model_dir Union[str, Path, None]: Directory to save the model weights. Defaults to None.
+    Returns:
+        np.ndarray: A numpy array with shape (1, height, width) or (4, height, width if export_confidence = True) representing the predicted cloud and cloud shadow mask.
+
+    """
+
+    inference_device = torch.device(inference_device)
+    if mosaic_device is None:
+        mosaic_device = inference_device
+    else:
+        mosaic_device = torch.device(mosaic_device)
+
+    inference_dtype = get_torch_dtype(inference_dtype)
+    # if no custom model paths are provided, use the default models
+    models = collect_models(
+        custom_models=custom_models,
+        inference_device=inference_device,
+        inference_dtype=inference_dtype,
+        destination_model_dir=destination_model_dir,
+    )
 
     pred_tracker = coordinator(
         input_array=input_array,
@@ -362,7 +377,8 @@ def predict_from_load_func(
     overwrite: bool = True,
     apply_no_data_mask: bool = True,
     output_dir: Optional[Union[Path, str]] = None,
-    destination_model_dir: str = None
+    custom_models: Union[list[torch.nn.Module], torch.nn.Module] = [],
+    destination_model_dir: Union[str, Path, None] = None,
 ) -> list[Path]:
     """
     Predicts cloud and cloud shadow masks for a list of scenes using a specified loading function.
@@ -382,7 +398,7 @@ def predict_from_load_func(
         overwrite (bool, optional): If False, skips scenes that already have a prediction file. Defaults to True.
         apply_no_data_mask (bool, optional): If True, applies a no-data mask to the predictions. Defaults to True.
         output_dir (Optional[Union[Path, str]], optional): Directory to save the prediction files. Defaults to None. If None, the predictions will be saved in the same directory as the input scene.
-
+        destination_model_dir Union[str, Path, None]: Directory to save the model weights. Defaults to None.
     Returns:
         list[Path]: A list of paths to the output prediction files.
 
@@ -399,16 +415,12 @@ def predict_from_load_func(
 
     inference_dtype = get_torch_dtype(inference_dtype)
 
-    models = []
-    for model_details in get_models(model_dir=destination_model_dir):
-        models.append(
-            load_model_from_weights(
-                model_name=model_details["timm_model_name"],
-                weights_path=model_details["Path"],
-                device=inference_device,
-                dtype=inference_dtype,
-            )
-        )
+    models = collect_models(
+        custom_models=custom_models,
+        inference_device=inference_device,
+        inference_dtype=inference_dtype,
+        destination_model_dir=destination_model_dir,
+    )
 
     pbar = tqdm(
         total=len(scene_paths),
