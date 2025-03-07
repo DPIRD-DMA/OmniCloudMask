@@ -265,11 +265,12 @@ def collect_models(
     custom_models: Union[list[torch.nn.Module], torch.nn.Module],
     inference_device: torch.device,
     inference_dtype: torch.dtype,
+    source: str,
     destination_model_dir: Union[str, Path, None] = None,
 ) -> list[torch.nn.Module]:
     if not custom_models:
         models = []
-        for model_details in get_models(model_dir=destination_model_dir):
+        for model_details in get_models(model_dir=destination_model_dir, source=source):
             models.append(
                 load_model_from_weights(
                     model_name=model_details["timm_model_name"],
@@ -304,6 +305,7 @@ def predict_from_array(
     custom_models: Union[list[torch.nn.Module], torch.nn.Module] = [],
     pred_classes: int = 4,
     destination_model_dir: Union[str, Path, None] = None,
+    model_download_source: str = "google_drive",
 ) -> np.ndarray:
     """Predict a cloud and cloud shadow mask from a Red, Green and NIR numpy array, with a spatial res between 10 m and 50 m.
 
@@ -322,6 +324,7 @@ def predict_from_array(
         custom_models Union[list[torch.nn.Module], torch.nn.Module], optional): A list or singular custom torch models to use for prediction. Defaults to [].
         pred_classes (int, optional): Number of classes to predict. Defaults to 4, to be used with custom models.
         destination_model_dir Union[str, Path, None]: Directory to save the model weights. Defaults to None.
+        model_download_source (str, optional): Source from which to download the model weights. Defaults to "google_drive", can also be "hugging_face".
     Returns:
         np.ndarray: A numpy array with shape (1, height, width) or (4, height, width if export_confidence = True) representing the predicted cloud and cloud shadow mask.
 
@@ -339,6 +342,7 @@ def predict_from_array(
         custom_models=custom_models,
         inference_device=inference_device,
         inference_dtype=inference_dtype,
+        source=model_download_source,
         destination_model_dir=destination_model_dir,
     )
 
@@ -379,6 +383,7 @@ def predict_from_load_func(
     output_dir: Optional[Union[Path, str]] = None,
     custom_models: Union[list[torch.nn.Module], torch.nn.Module] = [],
     destination_model_dir: Union[str, Path, None] = None,
+    model_download_source: str = "google_drive",
 ) -> list[Path]:
     """
     Predicts cloud and cloud shadow masks for a list of scenes using a specified loading function.
@@ -400,6 +405,8 @@ def predict_from_load_func(
         output_dir (Optional[Union[Path, str]], optional): Directory to save the prediction files. Defaults to None. If None, the predictions will be saved in the same directory as the input scene.
         custom_models Union[list[torch.nn.Module], torch.nn.Module], optional): A list or singular custom torch models to use for prediction. Defaults to [].
         destination_model_dir Union[str, Path, None]: Directory to save the model weights. Defaults to None.
+        model_download_source (str, optional): Source from which to download the model weights. Defaults to "google_drive", can also be "hugging_face".
+
     Returns:
         list[Path]: A list of paths to the output prediction files.
 
@@ -421,6 +428,7 @@ def predict_from_load_func(
         inference_device=inference_device,
         inference_dtype=inference_dtype,
         destination_model_dir=destination_model_dir,
+        source=model_download_source,
     )
 
     pbar = tqdm(

@@ -15,3 +15,6 @@ validation dataset/Landsat/dataset/*
 validation dataset/Landsat*
 validation dataset/Sentinel-2/*
 tests/custom_models/*
+training/*
+omnicloudmask/models/.*
+omnicloudmask/models/models--NickWright--OmniCloudMask/*
