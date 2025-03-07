@@ -2,9 +2,11 @@
     "cSpell.words": [
         "dtype",
         "gdown",
+        "huggingface",
         "maxar",
         "ndarray",
         "pbar",
+        "safetensor",
         "softmax",
         "tqdm"
     ]
