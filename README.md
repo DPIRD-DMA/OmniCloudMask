@@ -4,6 +4,8 @@ OmniCloudMask is a Python library for state-of-the-art cloud and cloud shadow se
 
 As a successor to the CloudS2Mask library, OmniCloudMask offers higher accuracy while supporting a wide range of resolutions, sensors, and processing levels.
 
+OmniCloudMask has been validated on Sentinel-2, PlanetScope and Landsat data and is also known to work well with Maxar data, it should work on any imagery with Red Green and NIR bands with a spatial resolution of 50 m or better.
+
 
 ## Features
 
@@ -39,9 +41,13 @@ pip install omnicloudmask
 pip install git+https://github.com/DPIRD-DMA/OmniCloudMask.git
 ```
 
+## Docker
+
+Alternatively you can install OmniCloudMask within a Docker container by following the [Docker instructions](docker/README.md)
+
 ## Usage
 
-### Predict from Array
+### Predict from array
 
 To predict cloud and cloud shadow masks from a numpy array representing the Red, Green, and NIR bands, predictions are returned as a numpy array:
 
@@ -56,10 +62,11 @@ input_array = np.random.rand(3, 1024, 1024)
 pred_mask = predict_from_array(input_array)
 ```
 
-### Predict from Load Function
+### Predict from load function
 
-To predict cloud and cloud shadow masks for a list of Sentinel-2 scenes, predictions are saved to disk along side the inputs as geotiffs, a list of predictions file paths is returned:
+To predict cloud and cloud shadow masks for a list of Sentinel-2 scenes, predictions are saved to disk along side the inputs as geotiffs, a list of prediction file paths is returned:
 
+#### Sentinel-2
 ```python
 from pathlib import Path
 from omnicloudmask import predict_from_load_func, load_s2,
@@ -70,6 +77,19 @@ scene_paths = [Path("path/to/scene1.SAFE"), Path("path/to/scene2.SAFE")]
 # Predict masks for scenes
 pred_paths = predict_from_load_func(scene_paths, load_s2)
 ```
+
+#### Landsat
+```python
+from pathlib import Path
+from omnicloudmask import predict_from_load_func, load_ls8,
+
+# Paths to scenes
+scene_paths = [Path("path/to/scene1"), Path("path/to/scene2")]
+
+# Predict masks for scenes
+pred_paths = predict_from_load_func(scene_paths, load_ls8)
+```
+
 ## Output
 - Output classes are defined by the CloudSEN12 [paper](https://www.nature.com/articles/s41597-022-01878-2) and [dataset](https://cloudsen12.github.io/) used for training.
 - 0 = Clear
