@@ -7,6 +7,9 @@ As a successor to the CloudS2Mask library, OmniCloudMask offers higher accuracy 
 OmniCloudMask has been validated on Sentinel-2, PlanetScope and Landsat data and is also known to work well with Maxar data, it should work on any imagery with Red Green and NIR bands with a spatial resolution of 50 m or better.
 
 
+[The OmniCloudMask paper is now published 🎉](https://www.sciencedirect.com/science/article/pii/S0034425725000987)
+
+
 ## Features
 
 -   Process imagery resolutions from 10 m to 50 m, (higher resolutions can be down sampled to 10 m).
@@ -128,6 +131,8 @@ pred_paths = predict_from_load_func(scene_paths, load_ls8)
 be saved in the same directory as the input scene.
 -   `custom_models (Union[list[torch.nn.Module], torch.nn.Module], optional)`: A list or singular custom torch models to use for prediction. Defaults to [].
 -   `destination_model_dir (Union[str, Path, None])`: Directory to save the model weights. Defaults to None.
+-   `model_download_source (str, optional)`: Source from which to download the model weights. Defaults to "google_drive", can also be "hugging_face".
+
 
 ### `predict_from_array`
 
@@ -145,6 +150,8 @@ be saved in the same directory as the input scene.
 -   `custom_models (Union[list[torch.nn.Module], torch.nn.Module], optional)`: A list or singular custom torch models to use for prediction.
 -   `pred_classes (int, optional)` :  Number of classes to predict. Defaults to 4, to be used with custom models.
 -   `destination_model_dir (Union[str, Path, None])` : Directory to save the model weights. Defaults to None.
+-   `model_download_source (str, optional)`: Source from which to download the model weights. Defaults to "google_drive", can also be "hugging_face".
+
 Defaults to [].
 
 ## Contributing
