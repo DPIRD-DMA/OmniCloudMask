@@ -1,13 +1,25 @@
 {
     "cSpell.words": [
+        "Colab",
+        "cuda",
+        "downsample",
         "dtype",
+        "figsize",
         "gdown",
+        "geotiffs",
         "huggingface",
+        "keepdim",
         "maxar",
+        "mosaicking",
         "ndarray",
+        "numpy",
+        "pathlib",
         "pbar",
+        "pypi",
+        "pytest",
         "safetensor",
         "softmax",
+        "testpypi",
         "tqdm"
     ]
 }
