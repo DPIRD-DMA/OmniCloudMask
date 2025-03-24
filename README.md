@@ -130,6 +130,7 @@ pred_paths = predict_from_load_func(scene_paths, load_ls8)
 -   `output_dir (Optional[Union[Path, str]], optional)`: Directory to save the prediction files. Defaults to None. If None, the predictions will 
 be saved in the same directory as the input scene.
 -   `custom_models (Union[list[torch.nn.Module], torch.nn.Module], optional)`: A list or singular custom torch models to use for prediction. Defaults to [].
+-   `pred_classes (int, optional)` :  Number of classes to predict. Defaults to 4, to be used with custom models. Defaults to 4.
 -   `destination_model_dir (Union[str, Path, None])`: Directory to save the model weights. Defaults to None.
 -   `model_download_source (str, optional)`: Source from which to download the model weights. Defaults to "google_drive", can also be "hugging_face".
 
@@ -147,12 +148,10 @@ be saved in the same directory as the input scene.
 -   `softmax_output (bool)`: If True, applies a softmax to the output, only used if export_confidence = True. Defaults to True.
 -   `no_data_value (int)`: Value within input scenes that specifies no data region. Defaults to 0.
 -   `apply_no_data_mask (bool)`: If True, applies a no-data mask to the predictions. Defaults to True.
--   `custom_models (Union[list[torch.nn.Module], torch.nn.Module], optional)`: A list or singular custom torch models to use for prediction.
--   `pred_classes (int, optional)` :  Number of classes to predict. Defaults to 4, to be used with custom models.
+-   `custom_models (Union[list[torch.nn.Module], torch.nn.Module], optional)`: A list or singular custom torch models to use for prediction. Defaults to [].
+-   `pred_classes (int, optional)` :  Number of classes to predict. Defaults to 4, to be used with custom models. Defaults to 4.
 -   `destination_model_dir (Union[str, Path, None])` : Directory to save the model weights. Defaults to None.
 -   `model_download_source (str, optional)`: Source from which to download the model weights. Defaults to "google_drive", can also be "hugging_face".
-
-Defaults to [].
 
 ## Contributing
 
