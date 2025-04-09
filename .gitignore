@@ -20,3 +20,4 @@ omnicloudmask/models/.*
 omnicloudmask/models/models--NickWright--OmniCloudMask/*
 training/convert models.ipynb
 custom_models/*
+*.DS_Store
