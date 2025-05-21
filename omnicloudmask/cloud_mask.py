@@ -384,7 +384,7 @@ def predict_from_load_func(
     custom_models: Union[list[torch.nn.Module], torch.nn.Module] = [],
     pred_classes: int = 4,
     destination_model_dir: Union[str, Path, None] = None,
-    model_download_source: str = "google_drive",
+    model_download_source: str = "hugging_face",
 ) -> list[Path]:
     """
     Predicts cloud and cloud shadow masks for a list of scenes using a specified loading function.
@@ -407,7 +407,7 @@ def predict_from_load_func(
         custom_models Union[list[torch.nn.Module], torch.nn.Module], optional): A list or singular custom torch models to use for prediction. Defaults to [].
         pred_classes (int, optional): Number of classes to predict. Defaults to 4, to be used with custom models. Defaults to 4.
         destination_model_dir Union[str, Path, None]: Directory to save the model weights. Defaults to None.
-        model_download_source (str, optional): Source from which to download the model weights. Defaults to "google_drive", can also be "hugging_face".
+        model_download_source (str, optional): Source from which to download the model weights. Defaults to "hugging_face", can also be "google_drive".
 
     Returns:
         list[Path]: A list of paths to the output prediction files.
