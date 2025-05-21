@@ -1,5 +1,6 @@
-from setuptools import find_packages, setup
 import os
+
+from setuptools import find_packages, setup
 
 version = {}
 with open(os.path.join("omnicloudmask", "__version__.py")) as fp:
@@ -24,6 +25,8 @@ setup(
         "rasterio>=1.3",
         "gdown>=5.1.0",
         "torch>=2.2",
+        "huggingface_hub>=0.28.1",
+        "safetensors>=0.3.0",
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",
