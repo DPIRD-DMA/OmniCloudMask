@@ -54,7 +54,7 @@ def download_file(file_id: str, destination: Path, source: str) -> None:
 def get_models(
     force_download: bool = False,
     model_dir: Union[str, Path, None] = None,
-    source: str = "google_drive",
+    source: str = "hugging_face",
 ) -> list[dict]:
     """
     Downloads the model weights from Google Drive and saves them locally.

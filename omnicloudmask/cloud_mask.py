@@ -305,7 +305,7 @@ def predict_from_array(
     custom_models: Union[list[torch.nn.Module], torch.nn.Module] = [],
     pred_classes: int = 4,
     destination_model_dir: Union[str, Path, None] = None,
-    model_download_source: str = "google_drive",
+    model_download_source: str = "hugging_face",
 ) -> np.ndarray:
     """Predict a cloud and cloud shadow mask from a Red, Green and NIR numpy array, with a spatial res between 10 m and 50 m.
 
@@ -324,7 +324,7 @@ def predict_from_array(
         custom_models Union[list[torch.nn.Module], torch.nn.Module], optional): A list or singular custom torch models to use for prediction. Defaults to [].
         pred_classes (int, optional): Number of classes to predict. Defaults to 4, to be used with custom models. Defaults to 4.
         destination_model_dir Union[str, Path, None]: Directory to save the model weights. Defaults to None.
-        model_download_source (str, optional): Source from which to download the model weights. Defaults to "google_drive", can also be "hugging_face".
+        model_download_source (str, optional): Source from which to download the model weights. Defaults to "hugging_face", can also be "google_drive".
     Returns:
         np.ndarray: A numpy array with shape (1, height, width) or (4, height, width if export_confidence = True) representing the predicted cloud and cloud shadow mask.
 
