@@ -72,7 +72,7 @@ To predict cloud and cloud shadow masks for a list of Sentinel-2 scenes, predict
 #### Sentinel-2
 ```python
 from pathlib import Path
-from omnicloudmask import predict_from_load_func, load_s2,
+from omnicloudmask import predict_from_load_func, load_s2
 
 # Paths to scenes (L1C and or L2A)
 scene_paths = [Path("path/to/scene1.SAFE"), Path("path/to/scene2.SAFE")]
@@ -84,7 +84,7 @@ pred_paths = predict_from_load_func(scene_paths, load_s2)
 #### Landsat
 ```python
 from pathlib import Path
-from omnicloudmask import predict_from_load_func, load_ls8,
+from omnicloudmask import predict_from_load_func, load_ls8
 
 # Paths to scenes
 scene_paths = [Path("path/to/scene1"), Path("path/to/scene2")]
