@@ -35,6 +35,26 @@ def find_s2_processing_level(
     return processing_level
 
 
+def get_resolution_order(
+    target_resolution: float, available_resolutions: list[int]
+) -> list[int]:
+    """
+    Order resolutions starting with exact match or next smaller value,
+    then remaining smaller values in descending order,
+    then larger values in ascending order.
+    """
+    # Separate into smaller, exact, and larger
+    smaller = [r for r in available_resolutions if r < target_resolution]
+    exact = [r for r in available_resolutions if r == target_resolution]
+    larger = [r for r in available_resolutions if r > target_resolution]
+
+    # Sort smaller (descending) and larger (ascending)
+    smaller.sort(reverse=True)
+    larger.sort()
+
+    return exact + smaller + larger
+
+
 def open_s2_bands(
     input_path: Path,
     processing_level: str,
@@ -50,8 +70,11 @@ def open_s2_bands(
             except IndexError:
                 raise ValueError(f"Band {band_name} not found in {input_path}")
         else:
+            resolution_preferences = get_resolution_order(
+                target_resolution=resolution, available_resolutions=[10, 20, 60]
+            )
             band = None
-            for search_resolution in [10, 20, 60]:
+            for search_resolution in resolution_preferences:
                 band_paths = list(
                     input_path.rglob(f"*{band_name}_{search_resolution}m.jp2")
                 )
@@ -75,6 +98,7 @@ def open_s2_bands(
                             int(src.height * scale_factor),
                             int(src.width * scale_factor),
                         ),
+                        resampling=rio.enums.Resampling.bilinear,  # type: ignore
                     )
                 )
     profile["transform"] = rio.transform.from_origin(  # type: ignore
@@ -120,7 +144,7 @@ def load_multiband(
                 int(src.height * scale_factor[0]),
                 int(src.width * scale_factor[1]),
             ),
-            resampling=rio.enums.Resampling.nearest,  # type: ignore
+            resampling=rio.enums.Resampling.bilinear,  # type: ignore
         )
         profile = src.profile
 
