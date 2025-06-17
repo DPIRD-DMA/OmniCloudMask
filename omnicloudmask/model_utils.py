@@ -235,7 +235,7 @@ def compile_torch_model(
                 (i, 3, patch_size, patch_size), dtype=dtype, device=device
             )
             with torch.no_grad():
-                _ = model(dummy_temp)
+                _ = compiled_model(dummy_temp)
         return compiled_model
     except Exception as e:
         warnings.warn(
