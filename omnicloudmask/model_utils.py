@@ -1,11 +1,13 @@
+import warnings
 from functools import partial
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, Union, cast
 
 import numpy as np
 import timm
 import torch
 from fastai.vision.learner import create_unet_model
+from safetensors.torch import load_file
 
 
 def get_torch_dtype(dtype: Union[torch.dtype, str]) -> torch.dtype:
@@ -125,21 +127,14 @@ def inference_and_store(
     grad_tracker: Optional[torch.Tensor] = None,
 ) -> None:
     """Perform inference on the patch_batch and store the results in the pred_tracker and grad_tracker tensors."""
-    # pre-initialize the all_preds tensor to store the predictions from each model
-    all_preds = torch.zeros(
-        len(models),
-        patch_batch.shape[0],
-        pred_tracker.shape[0],
-        patch_batch.shape[2],
-        patch_batch.shape[3],
-        device=patch_batch.device,
-        dtype=patch_batch.dtype,
-    )
-    for index, model in enumerate(models):
-        with torch.no_grad():
-            all_preds[index] = model(patch_batch)
 
-    mean_preds = all_preds.mean(dim=0)
+    all_preds = []
+
+    for model in models:
+        with torch.no_grad():
+            all_preds.append(model(patch_batch))
+
+    mean_preds = torch.mean(torch.stack(all_preds), dim=0)
 
     store_results(
         pred_batch=mean_preds,
@@ -202,7 +197,49 @@ def load_model_from_weights(
         pretrained=False,
     )
 
-    model.load_state_dict(torch.load(weights_path, weights_only=True))
+    # If using the v2 weights then the file will be saved as a .safetensors file
+    if Path(weights_path).suffix == ".safetensors":
+        model_state = load_file(weights_path)
+
+    elif Path(weights_path).suffix == ".pth":
+        model_state = torch.load(weights_path, weights_only=True)
+    else:
+        raise ValueError(
+            "Unsupported file format. Only .safetensors and .pth files are supported."
+        )
+    model.load_state_dict(model_state)
     model.eval()
 
     return model.to(dtype).to(device)
+
+
+def compile_torch_model(
+    model: torch.nn.Module,
+    patch_size: int,
+    batch_size: int,
+    dtype: torch.dtype,
+    device: torch.device,
+    compile_mode: str,
+) -> torch.nn.Module:
+    """Compile a PyTorch model for inference with dynamic batch sizes."""
+
+    try:
+        # Try to compile the model with dynamic batch size
+        # We use cast as torch.compile returns a Any, not a Module
+        compiled_model = cast(
+            torch.nn.Module,
+            torch.compile(model, mode=compile_mode, fullgraph=False, dynamic=True),
+        )
+        for i in range(1, batch_size + 1):
+            dummy_temp = torch.zeros(
+                (i, 3, patch_size, patch_size), dtype=dtype, device=device
+            )
+            with torch.no_grad():
+                _ = model(dummy_temp)
+        return compiled_model
+    except Exception as e:
+        warnings.warn(
+            f"Failed to compile model with torch.compile: {e}. "
+            "Returning the original model without compilation."
+        )
+        return model

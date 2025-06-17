@@ -12,6 +12,7 @@ from tqdm.auto import tqdm
 from .__version__ import __version__
 from .download_models import get_models
 from .model_utils import (
+    compile_torch_model,
     create_gradient_mask,
     default_device,
     get_torch_dtype,
@@ -215,7 +216,7 @@ def coordinator(
     )
 
     if export_confidence:
-        pred_tracker_norm = pred_tracker / grad_tracker
+        pred_tracker_norm = pred_tracker / grad_tracker  # type: ignore
         if softmax_output:
             pred_tracker = torch.clip(
                 (torch.nn.functional.softmax(pred_tracker_norm, 0) + 0.001),
@@ -267,10 +268,13 @@ def collect_models(
     inference_dtype: torch.dtype,
     source: str,
     destination_model_dir: Union[str, Path, None] = None,
+    model_version: float = 2.0,
 ) -> list[torch.nn.Module]:
     if not custom_models:
         models = []
-        for model_details in get_models(model_dir=destination_model_dir, source=source):
+        for model_details in get_models(
+            model_dir=destination_model_dir, source=source, model_version=model_version
+        ):
             models.append(
                 load_model_from_weights(
                     model_name=model_details["timm_model_name"],
@@ -287,6 +291,7 @@ def collect_models(
         models = [
             model.to(inference_dtype).to(inference_device) for model in custom_models
         ]
+
     return models
 
 
@@ -306,6 +311,9 @@ def predict_from_array(
     pred_classes: int = 4,
     destination_model_dir: Union[str, Path, None] = None,
     model_download_source: str = "hugging_face",
+    compile_models: bool = False,
+    compile_mode: str = "default",
+    model_version: float = 2.0,
 ) -> np.ndarray:
     """Predict a cloud and cloud shadow mask from a Red, Green and NIR numpy array, with a spatial res between 10 m and 50 m.
 
@@ -325,6 +333,8 @@ def predict_from_array(
         pred_classes (int, optional): Number of classes to predict. Defaults to 4, to be used with custom models. Defaults to 4.
         destination_model_dir Union[str, Path, None]: Directory to save the model weights. Defaults to None.
         model_download_source (str, optional): Source from which to download the model weights. Defaults to "hugging_face", can also be "google_drive".
+        compile_models (bool, optional): If True, compiles the models for faster inference. Defaults to False.
+        compile_mode (str, optional): Compilation mode for the models. Defaults to "default".
     Returns:
         np.ndarray: A numpy array with shape (1, height, width) or (4, height, width if export_confidence = True) representing the predicted cloud and cloud shadow mask.
 
@@ -344,7 +354,21 @@ def predict_from_array(
         inference_dtype=inference_dtype,
         source=model_download_source,
         destination_model_dir=destination_model_dir,
+        model_version=model_version,
     )
+
+    if compile_models:
+        models = [
+            compile_torch_model(
+                model,
+                patch_size=patch_size,
+                batch_size=batch_size,
+                dtype=inference_dtype,
+                device=inference_device,
+                compile_mode=compile_mode,
+            )
+            for model in models
+        ]
 
     pred_tracker = coordinator(
         input_array=input_array,
@@ -385,6 +409,9 @@ def predict_from_load_func(
     pred_classes: int = 4,
     destination_model_dir: Union[str, Path, None] = None,
     model_download_source: str = "hugging_face",
+    compile_models: bool = False,
+    compile_mode: str = "default",
+    model_version: float = 2.0,
 ) -> list[Path]:
     """
     Predicts cloud and cloud shadow masks for a list of scenes using a specified loading function.
@@ -408,7 +435,8 @@ def predict_from_load_func(
         pred_classes (int, optional): Number of classes to predict. Defaults to 4, to be used with custom models. Defaults to 4.
         destination_model_dir Union[str, Path, None]: Directory to save the model weights. Defaults to None.
         model_download_source (str, optional): Source from which to download the model weights. Defaults to "hugging_face", can also be "google_drive".
-
+        compile_models (bool, optional): If True, compiles the models for faster inference. Defaults to False.
+        compile_mode (str, optional): Compilation mode for the models. Defaults to "default".
     Returns:
         list[Path]: A list of paths to the output prediction files.
 
@@ -431,7 +459,21 @@ def predict_from_load_func(
         inference_dtype=inference_dtype,
         destination_model_dir=destination_model_dir,
         source=model_download_source,
+        model_version=model_version,
     )
+
+    if compile_models:
+        models = [
+            compile_torch_model(
+                model,
+                patch_size=patch_size,
+                batch_size=batch_size,
+                dtype=inference_dtype,
+                device=inference_device,
+                compile_mode=compile_mode,
+            )
+            for model in models
+        ]
 
     pbar = tqdm(
         total=len(scene_paths),
