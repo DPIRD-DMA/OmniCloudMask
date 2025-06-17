@@ -1,0 +1,34 @@
+[project]
+name = "omnicloudmask"
+authors = [{name = "Nick Wright", email = "nicholas.wright@dpird.wa.gov.au"}]
+dynamic = ["version"]
+description = "Python library for cloud and cloud shadow segmentation in high to moderate resolution satellite imagery"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "fastai>=2.7",
+    "gdown>=5.1.0",
+    "huggingface-hub>=0.28.1",
+    "rasterio>=1.3",
+    "safetensors>=0.3.0",
+    "timm>=0.9",
+    "torch>=2.2.0",
+    "tqdm>=4.0",
+]
+
+[tool.setuptools.dynamic]
+version = {attr = "omnicloudmask.__version__"}
+
+[dependency-groups]
+dev = [
+    "jupyter>=1.1.1",
+    "pytest>=8.4.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/DPIRD-DMA/OmniCloudMask"
+
+
+
+[tool.setuptools.package-data]
+omnicloudmask = ["models/model_download_links.csv"]

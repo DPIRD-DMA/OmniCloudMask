@@ -5,9 +5,8 @@
 Install the necessary tools for testing, building and uploading packages:
 
 ```bash
-pip install pytest
-pip install build
-pip install twine
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv sync
 ```
 ## 2. Run tests
 
@@ -25,7 +24,7 @@ Remove any old builds from the "dist" folder, so we upload only the newest relea
 Build the OmniCloudMask package:
 
 ```bash
-python -m build
+uv build
 ```
 
 ## 5. Upload to Test PyPI
@@ -33,7 +32,7 @@ python -m build
 Upload the package to Test PyPI for testing purposes. You will need to enter your user token:
 
 ```bash
-twine upload --repository testpypi dist/*
+uv publish --index-url https://test.pypi.org/legacy/
 ```
 
 ## 6. Test Installation
@@ -49,7 +48,7 @@ pip install -i https://test.pypi.org/simple/ omnicloudmask --extra-index-url htt
 Once testing is complete and successful, upload the package to the main PyPI repository:
 
 ```bash
-twine upload --repository pypi dist/*
+uv publish
 ```
 
 > **Note:** Ensure you have the necessary credentials and permissions for both Test PyPI and PyPI before attempting to upload.
