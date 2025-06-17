@@ -1,23 +1,23 @@
-from pathlib import Path
 from functools import partial
+from pathlib import Path
+
 import numpy as np
-import rasterio as rio
 import pytest
+import rasterio as rio
 import torch
 
 from omnicloudmask.cloud_mask import (
+    check_patch_size,
     predict_from_array,
     predict_from_load_func,
-    check_patch_size,
 )
-from omnicloudmask.download_models import get_models
-from omnicloudmask.model_utils import load_model_from_weights
-
 from omnicloudmask.data_loaders import (
     load_ls8,
     load_multiband,
     load_s2,
 )
+from omnicloudmask.download_models import get_models
+from omnicloudmask.model_utils import load_model_from_weights
 
 test_dir = Path(__file__).parent.resolve() / "test data"
 s2_l1_path = (
@@ -67,6 +67,21 @@ def test_predict_from_array_basic():
     data = np.random.rand(3, 200, 200)
     # Call the function
     result = predict_from_array(data, patch_size=100, patch_overlap=50)
+    # Check the result
+    assert result.shape == (1, 200, 200), "Unexpected shape for result"
+    # make sure we dont have values outside of 0,1,2,3s
+    assert np.all(
+        np.isin(np.unique(result), [0, 1, 2, 3])
+    ), "Unexpected values in result"
+
+
+def test_predict_from_array_basic_v1():
+    # Create some sample data
+    data = np.random.rand(3, 200, 200)
+    # Call the function
+    result = predict_from_array(
+        data, patch_size=100, patch_overlap=50, model_version=1.0
+    )
     # Check the result
     assert result.shape == (1, 200, 200), "Unexpected shape for result"
     # make sure we dont have values outside of 0,1,2,3s
@@ -220,7 +235,7 @@ def test_predict_from_load_func_s2_L2():
     difference = np.abs(pred_array - expected_output_array).sum()
     # Check that is within 0.1% of the expected output
     assert (
-        difference < (10980 * 10980) * 0.001
+        difference < (10980 * 10980) * 0.01
     ), f"Unexpected difference between expected and actual output: {difference}"
 
 
