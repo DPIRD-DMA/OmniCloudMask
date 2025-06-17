@@ -35,9 +35,13 @@ def download_file_from_hugging_face(destination: Path) -> None:
         filename=f"{file_name}.safetensors",
         force_download=True,
         cache_dir=destination.parent,
+        local_dir=destination.parent,
     )
-    model_state = load_file(safetensor_path)
-    torch.save(model_state, destination)
+
+    # If using the v1 weights then the file will be saved as a .pth file
+    if destination.suffix == ".pth":
+        model_state = load_file(safetensor_path)
+        torch.save(model_state, destination)
 
 
 def download_file(file_id: str, destination: Path, source: str) -> None:
@@ -55,6 +59,7 @@ def get_models(
     force_download: bool = False,
     model_dir: Union[str, Path, None] = None,
     source: str = "hugging_face",
+    model_version: float = 2.0,
 ) -> list[dict]:
     """
     Downloads the model weights from Google Drive and saves them locally.
@@ -65,12 +70,22 @@ def get_models(
         source (str): The source from which the model weights should be downloaded. Currently, only "google_drive" or "hugging_face" are supported.
     """
 
-    df = pd.read_csv(
+    model_df = pd.read_csv(
         Path(__file__).resolve().parent / "models/model_download_links.csv"
     )
+    # set version column to float
+    model_df["version"] = model_df["version"].astype(float)
+    available_versions = model_df["version"].unique()
+    if model_version not in available_versions:
+        raise ValueError(
+            f"Model version {model_version} not found. Available versions: {available_versions}"
+        )
+    # filter models by version
+    model_df = model_df[model_df["version"] == model_version]
+
     model_paths = []
 
-    for _, row in df.iterrows():
+    for _, row in model_df.iterrows():
         file_id = str(row["google_drive_id"])
 
         if model_dir is not None:
