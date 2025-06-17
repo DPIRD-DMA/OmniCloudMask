@@ -15,10 +15,10 @@ validation dataset/Landsat/dataset/*
 validation dataset/Landsat*
 validation dataset/Sentinel-2/*
 tests/custom_models/*
-training/*
 omnicloudmask/models/.*
 omnicloudmask/models/models--NickWright--OmniCloudMask/*
 training/convert models.ipynb
 custom_models/*
 *.DS_Store
 omnicloudmask/models/*.safetensors
+training/__pycache__/*
