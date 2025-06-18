@@ -26,6 +26,7 @@ from .raster_utils import (
     save_prediction,
 )
 
+from .mps_patch import apply_mps_fix, remove_mps_fix
 
 def compile_batches(
     batch_size: int,
@@ -190,6 +191,10 @@ def coordinator(
         input_array, no_data_value, patch_size, patch_overlap
     )
 
+    # if using mps for inference, apply the mps fix
+    if inference_device.type == "mps":
+        apply_mps_fix()
+
     pred_tracker = torch.zeros(
         (pred_classes, *input_array.shape[1:3]),
         dtype=inference_dtype,
@@ -256,7 +261,9 @@ def coordinator(
 
         else:
             save_prediction(output_path, export_profile, pred_tracker_np)
-
+            
+    if inference_device.type == "mps":
+        remove_mps_fix()
     if pbar:
         pbar.update(1)
     return pred_tracker_np
