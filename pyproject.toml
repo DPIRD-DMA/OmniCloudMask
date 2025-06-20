@@ -1,9 +1,12 @@
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "omnicloudmask"
 authors = [{name = "Nick Wright", email = "nicholas.wright@dpird.wa.gov.au"}]
 dynamic = ["version"]
 description = "Python library for cloud and cloud shadow segmentation in high to moderate resolution satellite imagery"
-readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
     "fastai>=2.7",
@@ -15,9 +18,12 @@ dependencies = [
     "torch>=2.2.0",
     "tqdm>=4.0",
 ]
+license = "MIT"
+readme = {file = "README.md", content-type = "text/markdown"}
+keywords = ["sentinel-2", "landsat", "maxar", "planetscope", "satellite", "cloud", "remote-sensing", "mask", "shadow"]
 
 [tool.setuptools.dynamic]
-version = {attr = "omnicloudmask.__version__"}
+version = {attr = "omnicloudmask.__version__.__version__"}
 
 [dependency-groups]
 dev = [
@@ -28,8 +34,6 @@ dev = [
 
 [project.urls]
 Homepage = "https://github.com/DPIRD-DMA/OmniCloudMask"
-
-
 
 [tool.setuptools.package-data]
 omnicloudmask = ["models/model_download_links.csv"]

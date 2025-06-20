@@ -2730,7 +2730,7 @@ wheels = [
 
 [[package]]
 name = "omnicloudmask"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "fastai", version = "2.7.19", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "fastai", version = "2.8.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
