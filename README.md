@@ -9,6 +9,10 @@ OmniCloudMask has been validated on Sentinel-2, PlanetScope and Landsat data and
 
 [The OmniCloudMask paper is now published 🎉](https://www.sciencedirect.com/science/article/pii/S0034425725000987)
 
+## Changelog
+### Version 1.3.0:
+    * New model release, both faster and more robust to different resolutions.
+    * Added torch.compile model compilation.
 
 ## Features
 
@@ -20,6 +24,7 @@ OmniCloudMask has been validated on Sentinel-2, PlanetScope and Landsat data and
 -   Only requires Red, Green and NIR bands
 -   Known to work well with Sentinel-2, Landsat 8, PlanetScope and Maxar
 -   Supports inference on cuda, mps and cpu
+-   Model compilation for faster inference
 
 ## Try in Colab
 
@@ -93,6 +98,24 @@ scene_paths = [Path("path/to/scene1"), Path("path/to/scene2")]
 pred_paths = predict_from_load_func(scene_paths, load_ls8)
 ```
 
+#### Seep optimised options
+```python
+pred_paths = predict_from_load_func(scene_paths=scene_paths, 
+                                    load_func=load_s2,
+                                    inference_device='bf16',
+                                    compile_models=True,
+                                    batch_size=4)
+```
+
+#### Low VRAM options
+```python
+pred_paths = predict_from_load_func(scene_paths=scene_paths, 
+                                    load_func=load_s2,
+                                    inference_device='bf16',
+                                    batch_size=1,
+                                    mosaic_device='cpu')
+```
+
 ## Output
 - Output classes are defined by the CloudSEN12 [paper](https://www.nature.com/articles/s41597-022-01878-2) and [dataset](https://cloudsen12.github.io/) used for training.
 - 0 = Clear
@@ -109,6 +132,7 @@ pred_paths = predict_from_load_func(scene_paths, load_ls8)
 -   If you are processing many files try to use the 'predict_from_load_func' as it preloads data during inference, resulting in faster processing.
 -   In some rare cases OmniCloudMask may fail to detect cloud if the raster data is clipped by sensor saturation or preprocessing, this results in image regions with no remaining texture to enable detection. To resolve this simply preprocess these regions and set the areas to 0, the no data value.
 -   OmniCloudMask expects Red, Green and NIR bands, however if you don't have a NIR band then we have seen reasonable results passing Red Green BLUE bands into the model instead.
+-   If you are processing more than 10-20 scenes using predict_from_load_func try turning on 'compile_models' it should reduce processing times by 10-20%.
 
 ## Parameters
 
@@ -130,9 +154,12 @@ pred_paths = predict_from_load_func(scene_paths, load_ls8)
 -   `output_dir (Optional[Union[Path, str]], optional)`: Directory to save the prediction files. Defaults to None. If None, the predictions will 
 be saved in the same directory as the input scene.
 -   `custom_models (Union[list[torch.nn.Module], torch.nn.Module], optional)`: A list or singular custom torch models to use for prediction. Defaults to [].
--   `pred_classes (int, optional)` :  Number of classes to predict. Defaults to 4, to be used with custom models. Defaults to 4.
+-   `pred_classes (int, optional)`:  Number of classes to predict. Defaults to 4, to be used with custom models. Defaults to 4.
 -   `destination_model_dir (Union[str, Path, None])`: Directory to save the model weights. Defaults to None.
--   `model_download_source (str, optional)`: Source from which to download the model weights. Defaults to "google_drive", can also be "hugging_face".
+-   `model_download_source (str, optional)`: Source from which to download the model weights. Defaults to "hugging_face", can also be "google_drive".
+-   `compile_models (bool, optional)`: If True, compiles the models for faster inference. Defaults to False.
+-   `compile_mode (str, optional)`: Compilation mode for the models. Defaults to "default".
+-   `model_version (float, optional`: Version of the model to use. Defaults to 2.0 can also be 1.0 for original models.
 
 
 ### `predict_from_array`
@@ -149,9 +176,12 @@ be saved in the same directory as the input scene.
 -   `no_data_value (int)`: Value within input scenes that specifies no data region. Defaults to 0.
 -   `apply_no_data_mask (bool)`: If True, applies a no-data mask to the predictions. Defaults to True.
 -   `custom_models (Union[list[torch.nn.Module], torch.nn.Module], optional)`: A list or singular custom torch models to use for prediction. Defaults to [].
--   `pred_classes (int, optional)` :  Number of classes to predict. Defaults to 4, to be used with custom models. Defaults to 4.
+-   `pred_classes (int, optional)`:  Number of classes to predict. Defaults to 4, to be used with custom models. Defaults to 4.
 -   `destination_model_dir (Union[str, Path, None])` : Directory to save the model weights. Defaults to None.
--   `model_download_source (str, optional)`: Source from which to download the model weights. Defaults to "google_drive", can also be "hugging_face".
+-   `model_download_source (str, optional)`: Source from which to download the model weights. Defaults to "hugging_face", can also be "google_drive".
+-   `compile_models (bool, optional)`: If True, compiles the models for faster inference. Defaults to False.
+-   `compile_mode (str, optional)`: Compilation mode for the models. Defaults to "default".
+-   `model_version (float, optional`: Version of the model to use. Defaults to 2.0 can also be 1.0 for original models.
 
 ## Contributing
 
