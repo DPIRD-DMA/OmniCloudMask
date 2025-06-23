@@ -19,6 +19,7 @@ from .model_utils import (
     inference_and_store,
     load_model_from_weights,
 )
+from .mps_patch import apply_mps_fix, remove_mps_fix
 from .raster_utils import (
     get_patch,
     make_patch_indexes,
@@ -26,7 +27,6 @@ from .raster_utils import (
     save_prediction,
 )
 
-from .mps_patch import apply_mps_fix, remove_mps_fix
 
 def compile_batches(
     batch_size: int,
@@ -261,7 +261,7 @@ def coordinator(
 
         else:
             save_prediction(output_path, export_profile, pred_tracker_np)
-            
+
     if inference_device.type == "mps":
         remove_mps_fix()
     if pbar:
@@ -342,6 +342,7 @@ def predict_from_array(
         model_download_source (str, optional): Source from which to download the model weights. Defaults to "hugging_face", can also be "google_drive".
         compile_models (bool, optional): If True, compiles the models for faster inference. Defaults to False.
         compile_mode (str, optional): Compilation mode for the models. Defaults to "default".
+        model_version (float, optional): Version of the model to use. Defaults to 2.0 can also be 1.0 for original models.
     Returns:
         np.ndarray: A numpy array with shape (1, height, width) or (4, height, width if export_confidence = True) representing the predicted cloud and cloud shadow mask.
 
@@ -444,6 +445,7 @@ def predict_from_load_func(
         model_download_source (str, optional): Source from which to download the model weights. Defaults to "hugging_face", can also be "google_drive".
         compile_models (bool, optional): If True, compiles the models for faster inference. Defaults to False.
         compile_mode (str, optional): Compilation mode for the models. Defaults to "default".
+        model_version (float, optional): Version of the model to use. Defaults to 2.0 can also be 1.0 for original models.
     Returns:
         list[Path]: A list of paths to the output prediction files.
 
