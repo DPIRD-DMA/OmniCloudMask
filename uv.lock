@@ -2748,6 +2748,7 @@ dependencies = [
 dev = [
     { name = "jupyter" },
     { name = "pytest" },
+    { name = "s2dl" },
     { name = "tacoreader" },
 ]
 
@@ -2767,6 +2768,7 @@ requires-dist = [
 dev = [
     { name = "jupyter", specifier = ">=1.1.1" },
     { name = "pytest", specifier = ">=8.4.0" },
+    { name = "s2dl", specifier = ">=0.3" },
     { name = "tacoreader", specifier = ">=0.5.6" },
 ]
 
@@ -3786,6 +3788,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/59/d0/31cece9090e76fbdb50c758c165d40da604b03b37c3ba53f010bbfeb130a/rpds_py-0.25.1-pp39-pypy39_pp73-musllinux_1_2_i686.whl", hash = "sha256:5d9e40f32745db28c1ef7aad23f6fc458dc1e29945bd6781060f0d15628b8ddf", size = 592681 },
     { url = "https://files.pythonhosted.org/packages/f1/4c/22ef535efb2beec614ba7be83e62b439eb83b0b0d7b1775e22d35af3f9b5/rpds_py-0.25.1-pp39-pypy39_pp73-musllinux_1_2_x86_64.whl", hash = "sha256:35a8d1a24b5936b35c5003313bc177403d8bdef0f8b24f28b1c4a255f94ea992", size = 558744 },
     { url = "https://files.pythonhosted.org/packages/79/ff/f2150efc8daf0581d4dfaf0a2a30b08088b6df900230ee5ae4f7c8cd5163/rpds_py-0.25.1-pp39-pypy39_pp73-win_amd64.whl", hash = "sha256:6099263f526efff9cf3883dfef505518730f7a7a93049b1d90d42e50a22b4793", size = 231305 },
+]
+
+[[package]]
+name = "s2dl"
+version = "0.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/cf/ef/c08694b37ea2063ff385b4f7dede488774de0e37e7083003dc5d7cd557f6/s2dl-0.3.tar.gz", hash = "sha256:ef262058c5863bb3017ad045aa4afc661eb44193e89196eb9e784cadf2329ca7", size = 4715 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4f/f1/72e113776e10f48cb4e0d99ea5c725a8939cedebbb904650028d1cbc80de/s2dl-0.3-py3-none-any.whl", hash = "sha256:e6406938a31a0460a9b8dfdef6d04805997b127c0861b01a864e9f9f87bc77ed", size = 5073 },
 ]
 
 [[package]]
