@@ -32,7 +32,7 @@ uv build
 Upload the package to Test PyPI for testing purposes. You will need to enter your user token:
 
 ```bash
-uv publish --index-url https://test.pypi.org/legacy/
+uv publish --publish-url https://test.pypi.org/legacy/
 ```
 
 ## 6. Test Installation
