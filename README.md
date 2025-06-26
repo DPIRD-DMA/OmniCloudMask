@@ -109,6 +109,10 @@ pred_paths = predict_from_load_func(scene_paths=scene_paths,
 
 #### Low VRAM options
 ```python
+import torch
+# Set this to the number of CPU cores if using mosaic_device='cpu'
+torch.set_num_threads(4) 
+
 pred_paths = predict_from_load_func(scene_paths=scene_paths, 
                                     load_func=load_s2,
                                     inference_device='bf16',
