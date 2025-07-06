@@ -64,7 +64,9 @@ def compile_batches(
                 if len(index_batch) == 0:
                     continue
                 input_tensor = (
-                    torch.tensor(patch_batch_array[: len(index_batch)])
+                    torch.tensor(
+                        patch_batch_array[: len(index_batch)], dtype=torch.float32
+                    )
                     .to(inference_device)
                     .to(inference_dtype)
                 )
@@ -491,7 +493,7 @@ def predict_from_load_func(
 
     for scene_path in scene_paths:
         scene_path = Path(scene_path)
-        file_name = f"{scene_path.stem}_OCM_v{__version__.replace('.','_')}.tif"
+        file_name = f"{scene_path.stem}_OCM_v{__version__.replace('.', '_')}.tif"
 
         if output_dir is None:
             output_path = scene_path.parent / file_name
