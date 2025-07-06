@@ -1,11 +1,14 @@
 from pathlib import Path
 from typing import Union
+import platformdirs
 
 import gdown
 import pandas as pd
 import torch
 from huggingface_hub import hf_hub_download
 from safetensors.torch import load_file
+
+from .__version__ import __version__ as omnicloudmask_version
 
 
 def download_file_from_google_drive(file_id: str, destination: Path) -> None:
@@ -55,6 +58,13 @@ def download_file(file_id: str, destination: Path, source: str) -> None:
         )
 
 
+def get_model_data_dir() -> Path:
+    """Get the user data directory for model files"""
+    data_dir = Path(platformdirs.user_data_dir("omnicloudmask")) / omnicloudmask_version
+    data_dir.mkdir(parents=True, exist_ok=True)
+    return data_dir
+
+
 def get_models(
     force_download: bool = False,
     model_dir: Union[str, Path, None] = None,
@@ -70,9 +80,7 @@ def get_models(
         source (str): The source from which the model weights should be downloaded. Currently, only "google_drive" or "hugging_face" are supported.
     """
 
-    model_df = pd.read_csv(
-        Path(__file__).resolve().parent / "models/model_download_links.csv"
-    )
+    model_df = pd.read_csv(Path(__file__).resolve().parent / "model_download_links.csv")
     # set version column to float
     model_df["version"] = model_df["version"].astype(float)
     available_versions = model_df["version"].unique()
@@ -84,14 +92,13 @@ def get_models(
     model_df = model_df[model_df["version"] == model_version]
 
     model_paths = []
+    if model_dir is not None:
+        model_dir = Path(model_dir)
+    else:
+        model_dir = get_model_data_dir()
 
     for _, row in model_df.iterrows():
         file_id = str(row["google_drive_id"])
-
-        if model_dir is not None:
-            model_dir = Path(model_dir)
-        else:
-            model_dir = Path(__file__).resolve().parent / "models"
 
         model_dir.mkdir(exist_ok=True)
         destination = model_dir / str(row["file_name"])
