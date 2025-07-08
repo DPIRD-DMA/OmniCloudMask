@@ -14,8 +14,8 @@ OmniCloudMask has been validated on Sentinel-2, PlanetScope and Landsat data and
     * New model release, both faster and more robust to different resolutions.
     * Added torch.compile model compilation.
 ### Version 1.3.1:
-    * Changed default model download destination to platformdirs.user_data_dir
-    * Changed exported geotiff metadata nodata value from 0 to None
+    * Changed default model download destination to platformdirs.user_data_dir.
+    * Changed exported geotiff metadata nodata value from 0 to None.
 ## Features
 
 -   Process imagery resolutions from 10 m to 50 m, (higher resolutions can be down sampled to 10 m).
@@ -153,8 +153,8 @@ pred_paths = predict_from_load_func(scene_paths=scene_paths,
 -   `patch_size (int)`: Size of the patches for inference. Defaults to 1000.
 -   `patch_overlap (int)`: Overlap between patches for inference. Defaults to 300.
 -   `batch_size (int)`: Number of patches to process in a batch. Defaults to 1.
--   `inference_device (Union[str, torch.device])`: Device to use for inference (e.g., 'cpu', 'cuda'). Defaults to the device returned by default_device().
--   `mosaic_device (Union[str, torch.device])`: Device to use for mosaicking patches. Defaults to the device returned by default_device().
+-   `inference_device (Union[str, torch.device])`: Device to use for inference (e.g., 'cpu', 'cuda'). Defaults to None then default_device().
+-   `mosaic_device (Union[str, torch.device])`: Device to use for mosaicking patches. Defaults to None then default_device().
 -   `inference_dtype (Union[torch.dtype, str])`: Data type for inference. Defaults to torch.float32.
 -   `export_confidence (bool)`: If True, exports confidence maps instead of predicted classes. Defaults to False.
 -   `softmax_output (bool)`: If True, applies a softmax to the output, only used if export_confidence = True. Defaults to True.
@@ -163,7 +163,7 @@ pred_paths = predict_from_load_func(scene_paths=scene_paths,
 -   `apply_no_data_mask (bool)`: If True, applies a no-data mask to the predictions. Defaults to True.
 -   `output_dir (Optional[Union[Path, str]], optional)`: Directory to save the prediction files. Defaults to None. If None, the predictions will 
 be saved in the same directory as the input scene.
--   `custom_models (Union[list[torch.nn.Module], torch.nn.Module], optional)`: A list or singular custom torch models to use for prediction. Defaults to [].
+-   `custom_models (Union[list[torch.nn.Module], torch.nn.Module], optional)`: A list or singular custom torch models to use for prediction. Defaults to None.
 -   `pred_classes (int, optional)`:  Number of classes to predict. Defaults to 4, to be used with custom models. Defaults to 4.
 -   `destination_model_dir (Union[str, Path, None])`: Directory to save the model weights. Defaults to None.
 -   `model_download_source (str, optional)`: Source from which to download the model weights. Defaults to "hugging_face", can also be "google_drive".
@@ -178,14 +178,14 @@ be saved in the same directory as the input scene.
 -   `patch_size (int)`: Size of the patches for inference. Defaults to 1000.
 -   `patch_overlap (int)`: Overlap between patches for inference. Defaults to 300.
 -   `batch_size (int)`: Number of patches to process in a batch. Defaults to 1.
--   `inference_device (Union[str, torch.device])`: Device to use for inference (e.g., 'cpu', 'cuda'). Defaults to the device returned by default_device().
--   `mosaic_device (Union[str, torch.device])`: Device to use for mosaicking patches. Defaults to the device returned by default_device().
+-   `inference_device (Union[str, torch.device])`: Device to use for inference (e.g., 'cpu', 'cuda'). Defaults to None then default_device().
+-   `mosaic_device (Union[str, torch.device])`: Device to use for mosaicking patches. Defaults to None then default_device().
 -   `inference_dtype (Union[torch.dtype, str])`: Data type for inference. Defaults to torch.float32.
 -   `export_confidence (bool)`: If True, exports confidence maps instead of predicted classes. Defaults to False.
 -   `softmax_output (bool)`: If True, applies a softmax to the output, only used if export_confidence = True. Defaults to True.
 -   `no_data_value (int)`: Value within input scenes that specifies no data region. Defaults to 0.
 -   `apply_no_data_mask (bool)`: If True, applies a no-data mask to the predictions. Defaults to True.
--   `custom_models (Union[list[torch.nn.Module], torch.nn.Module], optional)`: A list or singular custom torch models to use for prediction. Defaults to [].
+-   `custom_models (Union[list[torch.nn.Module], torch.nn.Module], optional)`: A list or singular custom torch models to use for prediction. Defaults to None.
 -   `pred_classes (int, optional)`:  Number of classes to predict. Defaults to 4, to be used with custom models. Defaults to 4.
 -   `destination_model_dir (Union[str, Path, None])` : Directory to save the model weights. Defaults to None.
 -   `model_download_source (str, optional)`: Source from which to download the model weights. Defaults to "hugging_face", can also be "google_drive".
