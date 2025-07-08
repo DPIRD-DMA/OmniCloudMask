@@ -30,6 +30,7 @@ version = {attr = "omnicloudmask.__version__.__version__"}
 dev = [
     "jupyter>=1.1.1",
     "pytest>=8.4.0",
+    "ruff>=0.12.2",
     "s2dl>=0.3",
     "tacoreader>=0.5.6",
 ]
@@ -42,3 +43,6 @@ omnicloudmask = ["model_download_links.csv"]
 
 [tool.setuptools]
 packages = ["omnicloudmask"]
+
+[tool.ruff]
+select = ["E", "F", "B"]
