@@ -1,6 +1,7 @@
-import torch
 from typing import Callable, Optional
+
 import timm
+import torch
 
 # This is a patch to fix MPS contiguity issues in timm EdgeNeXt models
 # It modifies the Conv2d forward method to ensure inputs are contiguous
@@ -21,7 +22,7 @@ def needs_mps_fix() -> bool:
             return False
 
         # Create the smallest EdgeNeXt model to minimize overhead
-        model = timm.create_model("edgenext_xx_small", pretrained=False)  # type: ignore
+        model = timm.create_model("edgenext_xx_small", pretrained=False)
         model.eval()
 
         # Move to MPS device
@@ -44,7 +45,9 @@ def needs_mps_fix() -> bool:
             # Some other error - re-raise it as it's unexpected
             raise e
     except Exception as e:
-        raise Exception(f"An unexpected error occurred while checking MPS fix. {e}")
+        raise Exception(
+            f"An unexpected error occurred while checking MPS fix. {e}"
+        ) from None
 
 
 def apply_mps_fix():

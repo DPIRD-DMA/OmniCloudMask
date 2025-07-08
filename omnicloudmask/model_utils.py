@@ -27,7 +27,7 @@ def get_torch_dtype(dtype: Union[torch.dtype, str]) -> torch.dtype:
         except KeyError:
             raise ValueError(
                 f"Invalid dtype: {dtype}. Must be one of {list(dtype_mapping.keys())}"
-            )
+            ) from None
     elif isinstance(dtype, torch.dtype):
         return dtype
     else:
@@ -72,8 +72,8 @@ def create_gradient_mask(
 
 
 def channel_norm(patch: np.ndarray, nodata_value: Optional[int] = 0) -> np.ndarray:
-    """Normalize each band of the input array by subtracting the nonzero mean and dividing
-    by the nonzero standard deviation then fill nodata values with 0."""
+    """Normalize each band of the input array by subtracting the nonzero mean and
+    dividing by the nonzero standard deviation then fill nodata values with 0."""
     out_array = np.zeros(patch.shape).astype(np.float32)
     for id, band in enumerate(patch):
         # Mask for non-zero values
@@ -100,7 +100,8 @@ def store_results(
     gradient: torch.Tensor,
     grad_tracker: Optional[torch.Tensor] = None,
 ) -> None:
-    """Store the results of the model inference in the pred_tracker and grad_tracker tensors."""
+    """Store the results of the model inference in the pred_tracker
+    and grad_tracker tensors."""
     # Store the predictions in the pred_tracker tensor
     assert pred_batch.ndim == 4, "pred_batch must have 4 dimensions, (B, class, H, W)"
     assert pred_batch.shape[0] == len(index_batch), "Batch size must match index_batch"
@@ -126,7 +127,8 @@ def inference_and_store(
     gradient: torch.Tensor,
     grad_tracker: Optional[torch.Tensor] = None,
 ) -> None:
-    """Perform inference on the patch_batch and store the results in the pred_tracker and grad_tracker tensors."""
+    """Perform inference on the patch_batch and store the results
+    in the pred_tracker and grad_tracker tensors."""
 
     all_preds = []
 
@@ -159,7 +161,8 @@ def load_model(
     device: torch.device,
     dtype: torch.dtype = torch.float32,
 ) -> torch.nn.Module:
-    """Load a PyTorch model from a file and move it to the specified device and dtype."""
+    """Load a PyTorch model from a file and move it to the
+    specified device and dtype."""
     model_path = Path(model_path)
     if not model_path.is_file():
         raise FileNotFoundError(f"Model file not found at: {model_path}")
@@ -167,7 +170,7 @@ def load_model(
     try:
         model = torch.load(model_path, map_location="cpu")
     except Exception as e:
-        raise RuntimeError(f"Error loading model: {e}")
+        raise RuntimeError(f"Error loading model: {e}") from None
 
     model.eval()
     return model.to(dtype).to(device)
@@ -240,6 +243,7 @@ def compile_torch_model(
     except Exception as e:
         warnings.warn(
             f"Failed to compile model with torch.compile: {e}. "
-            "Returning the original model without compilation."
+            "Returning the original model without compilation.",
+            stacklevel=2,
         )
         return model

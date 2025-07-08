@@ -357,8 +357,8 @@ def test_default_device_real_cuda():
 def test_default_device_real_mps():
     with patch("torch.cuda.is_available", return_value=False):
         device = default_device()
-        assert (
-            device == torch.device("mps")
+        assert device == torch.device(
+            "mps"
         ), "Should return MPS device on a system with MPS available and CUDA unavailable"
 
 

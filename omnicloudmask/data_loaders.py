@@ -4,15 +4,19 @@ from typing import Optional, Union
 
 import numpy as np
 import rasterio as rio
+from rasterio.enums import Resampling
 from rasterio.profiles import Profile
+from rasterio.transform import from_origin
 
 
 def load_s2(
     input_path: Union[Path, str],
     resolution: float = 10.0,
-    required_bands: list[str] = ["B04", "B03", "B8A"],
+    required_bands: Optional[list[str]] = None,
 ) -> tuple[np.ndarray, Profile]:
     """Load a Sentinel-2 (L1C or L2A) image from a SAFE folder containing the bands"""
+    if required_bands is None:
+        required_bands = ["B04", "B03", "B8A"]
     if not 10 <= resolution <= 50:
         raise ValueError("Resolution must be between 10 and 50")
     input_path = Path(input_path)
@@ -68,7 +72,9 @@ def open_s2_bands(
                 band = list(input_path.rglob(f"*IMG_DATA/*{band_name}.jp2"))[0]
 
             except IndexError:
-                raise ValueError(f"Band {band_name} not found in {input_path}")
+                raise ValueError(
+                    f"Band {band_name} not found in {input_path}"
+                ) from None
         else:
             resolution_preferences = get_resolution_order(
                 target_resolution=resolution, available_resolutions=[10, 20, 60]
@@ -98,10 +104,10 @@ def open_s2_bands(
                             int(src.height * scale_factor),
                             int(src.width * scale_factor),
                         ),
-                        resampling=rio.enums.Resampling.bilinear,  # type: ignore
+                        resampling=Resampling.bilinear,
                     )
                 )
-    profile["transform"] = rio.transform.from_origin(  # type: ignore
+    profile["transform"] = from_origin(
         profile["transform"][2],
         profile["transform"][5],
         resolution,
@@ -121,7 +127,9 @@ def load_multiband(
     """Load a multiband image and resample it to requested resolution."""
     if band_order is None:
         warnings.warn(
-            "No band order provided, using default [1, 2, 3] (RGN)", UserWarning
+            "No band order provided, using default [1, 2, 3] (RGN)",
+            UserWarning,
+            stacklevel=2,
         )
         band_order = [1, 2, 3]
     input_path = Path(input_path)
@@ -144,7 +152,7 @@ def load_multiband(
                 int(src.height * scale_factor[0]),
                 int(src.width * scale_factor[1]),
             ),
-            resampling=rio.enums.Resampling.bilinear,  # type: ignore
+            resampling=Resampling.bilinear,
         )
         profile = src.profile
 
@@ -154,11 +162,13 @@ def load_multiband(
 def load_ls8(
     input_path: Union[Path, str],
     resolution: int = 30,
-    required_bands=["B4", "B3", "B5"],
+    required_bands: Optional[list[str]] = None,
 ) -> tuple[np.ndarray, Profile]:
     """Load a Landsat 8 image from a folder containing the bands"""
     if resolution != 30:
         raise ValueError("Resolution must be 30")
+    if required_bands is None:
+        required_bands = ["B4", "B3", "B5"]
 
     input_path = Path(input_path)
 
@@ -168,7 +178,7 @@ def load_ls8(
             band = list(input_path.rglob(f"*{band_name}.TIF"))[0]
 
         except IndexError:
-            raise ValueError(f"Band {band_name} not found in {input_path}")
+            raise ValueError(f"Band {band_name} not found in {input_path}") from None
         band_files[band_name] = band
 
     data = []

@@ -13,9 +13,10 @@ def get_patch(
     index: tuple,
     no_data_value: Optional[int] = 0,
 ) -> tuple[Optional[np.ndarray], Optional[tuple[int, int, int, int]]]:
-    """Extract a patch from a 3D array and normalize it. If the patch is entirely nodata, return None.
-    If the patch contains nodata, try to move patches to reduce nodata regions in patches.
-    """
+    """Extract a patch from a 3D array and normalize it. If the patch is
+    entirely nodata, return None. If the patch contains nodata,
+    try to move patches to reduce nodata regions in patches."""
+
     assert input_array.ndim == 3, "Input array must have 3 dimensions"
 
     top, bottom, left, right = index

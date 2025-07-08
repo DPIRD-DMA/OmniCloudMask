@@ -1,9 +1,9 @@
 from pathlib import Path
 from typing import Union
-import platformdirs
 
 import gdown
 import pandas as pd
+import platformdirs
 import torch
 from huggingface_hub import hf_hub_download
 from safetensors.torch import load_file
@@ -13,7 +13,8 @@ from .__version__ import __version__ as omnicloudmask_version
 
 def download_file_from_google_drive(file_id: str, destination: Path) -> None:
     """
-    Downloads a file from Google Drive and saves it at the given destination using gdown.
+    Downloads a file from Google Drive and saves it at the given destination
+    using gdown.
 
     Args:
         file_id (str): The ID of the file on Google Drive.
@@ -25,8 +26,10 @@ def download_file_from_google_drive(file_id: str, destination: Path) -> None:
 
 def download_file_from_hugging_face(destination: Path) -> None:
     """
-    Downloads a file from Hugging Face and saves it at the given destination using hf_hub_download.
-    Loads the resulting safetensors file and saves it as a PyTorch model state for compatibility with the rest of the codebase.
+    Downloads a file from Hugging Face and saves it at the given destination using
+    hf_hub_download.
+    Loads the resulting safetensors file and saves it as a PyTorch model state for
+    compatibility with the rest of the codebase.
 
     Args:
         file_id (str): The ID of the file on Hugging Face.
@@ -60,8 +63,11 @@ def download_file(file_id: str, destination: Path, source: str) -> None:
 
 def get_model_data_dir() -> Path:
     """Get the user data directory for model files"""
-    data_dir = Path(platformdirs.user_data_dir("omnicloudmask")) / omnicloudmask_version
-    data_dir.mkdir(parents=True, exist_ok=True)
+    data_dir = Path(
+        platformdirs.user_data_dir(
+            "omnicloudmask", version=omnicloudmask_version, ensure_exists=True
+        )
+    )
     return data_dir
 
 
@@ -75,9 +81,12 @@ def get_models(
     Downloads the model weights from Google Drive and saves them locally.
 
     Args:
-        force_download (bool): Whether to force download the model weights even if they already exist locally.
-        model_dir (Union[str, Path, None]): The directory where the model weights should be saved.
-        source (str): The source from which the model weights should be downloaded. Currently, only "google_drive" or "hugging_face" are supported.
+        force_download (bool): Whether to force download the model weights even if they
+        already exist locally.
+        model_dir (Union[str, Path, None]): The directory where the model weights
+        should be saved.
+        source (str): The source from which the model weights should be downloaded.
+        Currently, only "google_drive" or "hugging_face" are supported.
     """
 
     model_df = pd.read_csv(Path(__file__).resolve().parent / "model_download_links.csv")
@@ -86,7 +95,8 @@ def get_models(
     available_versions = model_df["version"].unique()
     if model_version not in available_versions:
         raise ValueError(
-            f"Model version {model_version} not found. Available versions: {available_versions}"
+            f"""Model version {model_version} not found. 
+            Available versions: {available_versions}"""
         )
     # filter models by version
     model_df = model_df[model_df["version"] == model_version]
