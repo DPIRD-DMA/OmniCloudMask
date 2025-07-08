@@ -259,7 +259,11 @@ def coordinator(
         )
 
     if apply_no_data_mask:
-        pred_tracker_np = mask_prediction(input_array, pred_tracker_np, no_data_value)
+        pred_tracker_np, nodata_mask = mask_prediction(
+            input_array, pred_tracker_np, no_data_value
+        )
+    else:
+        nodata_mask = None
 
     if export_to_disk:
         if profile is None:
@@ -276,12 +280,21 @@ def coordinator(
         # to avoid blocking the main thread
         if save_executor:
             save_executor.submit(
-                save_prediction, output_path, export_profile, pred_tracker_np
+                save_prediction,
+                output_path,
+                export_profile,
+                pred_tracker_np,
+                nodata_mask,
             )
         # otherwise save the prediction directly
 
         else:
-            save_prediction(output_path, export_profile, pred_tracker_np)
+            save_prediction(
+                output_path=output_path,
+                export_profile=export_profile,
+                pred_tracker_np=pred_tracker_np,
+                nodata_mask=nodata_mask,
+            )
 
     if inference_device.type == "mps":
         remove_mps_fix()

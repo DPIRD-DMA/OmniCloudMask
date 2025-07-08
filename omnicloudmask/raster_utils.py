@@ -64,7 +64,7 @@ def get_patch(
 
 def mask_prediction(
     scene: np.ndarray, pred_tracker_np: np.ndarray, no_data_value: int = 0
-) -> np.ndarray:
+) -> tuple[np.ndarray, np.ndarray]:
     """Create a no data mask from a raster scene."""
     assert scene.ndim == 3, "Scene must have 3 dimensions"
     assert pred_tracker_np.ndim == 3, "Prediction tracker must have 3 dimensions"
@@ -73,7 +73,7 @@ def mask_prediction(
     ), "Scene and prediction tracker must have the same shape"
     mask = np.all(scene != no_data_value, axis=0).astype(np.uint8)
     pred_tracker_np *= mask
-    return pred_tracker_np
+    return pred_tracker_np, mask
 
 
 def make_patch_indexes(
@@ -113,7 +113,12 @@ def make_patch_indexes(
 
 
 def save_prediction(
-    output_path: Path, export_profile: Profile, pred_tracker_np: np.ndarray
+    output_path: Path,
+    export_profile: Profile,
+    pred_tracker_np: np.ndarray,
+    nodata_mask: Optional[np.ndarray],
 ) -> None:
     with rio.open(output_path, "w", **export_profile) as dst:
         dst.write(pred_tracker_np)
+        if nodata_mask is not None:
+            dst.write_mask((nodata_mask * 255).astype("uint8"))
