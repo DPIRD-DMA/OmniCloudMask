@@ -12,8 +12,6 @@ tests/__pycache__/*
 *.tif.aux.xml
 validation dataset/Sentinel-2/dataset/*
 validation dataset/Landsat/dataset/*
-validation dataset/Landsat*
-validation dataset/Sentinel-2/*
 tests/custom_models/*
 omnicloudmask/models/.*
 omnicloudmask/models/models--NickWright--OmniCloudMask/*
