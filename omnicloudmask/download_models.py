@@ -1,3 +1,4 @@
+from importlib import resources
 from pathlib import Path
 from typing import Union
 
@@ -89,7 +90,9 @@ def get_models(
         Currently, only "google_drive" or "hugging_face" are supported.
     """
 
-    model_df = pd.read_csv(Path(__file__).resolve().parent / "model_download_links.csv")
+    with (resources.files("omnicloudmask") / "model_download_links.csv").open() as f:
+        model_df = pd.read_csv(f)
+
     # set version column to float
     model_df["version"] = model_df["version"].astype(float)
     available_versions = model_df["version"].unique()
