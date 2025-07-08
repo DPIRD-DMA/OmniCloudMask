@@ -37,7 +37,7 @@ def compile_batches(
     inference_device: torch.device,
     inference_dtype: torch.dtype,
 ) -> Generator[tuple[torch.Tensor, list[tuple[int, int, int, int]]], None, None]:
-    """Used to compile batches of patches from the input array and return them as a generator."""
+    """Compile batches of patches from the input array and return them as generator."""
 
     with ThreadPoolExecutor(max_workers=batch_size) as executor:
         futures = [
@@ -86,7 +86,8 @@ def run_models_on_array(
     inference_dtype: torch.dtype = torch.float32,
     no_data_value: int = 0,
 ) -> None:
-    """Used to execute the model on the input array, in patches. Predictions are stored in pred_tracker and grad_tracker, updated in place."""
+    """Used to execute the model on the input array, in patches. Predictions are stored
+    in pred_tracker and grad_tracker, updated in place."""
     patch_indexes = make_patch_indexes(
         array_height=input_array.shape[1],
         array_width=input_array.shape[2],
@@ -126,20 +127,27 @@ def check_patch_size(
     # check the shape of the input array
     if len(input_array.shape) != 3:
         raise ValueError(
-            f"Input array must have 3 dimensions, found {len(input_array.shape)}. The input should be in format (bands (red,green,NIR), height, width)."
+            f"""Input array must have 3 dimensions, found {len(input_array.shape)}.
+            The input should be in format (bands (red,green,NIR), height, width)."""
         )
 
     # check the width and height are greater than 10 pixels
     if min(input_array.shape[1], input_array.shape[2]) < 10:
         raise ValueError(
-            f"Input array must have a width and height greater than 10 pixels, found shape {input_array.shape}. The input should be in format (bands (red,green,NIR), height, width)."
+            f"""Input array must have a width and height greater than 10 pixels,
+            found shape {input_array.shape}. The input should be in format
+            (bands (red,green,NIR), height, width)."""
         )
     if min(input_array.shape[1], input_array.shape[2]) < 50:
         warnings.warn(
-            f"Input width or height is less than 50 pixels, found shape {input_array.shape}. Such a small image may not provide adequate spatial context for the model."
+            f"""Input width or height is less than 50 pixels,
+            found shape {input_array.shape}. 
+            Small image may not provide adequate spatial context for the model.""",
+            stacklevel=2,
         )
 
-    # if the input has a lot of no data values and the patch size is larger than half the image size, we reduce the patch size and overlap
+    # if the input has a lot of no data values and the patch size is larger than
+    # half the image size, we reduce the patch size and overlap
     if np.count_nonzero(input_array == no_data_value) / input_array.size > 0.3:
         if patch_size > min(input_array.shape[1], input_array.shape[2]) / 2:
             patch_size = min(input_array.shape[1], input_array.shape[2]) // 2
@@ -147,22 +155,29 @@ def check_patch_size(
                 patch_overlap = patch_size // 2
 
             warnings.warn(
-                f"Significant no-data areas detected. Adjusting patch size to {patch_size}px and overlap to {patch_overlap}px to minimize no-data patches."
+                f"""Significant no-data areas detected. Adjusting patch size
+                to {patch_size}px and overlap to {patch_overlap}px to minimize
+                no-data patches.""",
+                stacklevel=2,
             )
 
-    # if the patch size is larger than the image size, we reduce the patch size and overlap
+    # if the patch size is larger than the image size,
+    # we reduce the patch size and overlap
     if patch_size > min(input_array.shape[1], input_array.shape[2]):
         patch_size = min(input_array.shape[1], input_array.shape[2])
         if patch_size // 2 < patch_overlap:
             patch_overlap = patch_size // 2
         warnings.warn(
-            f"Patch size too large, reducing to {patch_size} and overlap to {patch_overlap}."
+            f"""Patch size too large, reducing to {patch_size} and 
+            overlap to {patch_overlap}.""",
+            stacklevel=2,
         )
 
     # if the patch overlap is larger than the patch size, raise an error
     if patch_overlap >= patch_size:
         raise ValueError(
-            f"Patch overlap {patch_overlap}px must be less than patch size {patch_size}px."
+            f"""Patch overlap {patch_overlap}px must be less than patch size 
+            {patch_size}px."""
         )
     return patch_overlap, patch_size
 
@@ -178,7 +193,7 @@ def coordinator(
     patch_size: int,
     patch_overlap: int,
     batch_size: int,
-    profile: Profile = Profile(),
+    profile: Optional[Profile] = None,
     output_path: Path = Path(""),
     no_data_value: int = 0,
     pbar: Optional[tqdm] = None,
@@ -223,7 +238,8 @@ def coordinator(
     )
 
     if export_confidence:
-        pred_tracker_norm = pred_tracker / grad_tracker  # type: ignore
+        assert grad_tracker is not None
+        pred_tracker_norm = pred_tracker / grad_tracker
         if softmax_output:
             pred_tracker = torch.clip(
                 (torch.nn.functional.softmax(pred_tracker_norm, 0) + 0.001),
@@ -246,15 +262,18 @@ def coordinator(
         pred_tracker_np = mask_prediction(input_array, pred_tracker_np, no_data_value)
 
     if export_to_disk:
+        if profile is None:
+            profile = Profile()
         export_profile = profile.copy()
         export_profile.update(
             dtype=pred_tracker_np.dtype,
             count=pred_tracker_np.shape[0],
             compress="lzw",
-            nodata=0,
+            nodata=None,
             driver="GTiff",
         )
-        # if executer has been passed, submit the save_prediction function to it, to avoid blocking the main thread
+        # if executer has been passed, submit the save_prediction function to it,
+        # to avoid blocking the main thread
         if save_executor:
             save_executor.submit(
                 save_prediction, output_path, export_profile, pred_tracker_np
@@ -272,14 +291,14 @@ def coordinator(
 
 
 def collect_models(
-    custom_models: Union[list[torch.nn.Module], torch.nn.Module],
+    custom_models: Optional[Union[list[torch.nn.Module], torch.nn.Module]],
     inference_device: torch.device,
     inference_dtype: torch.dtype,
     source: str,
     destination_model_dir: Union[str, Path, None] = None,
     model_version: float = 2.0,
 ) -> list[torch.nn.Module]:
-    if not custom_models:
+    if custom_models is None:
         models = []
         for model_details in get_models(
             model_dir=destination_model_dir, source=source, model_version=model_version
@@ -309,14 +328,14 @@ def predict_from_array(
     patch_size: int = 1000,
     patch_overlap: int = 300,
     batch_size: int = 1,
-    inference_device: Union[str, torch.device] = default_device(),
+    inference_device: Optional[Union[str, torch.device]] = None,
     mosaic_device: Optional[Union[str, torch.device]] = None,
     inference_dtype: Union[torch.dtype, str] = torch.float32,
     export_confidence: bool = False,
     softmax_output: bool = True,
     no_data_value: int = 0,
     apply_no_data_mask: bool = True,
-    custom_models: Union[list[torch.nn.Module], torch.nn.Module] = [],
+    custom_models: Optional[Union[list[torch.nn.Module], torch.nn.Module]] = None,
     pred_classes: int = 4,
     destination_model_dir: Union[str, Path, None] = None,
     model_download_source: str = "hugging_face",
@@ -331,14 +350,14 @@ def predict_from_array(
         patch_size (int, optional): Size of the patches for inference. Defaults to 1000.
         patch_overlap (int, optional): Overlap between patches for inference. Defaults to 300.
         batch_size (int, optional): Number of patches to process in a batch. Defaults to 1.
-        inference_device (Union[str, torch.device], optional): Device to use for inference (e.g., 'cpu', 'cuda', 'mps'). Defaults to the device returned by default_device().
+        inference_device (Union[str, torch.device], optional): Device to use for inference (e.g., 'cpu', 'cuda', 'mps'). Defaults to None then default_device().
         mosaic_device (Union[str, torch.device], optional): Device to use for mosaicking patches. Defaults to inference device.
         inference_dtype (Union[torch.dtype, str], optional): Data type for inference. Defaults to torch.float32.
         export_confidence (bool, optional): If True, exports confidence maps instead of predicted classes. Defaults to False.
         softmax_output (bool, optional): If True, applies a softmax to the output, only used if export_confidence = True. Defaults to True.
         no_data_value (int, optional): Value within input scenes that specifies no data region. Defaults to 0.
         apply_no_data_mask (bool, optional): If True, applies a no-data mask to the predictions. Defaults to True.
-        custom_models Union[list[torch.nn.Module], torch.nn.Module], optional): A list or singular custom torch models to use for prediction. Defaults to [].
+        custom_models Union[list[torch.nn.Module], torch.nn.Module], optional): A list or singular custom torch models to use for prediction. Defaults to None.
         pred_classes (int, optional): Number of classes to predict. Defaults to 4, to be used with custom models. Defaults to 4.
         destination_model_dir Union[str, Path, None]: Directory to save the model weights. Defaults to None.
         model_download_source (str, optional): Source from which to download the model weights. Defaults to "hugging_face", can also be "google_drive".
@@ -348,7 +367,10 @@ def predict_from_array(
     Returns:
         np.ndarray: A numpy array with shape (1, height, width) or (4, height, width if export_confidence = True) representing the predicted cloud and cloud shadow mask.
 
-    """
+    """  # noqa: E501
+
+    if inference_device is None:
+        inference_device = default_device()
 
     inference_device = torch.device(inference_device)
     if mosaic_device is None:
@@ -406,7 +428,7 @@ def predict_from_load_func(
     patch_size: int = 1000,
     patch_overlap: int = 300,
     batch_size: int = 1,
-    inference_device: Union[str, torch.device] = default_device(),
+    inference_device: Optional[Union[str, torch.device]] = None,
     mosaic_device: Optional[Union[str, torch.device]] = None,
     inference_dtype: Union[torch.dtype, str] = torch.float32,
     export_confidence: bool = False,
@@ -415,7 +437,7 @@ def predict_from_load_func(
     overwrite: bool = True,
     apply_no_data_mask: bool = True,
     output_dir: Optional[Union[Path, str]] = None,
-    custom_models: Union[list[torch.nn.Module], torch.nn.Module] = [],
+    custom_models: Optional[Union[list[torch.nn.Module], torch.nn.Module]] = None,
     pred_classes: int = 4,
     destination_model_dir: Union[str, Path, None] = None,
     model_download_source: str = "hugging_face",
@@ -432,7 +454,7 @@ def predict_from_load_func(
         patch_size (int, optional): Size of the patches for inference. Defaults to 1000.
         patch_overlap (int, optional): Overlap between patches for inference. Defaults to 300.
         batch_size (int, optional): Number of patches to process in a batch. Defaults to 1.
-        inference_device (Union[str, torch.device], optional): Device to use for inference (e.g., 'cpu', 'cuda', 'mps'). Defaults to the device returned by default_device().
+        inference_device (Union[str, torch.device], optional): Device to use for inference (e.g., 'cpu', 'cuda', 'mps'). Defaults to None then default_device().
         mosaic_device (Union[str, torch.device], optional): Device to use for mosaicking patches. Defaults to inference device.
         inference_dtype (Union[torch.dtype, str], optional): Data type for inference. Defaults to torch.float32.
         export_confidence (bool, optional): If True, exports confidence maps instead of predicted classes. Defaults to False.
@@ -441,7 +463,7 @@ def predict_from_load_func(
         overwrite (bool, optional): If False, skips scenes that already have a prediction file. Defaults to True.
         apply_no_data_mask (bool, optional): If True, applies a no-data mask to the predictions. Defaults to True.
         output_dir (Optional[Union[Path, str]], optional): Directory to save the prediction files. Defaults to None. If None, the predictions will be saved in the same directory as the input scene.
-        custom_models Union[list[torch.nn.Module], torch.nn.Module], optional): A list or singular custom torch models to use for prediction. Defaults to [].
+        custom_models Union[list[torch.nn.Module], torch.nn.Module], optional): A list or singular custom torch models to use for prediction. Defaults to None.
         pred_classes (int, optional): Number of classes to predict. Defaults to 4, to be used with custom models. Defaults to 4.
         destination_model_dir Union[str, Path, None]: Directory to save the model weights. Defaults to None.
         model_download_source (str, optional): Source from which to download the model weights. Defaults to "hugging_face", can also be "google_drive".
@@ -451,7 +473,9 @@ def predict_from_load_func(
     Returns:
         list[Path]: A list of paths to the output prediction files.
 
-    """
+    """  # noqa: E501
+    if inference_device is None:
+        inference_device = default_device()
     pred_paths = []
     inf_thread = Thread()
     save_executor = ThreadPoolExecutor(max_workers=1)
@@ -488,7 +512,8 @@ def predict_from_load_func(
 
     pbar = tqdm(
         total=len(scene_paths),
-        desc=f"Running inference using {inference_device.type} {str(inference_dtype).split('.')[-1]}",
+        desc=f"Running inference using {inference_device.type} "
+        f"{str(inference_dtype).split('.')[-1]}",
     )
 
     for scene_path in scene_paths:
