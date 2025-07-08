@@ -246,6 +246,8 @@ def coordinator(
                 0.001,
                 0.999,
             )
+            # replace nan with 0, for areas with no predictions
+            pred_tracker = torch.nan_to_num(pred_tracker, nan=0.0)
         else:
             pred_tracker = pred_tracker_norm
 

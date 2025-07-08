@@ -65,7 +65,9 @@ def get_patch(
 def mask_prediction(
     scene: np.ndarray, pred_tracker_np: np.ndarray, no_data_value: int = 0
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Create a no data mask from a raster scene."""
+    """Create a no data mask from a raster scene,
+    apply this mask to the prediction tracker,
+    then return the masked prediction tracker and the mask."""
     assert scene.ndim == 3, "Scene must have 3 dimensions"
     assert pred_tracker_np.ndim == 3, "Prediction tracker must have 3 dimensions"
     assert (
