@@ -75,7 +75,7 @@ def mask_prediction(
         scene.shape[1:] == pred_tracker_np.shape[1:]
     ), "Scene and prediction tracker must have the same shape"
     # if all bands at a single pixel are no_data_value,
-    # then then it is considered no data
+    # then it is considered no data
     mask = (~np.all(scene == no_data_value, axis=0)).astype(np.uint8)
     pred_tracker_np *= mask
     return pred_tracker_np, mask
@@ -123,6 +123,8 @@ def save_prediction(
     pred_tracker_np: np.ndarray,
     nodata_mask: Optional[np.ndarray],
 ) -> None:
+    """Save the prediction tracker to a raster file,
+    optionally also saves the nodata mask if not None."""
     with rio.open(output_path, "w", **export_profile) as dst:
         dst.write(pred_tracker_np)
         if nodata_mask is not None:
