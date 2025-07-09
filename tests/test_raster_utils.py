@@ -82,7 +82,8 @@ def test_get_patch_get_correct_patch():
     ), "Patch shape should match expected patch"
     assert np.allclose(
         patch, expected_patch, rtol=1e-5, atol=1e-5
-    ), f"Patch should be equal to the input array slice, got {patch} and {expected_patch}"
+    ), f"""Patch should be equal to the input array slice, 
+        got {patch} and {expected_patch}"""
 
 
 def test_get_patch_move_away_from_nodata():
@@ -118,7 +119,8 @@ def test_get_patch_move_away_from_nodata():
     ), "Patch shape should match expected patch"
     assert np.allclose(
         patch, expected_patch, rtol=1e-5, atol=1e-5
-    ), f"Patch should be equal to the input array slice, got {patch} and {expected_patch}"
+    ), f"""Patch should be equal to the input array slice, 
+        got {patch} and {expected_patch}"""
 
 
 def test_make_patch_indexes_count_first_and_last():
