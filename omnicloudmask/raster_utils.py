@@ -66,6 +66,7 @@ def mask_prediction(
     scene: np.ndarray, pred_tracker_np: np.ndarray, no_data_value: int = 0
 ) -> tuple[np.ndarray, np.ndarray]:
     """Create a no data mask from a raster scene,
+    all bands at a pixel location must be equal to no_data_value,
     apply this mask to the prediction tracker,
     then return the masked prediction tracker and the mask."""
     assert scene.ndim == 3, "Scene must have 3 dimensions"
@@ -73,7 +74,9 @@ def mask_prediction(
     assert (
         scene.shape[1:] == pred_tracker_np.shape[1:]
     ), "Scene and prediction tracker must have the same shape"
-    mask = np.all(scene != no_data_value, axis=0).astype(np.uint8)
+    # if all bands at a single pixel are no_data_value,
+    # then then it is considered no data
+    mask = (~np.all(scene == no_data_value, axis=0)).astype(np.uint8)
     pred_tracker_np *= mask
     return pred_tracker_np, mask
 
