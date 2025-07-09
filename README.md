@@ -16,6 +16,9 @@ OmniCloudMask has been validated on Sentinel-2, PlanetScope and Landsat data and
 ### Version 1.3.1:
     * Changed default model download destination to platformdirs.user_data_dir.
     * Changed exported geotiff metadata nodata value from 0 to None.
+### Version 1.4.0:
+    * Geotiff exports using apply_no_data_mask=True now include a GDAL style (255-0) nodata mask.
+
 ## Features
 
 -   Process imagery resolutions from 10 m to 50 m, (higher resolutions can be down sampled to 10 m).

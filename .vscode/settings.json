@@ -1,5 +1,6 @@
 {
     "cSpell.words": [
+        "allclose",
         "chans",
         "cmap",
         "Colab",
@@ -32,6 +33,7 @@
         "pytest",
         "randn",
         "RGBN",
+        "rtol",
         "safetensor",
         "safetensors",
         "setuptools",

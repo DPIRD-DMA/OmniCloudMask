@@ -82,7 +82,7 @@ def test_get_patch_get_correct_patch():
     ), "Patch shape should match expected patch"
     assert np.allclose(
         patch, expected_patch, rtol=1e-5, atol=1e-5
-    ), f"Patch should be equal to the input array slice, got {patch} and {expected_patch}"
+    ), f"Patch should equal slice; got {patch} vs {expected_patch}"
 
 
 def test_get_patch_move_away_from_nodata():
@@ -118,7 +118,7 @@ def test_get_patch_move_away_from_nodata():
     ), "Patch shape should match expected patch"
     assert np.allclose(
         patch, expected_patch, rtol=1e-5, atol=1e-5
-    ), f"Patch should be equal to the input array slice, got {patch} and {expected_patch}"
+    ), f"Patch should equal slice; got {patch} vs {expected_patch}"
 
 
 def test_make_patch_indexes_count_first_and_last():
@@ -234,11 +234,16 @@ def test_mask_prediction_basic():
     pred_tracker = np.ones((1, 2, 3))
     no_data_value = 0
 
-    result = mask_prediction(scene, pred_tracker, no_data_value)
+    masked_pred_tracker, mask = mask_prediction(scene, pred_tracker, no_data_value)
 
-    expected = np.array([[[1.0, 0.0, 0.0], [1.0, 1.0, 0.0]]])
+    expected = np.array([[[1.0, 0.0, 1.0], [1.0, 1.0, 1.0]]])
 
-    np.testing.assert_array_equal(result, expected)
+    # check the correct pixels are masked
+    np.testing.assert_array_equal(masked_pred_tracker, expected)
+
+    # check that the mask is correct
+    expected_mask = np.array([[1, 0, 1], [1, 1, 1]])
+    np.testing.assert_array_equal(mask, expected_mask)
 
 
 def test_mask_prediction_all_valid():
@@ -246,9 +251,12 @@ def test_mask_prediction_all_valid():
     pred_tracker = np.ones((1, 2, 2))
     no_data_value = 0
 
-    result = mask_prediction(scene, pred_tracker, no_data_value)
+    masked_pred_tracker, mask = mask_prediction(scene, pred_tracker, no_data_value)
 
-    np.testing.assert_array_equal(result, pred_tracker)
+    np.testing.assert_array_equal(masked_pred_tracker, pred_tracker)
+
+    expected_mask = np.ones((2, 2), dtype=np.uint8)
+    np.testing.assert_array_equal(mask, expected_mask)
 
 
 def test_mask_prediction_all_no_data():
@@ -257,36 +265,45 @@ def test_mask_prediction_all_no_data():
 
     no_data_value = 0
 
-    result = mask_prediction(scene, pred_tracker, no_data_value)
+    masked_pred_tracker, mask = mask_prediction(scene, pred_tracker, no_data_value)
 
     expected = np.zeros((1, 2, 2))
-    np.testing.assert_array_equal(result, expected)
+    np.testing.assert_array_equal(masked_pred_tracker, expected)
+
+    expected_mask = np.zeros((2, 2), dtype=np.uint8)
+    np.testing.assert_array_equal(mask, expected_mask)
 
 
 def test_mask_prediction_custom_no_data_value():
-    scene = np.array([[[1, -9999, 3], [4, 5, -9999]], [[7, 8, -9999], [10, 11, 12]]])
+    scene = np.array([[[1, -9999, 3], [4, 5, -9999]], [[7, 8, -9999], [10, 11, -9999]]])
     pred_tracker = np.ones((1, 2, 3))
     no_data_value = -9999
 
-    result = mask_prediction(scene, pred_tracker, no_data_value)
+    masked_pred_tracker, mask = mask_prediction(scene, pred_tracker, no_data_value)
 
-    expected = np.array([[[1, 0, 0], [1, 1, 0]]])
+    expected = np.array([[[1, 1, 1], [1, 1, 0]]])
 
-    np.testing.assert_array_equal(result, expected)
+    np.testing.assert_array_equal(masked_pred_tracker, expected)
+
+    expected_mask = np.array([[1, 1, 1], [1, 1, 0]], dtype=np.uint8)
+    np.testing.assert_array_equal(mask, expected_mask)
 
 
 def test_mask_prediction_float_values():
     scene = np.array(
-        [[[1.1, 0.0, 3.3], [4.4, 5.5, 0.0]], [[7.7, 8.8, 0.0], [10.0, 11.1, 12.2]]]
+        [[[1.1, 0.0, 3.3], [4.4, 5.5, 0.0]], [[7.7, 8.8, 0.0], [10.0, 11.1, 0.0]]]
     )
     pred_tracker = np.ones((1, 2, 3))
     no_data_value = 0
 
-    result = mask_prediction(scene, pred_tracker, no_data_value)
+    masked_pred_tracker, mask = mask_prediction(scene, pred_tracker, no_data_value)
 
-    expected = np.array([[[1, 0, 0], [1, 1, 0]]])
+    expected = np.array([[[1, 1, 1], [1, 1, 0]]])
 
-    np.testing.assert_array_equal(result, expected)
+    np.testing.assert_array_equal(masked_pred_tracker, expected)
+
+    expected_mask = np.array([[1, 1, 1], [1, 1, 0]], dtype=np.uint8)
+    np.testing.assert_array_equal(mask, expected_mask)
 
 
 def test_mask_prediction_wrong_shapes():
