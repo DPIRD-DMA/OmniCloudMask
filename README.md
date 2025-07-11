@@ -9,31 +9,32 @@ OmniCloudMask has been validated on Sentinel-2, PlanetScope and Landsat data and
 
 [The OmniCloudMask paper is now published 🎉](https://www.sciencedirect.com/science/article/pii/S0034425725000987)
 
+
 ## Changelog
-### Version 1.3.0:
-    * New model release, both faster and more robust to different resolutions.
-    * Added torch.compile model compilation.
-### Version 1.3.1:
-    * Changed default model download destination to platformdirs.user_data_dir.
-    * Changed exported geotiff metadata nodata value from 0 to None.
-### Version 1.4.0:
-    * Geotiff exports using apply_no_data_mask=True now include a GDAL style (255-0) nodata mask.
+
+See [the changelog](CHANGELOG.md) for version history and release notes.
 
 ## Features
 
 -   Process imagery resolutions from 10 m to 50 m, (higher resolutions can be down sampled to 10 m).
--   Any imagery processing level
--   Patch-based processing of large satellite images
--   Multi-threaded patch compilation and model inference
--   Option to export confidence maps
--   Only requires Red, Green and NIR bands
--   Known to work well with Sentinel-2, Landsat 8, PlanetScope and Maxar
--   Supports inference on cuda, mps and cpu
--   Model compilation for faster inference
+-   Any imagery processing level.
+-   Patch-based processing of large satellite images.
+-   Multi-threaded patch compilation and model inference.
+-   Option to export confidence maps.
+-   Only requires Red, Green and NIR bands.
+-   Known to work well with Sentinel-2, Landsat 8, PlanetScope and Maxar.
+-   Supports inference on cuda, mps and cpu.
+-   Model compilation for faster inference.
 
 ## Try in Colab
 
 [![Colab_Button]][Link]
+
+## Example notebooks
+
+- [Maxar](examples/Maxar.ipynb)
+- [Sentinel-2](examples/Sentinel-2.ipynb) 
+- [PlanetScope](examples/PlanetScope.ipynb)
 
 [Link]: https://colab.research.google.com/drive/1d53lg2yiSbqhrzDWlJoS5rjHgRLRJ3WY?usp=sharing 'Try OmniCloudMask In Colab'
 
