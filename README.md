@@ -12,7 +12,7 @@ OmniCloudMask has been validated on Sentinel-2, PlanetScope and Landsat data and
 
 ## Changelog
 
-See [the changelog](CHANGELOG.md) for version history and release notes.
+See [the changelog](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/CHANGELOG.md) for version history and release notes.
 
 ## Features
 
@@ -32,9 +32,9 @@ See [the changelog](CHANGELOG.md) for version history and release notes.
 
 ## Example notebooks
 
-- [Maxar](examples/Maxar.ipynb)
-- [Sentinel-2](examples/Sentinel-2.ipynb) 
-- [PlanetScope](examples/PlanetScope.ipynb)
+- [Maxar](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/Maxar.ipynb)
+- [Sentinel-2](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/Sentinel-2.ipynb) 
+- [PlanetScope](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/PlanetScope.ipynb)
 
 [Link]: https://colab.research.google.com/drive/1d53lg2yiSbqhrzDWlJoS5rjHgRLRJ3WY?usp=sharing 'Try OmniCloudMask In Colab'
 
