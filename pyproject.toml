@@ -28,6 +28,7 @@ version = {attr = "omnicloudmask.__version__.__version__"}
 
 [dependency-groups]
 dev = [
+    "h5py>=3.14.0",
     "jupyter>=1.1.1",
     "pytest>=8.4.0",
     "ruff>=0.12.2",
