@@ -6,7 +6,7 @@ ARG FROM_IMAGE=nvcr.io/nvidia/pytorch
 FROM ${FROM_IMAGE}:${VERSION_DATE}-py3
 
 # Install OmniCloudMask
-RUN pip --no-cache-dir install omnicloudmask jupyter matplotlib s2dl
+RUN pip --no-cache-dir install --upgrade omnicloudmask jupyter matplotlib s2dl h5py
 
 # Clean up default example directories that come with the base image
 RUN rm -rf /workspace/docker-examples /workspace/tutorials /workspace/examples /workspace/README.md
@@ -18,8 +18,9 @@ WORKDIR /workspace
 RUN mkdir -p /workspace/data
 
 # Copy example notebooks
-COPY ["Maxar example.ipynb", "/workspace/"]
-COPY ["Sentinel-2 example.ipynb", "/workspace/"]
+COPY ["examples/Maxar.ipynb", "/workspace/"]
+COPY ["examples/Sentinel-2.ipynb", "/workspace/"]
+COPY ["examples/PlanetScope Hyperspectral.ipynb", "/workspace/"]
 
 # Copy README file
 COPY docker/README.md /workspace
@@ -32,4 +33,4 @@ CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-r
 
 LABEL maintainer="Nick Wright <nicholas.wright@dpird.wa.gov.au>"
 LABEL description="OmniCloudMask container with PyTorch and Jupyter"
-LABEL version="1.0"
+LABEL version="1.1"
