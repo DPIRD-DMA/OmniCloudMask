@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.4.1] - Jul 11, 2025
+
+### Fixed
+- Fixed broken links in README for PyPI compatibility
+
 ## [1.4.0] - Jul 11, 2025
 
 ### Added
