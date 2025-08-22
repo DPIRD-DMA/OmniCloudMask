@@ -1,4 +1,10 @@
 # OmniCloudMask
+[![image](https://img.shields.io/pypi/v/omnicloudmask.svg)](https://pypi.python.org/pypi/omnicloudmask)
+[![image](https://static.pepy.tech/badge/omnicloudmask)](https://pepy.tech/project/omnicloudmask)
+[![image](https://img.shields.io/conda/vn/conda-forge/omnicloudmask.svg)](https://anaconda.org/conda-forge/omnicloudmask)
+[![Conda Downloads](https://img.shields.io/conda/dn/conda-forge/omnicloudmask.svg?color=blue)](https://anaconda.org/conda-forge/omnicloudmask)
+[![image](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Tutorials](https://img.shields.io/badge/Tutorials-Learn-brightgreen)](https://github.com/DPIRD-DMA/OmniCloudMask/tree/main/examples)
 
 OmniCloudMask is a Python library for state-of-the-art cloud and cloud shadow segmentation in high to moderate resolution satellite imagery.
 
@@ -9,6 +15,7 @@ OmniCloudMask has been validated on Sentinel-2, PlanetScope and Landsat data and
 
 [The OmniCloudMask paper is now published 🎉](https://www.sciencedirect.com/science/article/pii/S0034425725000987)
 
+[Satellite Image Deep Learning podcast about OmniCloudMask](https://www.satellite-image-deep-learning.com/p/omnicloudmask)
 
 ## Changelog
 
@@ -54,6 +61,10 @@ uv add omnicloudmask
 
 ```bash
 pip install omnicloudmask
+```
+
+```bash
+conda install conda-forge::omnicloudmask
 ```
 
 ```bash
