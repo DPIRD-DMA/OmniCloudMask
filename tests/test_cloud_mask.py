@@ -35,7 +35,8 @@ def cleanup():
     OCM_outputs = list(test_dir.rglob("*OCM_v*.tif"))
     if len(OCM_outputs) > 3:
         raise ValueError(
-            f"Something has gone wrong, found {len(OCM_outputs)} OCM outputs in test data directory"
+            f"Something has gone wrong, found {len(OCM_outputs)} OCM outputs"
+            f" in test data directory"
         )
     for file in OCM_outputs:
         try:
@@ -70,9 +71,9 @@ def test_predict_from_array_basic():
     # Check the result
     assert result.shape == (1, 200, 200), "Unexpected shape for result"
     # make sure we dont have values outside of 0,1,2,3s
-    assert np.all(
-        np.isin(np.unique(result), [0, 1, 2, 3])
-    ), "Unexpected values in result"
+    assert np.all(np.isin(np.unique(result), [0, 1, 2, 3])), (
+        "Unexpected values in result"
+    )
 
 
 def test_predict_from_array_basic_v1():
@@ -85,9 +86,24 @@ def test_predict_from_array_basic_v1():
     # Check the result
     assert result.shape == (1, 200, 200), "Unexpected shape for result"
     # make sure we dont have values outside of 0,1,2,3s
-    assert np.all(
-        np.isin(np.unique(result), [0, 1, 2, 3])
-    ), "Unexpected values in result"
+    assert np.all(np.isin(np.unique(result), [0, 1, 2, 3])), (
+        "Unexpected values in result"
+    )
+
+
+def test_predict_from_array_basic_v2():
+    # Create some sample data
+    data = np.random.rand(3, 200, 200)
+    # Call the function
+    result = predict_from_array(
+        data, patch_size=100, patch_overlap=50, model_version=2.0
+    )
+    # Check the result
+    assert result.shape == (1, 200, 200), "Unexpected shape for result"
+    # make sure we dont have values outside of 0,1,2,3s
+    assert np.all(np.isin(np.unique(result), [0, 1, 2, 3])), (
+        "Unexpected values in result"
+    )
 
 
 def test_predict_from_array_cpu_mosaic():
@@ -100,9 +116,9 @@ def test_predict_from_array_cpu_mosaic():
     # Check the result
     assert result.shape == (1, 200, 200), "Unexpected shape for result"
     # make sure we dont have values outside of 0,1,2,3s
-    assert np.all(
-        np.isin(np.unique(result), [0, 1, 2, 3])
-    ), "Unexpected values in result"
+    assert np.all(np.isin(np.unique(result), [0, 1, 2, 3])), (
+        "Unexpected values in result"
+    )
 
 
 def test_predict_from_array_custom_model():
@@ -128,9 +144,9 @@ def test_predict_from_array_custom_model():
     # Check the result
     assert result.shape == (1, 200, 200), "Unexpected shape for result"
     # make sure we dont have values outside of 0,1,2,3s
-    assert np.all(
-        np.isin(np.unique(result), [0, 1, 2, 3])
-    ), "Unexpected values in result"
+    assert np.all(np.isin(np.unique(result), [0, 1, 2, 3])), (
+        "Unexpected values in result"
+    )
 
 
 def test_predict_from_array_with_confidence():
@@ -141,9 +157,9 @@ def test_predict_from_array_with_confidence():
         data, patch_size=100, patch_overlap=50, export_confidence=True
     )
     # make sure all values are between 0 and 1
-    assert np.all(
-        np.logical_and(result >= 0, result <= 1)
-    ), "Unexpected values in confidence"
+    assert np.all(np.logical_and(result >= 0, result <= 1)), (
+        "Unexpected values in confidence"
+    )
     # Check the result
     assert result.shape == (4, 200, 200), "Unexpected shape for result"
 
@@ -159,7 +175,7 @@ def test_predict_from_array_with_confidence_no_softmax():
         export_confidence=True,
         softmax_output=False,
     )
-    # make sure some vvalues are outside of 0 and 1
+    # make sure some values are outside of 0 and 1
     assert result.min() < 0, f"Unexpected values in confidence, min: {result.min()}"
     assert result.max() > 1, f"Unexpected values in confidence, max: {result.max()}"
     # Check the result
@@ -203,9 +219,9 @@ def test_predict_from_load_func_multiband():
         2322,
     ), f"Unexpected shape for result {pred_array.shape}"
     # make sure we dont have values outside of 0,1,2,3s
-    assert np.all(
-        np.isin(np.unique(pred_array), [0, 1, 2, 3])
-    ), "Unexpected values in result"
+    assert np.all(np.isin(np.unique(pred_array), [0, 1, 2, 3])), (
+        "Unexpected values in result"
+    )
 
 
 def test_predict_from_load_func_s2_L2():
@@ -222,21 +238,21 @@ def test_predict_from_load_func_s2_L2():
     # Check the result
     assert pred_array.shape == (1, 10980, 10980), "Unexpected shape for result"
     # make sure we dont have values outside of 0,1,2,3s
-    assert np.all(
-        np.isin(np.unique(pred_array), [0, 1, 2, 3])
-    ), "Unexpected values in result"
+    assert np.all(np.isin(np.unique(pred_array), [0, 1, 2, 3])), (
+        "Unexpected values in result"
+    )
     expected_output_path = (
         test_dir.parent
-        / "S2A_MSIL2A_20170725T142751_N9999_R053_T19GBQ_20240410T040247_expected_output.tif"
+        / "S2A_MSIL2A_20170725T142751_N9999_R053_T19GBQ_20240410T040247_expected_output.tif"  # noqa
     )
     assert expected_output_path.exists(), "Expected output file not found"
     expected_output_array = rio.open(expected_output_path).read()
 
     difference = np.abs(pred_array - expected_output_array).sum()
     # Check that is within 0.1% of the expected output
-    assert (
-        difference < (10980 * 10980) * 0.01
-    ), f"Unexpected difference between expected and actual output: {difference}"
+    assert difference < (10980 * 10980) * 0.01, (
+        f"Unexpected difference between expected and actual output: {difference}"
+    )
 
 
 def test_predict_from_load_func_s2_L2_with_cpu_mosaic():
@@ -254,9 +270,9 @@ def test_predict_from_load_func_s2_L2_with_cpu_mosaic():
     # Check the result
     assert pred_array.shape == (1, 10980, 10980), "Unexpected shape for result"
     # make sure we dont have values outside of 0,1,2,3s
-    assert np.all(
-        np.isin(np.unique(pred_array), [0, 1, 2, 3])
-    ), "Unexpected values in result"
+    assert np.all(np.isin(np.unique(pred_array), [0, 1, 2, 3])), (
+        "Unexpected values in result"
+    )
 
 
 def test_predict_from_load_func_s2_L2_and_L1():
@@ -275,9 +291,9 @@ def test_predict_from_load_func_s2_L2_and_L1():
         # Check the result
         assert pred_array.shape == (1, 10980, 10980), "Unexpected shape for result"
         # make sure we dont have values outside of 0,1,2,3s
-        assert np.all(
-            np.isin(np.unique(pred_array), [0, 1, 2, 3])
-        ), "Unexpected values in result"
+        assert np.all(np.isin(np.unique(pred_array), [0, 1, 2, 3])), (
+            "Unexpected values in result"
+        )
 
 
 def test_predict_from_load_func_s2_L1():
@@ -294,9 +310,9 @@ def test_predict_from_load_func_s2_L1():
     # Check the result
     assert pred_array.shape == (1, 10980, 10980), "Unexpected shape for result"
     # make sure we dont have values outside of 0,1,2,3s
-    assert np.all(
-        np.isin(np.unique(pred_array), [0, 1, 2, 3])
-    ), "Unexpected values in result"
+    assert np.all(np.isin(np.unique(pred_array), [0, 1, 2, 3])), (
+        "Unexpected values in result"
+    )
 
 
 def test_predict_from_load_func_s2_L1_small_patch():
@@ -313,9 +329,9 @@ def test_predict_from_load_func_s2_L1_small_patch():
     # Check the result
     assert pred_array.shape == (1, 10980, 10980), "Unexpected shape for result"
     # make sure we dont have values outside of 0,1,2,3s
-    assert np.all(
-        np.isin(np.unique(pred_array), [0, 1, 2, 3])
-    ), "Unexpected values in result"
+    assert np.all(np.isin(np.unique(pred_array), [0, 1, 2, 3])), (
+        "Unexpected values in result"
+    )
 
 
 def test_predict_from_load_func_ls():
@@ -334,9 +350,9 @@ def test_predict_from_load_func_ls():
         7681,
     ), f"Unexpected shape for result {pred_array.shape}"
     # make sure we dont have values outside of 0,1,2,3s
-    assert np.all(
-        np.isin(np.unique(pred_array), [0, 1, 2, 3])
-    ), "Unexpected values in result"
+    assert np.all(np.isin(np.unique(pred_array), [0, 1, 2, 3])), (
+        "Unexpected values in result"
+    )
 
 
 def test_check_patch_size():
@@ -361,6 +377,38 @@ def test_check_patch_size_small_input():
     test_array_size = 5
     test_array = np.random.rand(channels, test_array_size, test_array_size)
     with pytest.raises(ValueError):
+        check_patch_size(
+            input_array=test_array,
+            no_data_value=no_data_value,
+            patch_size=patch_size,
+            patch_overlap=patch_overlap,
+        )
+
+
+def test_patch_size_too_small():
+    patch_size = 31
+    patch_overlap = 15
+    no_data_value = 0
+    channels = 3
+    test_array_size = 300
+    test_array = np.random.rand(channels, test_array_size, test_array_size)
+    with pytest.raises(ValueError):
+        check_patch_size(
+            input_array=test_array,
+            no_data_value=no_data_value,
+            patch_size=patch_size,
+            patch_overlap=patch_overlap,
+        )
+
+
+def test_warning_for_small_patch_size():
+    patch_size = 40
+    patch_overlap = 15
+    no_data_value = 0
+    channels = 3
+    test_array_size = 300
+    test_array = np.random.rand(channels, test_array_size, test_array_size)
+    with pytest.warns(UserWarning):
         check_patch_size(
             input_array=test_array,
             no_data_value=no_data_value,
@@ -416,9 +464,9 @@ def test_check_patch_size_large_nodata_warning():
             patch_size=patch_size,
             patch_overlap=patch_overlap,
         )
-    assert (
-        new_patch_overlap == 250
-    ), f"Unexpected patch overlap, got {new_patch_overlap}"
+    assert new_patch_overlap == 250, (
+        f"Unexpected patch overlap, got {new_patch_overlap}"
+    )
     assert new_patch_size == 500, f"Unexpected patch size, got {new_patch_size}"
 
 

@@ -91,9 +91,9 @@ def test_create_gradient_mask_shape(patch_size, patch_overlap, expected_shape):
     device = torch.device("cpu")
     dtype = torch.float32
     mask = create_gradient_mask(patch_size, patch_overlap, device, dtype)
-    assert (
-        mask.shape == expected_shape
-    ), f"Expected shape {expected_shape}, got {mask.shape}"
+    assert mask.shape == expected_shape, (
+        f"Expected shape {expected_shape}, got {mask.shape}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -115,9 +115,9 @@ def test_create_gradient_mask_device():
     dtype = torch.float32
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     mask = create_gradient_mask(patch_size, patch_overlap, device, dtype)
-    assert (
-        mask.device.type == device.type
-    ), f"Expected device {device.type}, got {mask.device.type}"
+    assert mask.device.type == device.type, (
+        f"Expected device {device.type}, got {mask.device.type}"
+    )
 
 
 def test_create_gradient_mask_values():
@@ -176,9 +176,9 @@ def test_create_gradient_mask_large_overlap():
     mask = create_gradient_mask(patch_size, patch_overlap, device, dtype)
 
     assert mask.shape == (100, 100), "Shape should still be correct with large overlap"
-    assert (
-        torch.max(mask) <= 1.0 and torch.min(mask) > 0.0
-    ), "Values should be between 0 and 1"
+    assert torch.max(mask) <= 1.0 and torch.min(mask) > 0.0, (
+        "Values should be between 0 and 1"
+    )
     assert torch.allclose(mask, mask.flip(0)), "Mask should be symmetric vertically"
     assert torch.allclose(mask, mask.flip(1)), "Mask should be symmetric horizontally"
 
@@ -313,62 +313,53 @@ def test_default_device_cuda_available():
     with patch("torch.cuda.is_available", return_value=True):
         with patch("torch.backends.mps.is_available", return_value=False):
             device = default_device()
-            assert device == torch.device(
-                "cuda"
-            ), "Should return CUDA device when CUDA is available"
+            assert device == torch.device("cuda"), (
+                "Should return CUDA device when CUDA is available"
+            )
 
 
 def test_default_device_mps_available():
     with patch("torch.cuda.is_available", return_value=False):
         with patch("torch.backends.mps.is_available", return_value=True):
             device = default_device()
-            assert device == torch.device(
-                "mps"
-            ), "Should return MPS device when MPS is available and CUDA is not"
+            assert device == torch.device("mps"), (
+                "Should return MPS device when MPS is available and CUDA is not"
+            )
 
 
 def test_default_device_cpu_fallback():
     with patch("torch.cuda.is_available", return_value=False):
         with patch("torch.backends.mps.is_available", return_value=False):
             device = default_device()
-            assert device == torch.device(
-                "cpu"
-            ), "Should return CPU device when neither CUDA nor MPS is available"
+            assert device == torch.device("cpu"), (
+                "Should return CPU device when neither CUDA nor MPS is available"
+            )
 
 
 def test_default_device_cuda_priority():
     with patch("torch.cuda.is_available", return_value=True):
         with patch("torch.backends.mps.is_available", return_value=True):
             device = default_device()
-            assert device == torch.device(
-                "cuda"
-            ), "Should prioritize CUDA over MPS when both are available"
+            assert device == torch.device("cuda"), (
+                "Should prioritize CUDA over MPS when both are available"
+            )
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
 def test_default_device_real_cuda():
     device = default_device()
-    assert device == torch.device(
-        "cuda"
-    ), "Should return CUDA device on a system with CUDA available"
-
-
-@pytest.mark.skipif(not torch.backends.mps.is_available(), reason="MPS not available")
-def test_default_device_real_mps():
-    with patch("torch.cuda.is_available", return_value=False):
-        device = default_device()
-        assert device == torch.device(
-            "mps"
-        ), "Should return MPS device on a system with MPS available and CUDA unavailable"
+    assert device == torch.device("cuda"), (
+        "Should return CUDA device on a system with CUDA available"
+    )
 
 
 def test_default_device_real_cpu():
     with patch("torch.cuda.is_available", return_value=False):
         with patch("torch.backends.mps.is_available", return_value=False):
             device = default_device()
-            assert device == torch.device(
-                "cpu"
-            ), "Should return CPU device when no accelerator is available"
+            assert device == torch.device("cpu"), (
+                "Should return CPU device when no accelerator is available"
+            )
 
 
 #
@@ -436,9 +427,9 @@ def test_store_results_basic(setup_tensors):
         ]
     )
 
-    assert torch.allclose(
-        pred_tracker, expected
-    ), f"Expected {expected}, got {pred_tracker}"
+    assert torch.allclose(pred_tracker, expected), (
+        f"Expected {expected}, got {pred_tracker}"
+    )
 
 
 def test_store_results_with_grad_tracker(setup_tensors):
@@ -455,9 +446,9 @@ def test_store_results_with_grad_tracker(setup_tensors):
         ]
     )
 
-    assert torch.allclose(
-        grad_tracker, expected_grad_tracker
-    ), f"Expected {expected_grad_tracker}, got {grad_tracker}"
+    assert torch.allclose(grad_tracker, expected_grad_tracker), (
+        f"Expected {expected_grad_tracker}, got {grad_tracker}"
+    )
 
 
 def test_store_results_accumulation(setup_tensors):
@@ -500,9 +491,9 @@ def test_store_results_accumulation(setup_tensors):
         ]
     )
 
-    assert torch.allclose(
-        pred_tracker, expected
-    ), f"Expected {expected}, got {pred_tracker}"
+    assert torch.allclose(pred_tracker, expected), (
+        f"Expected {expected}, got {pred_tracker}"
+    )
 
 
 def test_store_results_device_handling():
@@ -517,12 +508,12 @@ def test_store_results_device_handling():
 
     expected = torch.tensor([[[1.0, 2.0], [3.0, 4.0]]], device=device)
 
-    assert torch.allclose(
-        pred_tracker, expected
-    ), f"Expected {expected}, got {pred_tracker}"
-    assert (
-        pred_tracker.device.type == device.type
-    ), f"Expected device type {device.type}, got {pred_tracker.device.type}"
+    assert torch.allclose(pred_tracker, expected), (
+        f"Expected {expected}, got {pred_tracker}"
+    )
+    assert pred_tracker.device.type == device.type, (
+        f"Expected device type {device.type}, got {pred_tracker.device.type}"
+    )
     if device.type == "cuda":
         assert pred_tracker.is_cuda, "Expected pred_tracker to be on CUDA device"
     elif device.type == "cpu":

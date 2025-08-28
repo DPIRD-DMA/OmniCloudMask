@@ -1,8 +1,9 @@
-import gdown
-import requests
+import logging
 import zipfile
 from pathlib import Path
-import logging
+
+import gdown
+import requests
 
 
 def download_file_from_google_drive(file_id: str, destination: Path) -> None:
@@ -24,13 +25,13 @@ def download_test_data():
     logging.info("Downloading test data...")
     test_data_dir = Path(__file__).parent / "test data"
     test_data_dir.mkdir(exist_ok=True)
-    test_data_liks = {
+    test_data_links = {
         "LC81960302014022LGN00": "1ewmbD2YzxUS2IibMW5GTbcQyZIoz0TNf",
-        "S2B_MSIL1C_20180302T150259_N0206_R125_T22WES_20180302T183800.SAFE": "1pGu_RdboqYcK4Q6_kjpnynCSzmNdUgcW",
-        "S2A_MSIL2A_20170725T142751_N9999_R053_T19GBQ_20240410T040247.SAFE": "1ZEfXnNpWi75OV6fVhNvzbe6MhxsvXSI3",
+        "S2B_MSIL1C_20180302T150259_N0206_R125_T22WES_20180302T183800.SAFE": "1pGu_RdboqYcK4Q6_kjpnynCSzmNdUgcW",  # noqa: E501
+        "S2A_MSIL2A_20170725T142751_N9999_R053_T19GBQ_20240410T040247.SAFE": "1ZEfXnNpWi75OV6fVhNvzbe6MhxsvXSI3",  # noqa: E501
     }
 
-    for file_name, file_id in test_data_liks.items():
+    for file_name, file_id in test_data_links.items():
         zip_file = test_data_dir / f"{file_name}.zip"
         if not zip_file.exists():
             download_file_from_google_drive(file_id, zip_file)
