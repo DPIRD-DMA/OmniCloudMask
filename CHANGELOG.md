@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.5.0] - Aug 28, 2025
+
+### Fixed
+- New model weights (v3) trained on larger dataset
+
 ## [1.4.1] - Jul 11, 2025
 
 ### Fixed

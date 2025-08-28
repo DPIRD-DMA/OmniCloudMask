@@ -185,7 +185,7 @@ be saved in the same directory as the input scene.
 -   `model_download_source (str, optional)`: Source from which to download the model weights. Defaults to "hugging_face", can also be "google_drive".
 -   `compile_models (bool, optional)`: If True, compiles the models for faster inference. Defaults to False.
 -   `compile_mode (str, optional)`: Compilation mode for the models. Defaults to "default".
--   `model_version (float, optional`: Version of the model to use. Defaults to 2.0 can also be 1.0 for original models.
+-   `model_version (float, optional`: Version of the model to use. Defaults to 3.0 can also be 2.0 or 1.0 for original models.
 
 
 ### `predict_from_array`
@@ -207,7 +207,7 @@ be saved in the same directory as the input scene.
 -   `model_download_source (str, optional)`: Source from which to download the model weights. Defaults to "hugging_face", can also be "google_drive".
 -   `compile_models (bool, optional)`: If True, compiles the models for faster inference. Defaults to False.
 -   `compile_mode (str, optional)`: Compilation mode for the models. Defaults to "default".
--   `model_version (float, optional`: Version of the model to use. Defaults to 2.0 can also be 1.0 for original models.
+-   `model_version (float, optional`: Version of the model to use. Defaults to 3.0 can also be 2.0 or 1.0 for original models.
 
 ## Contributing
 
@@ -219,4 +219,5 @@ This project is licensed under the MIT License
 
 ## Acknowledgements
 
--   Special thanks to the [CloudSen12 project](https://cloudsen12.github.io/) for providing valuable training dataset.
+-   Special thanks to the [CloudSen12 project](https://cloudsen12.github.io/) for the dataset used for model versions 1.0, 2.0 and 3.0.
+-   Special thanks to the [KappaSet authors](https://doi.org/10.5281/zenodo.7100327) for the dataset used for model version 3.0.
