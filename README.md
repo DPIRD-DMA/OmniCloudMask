@@ -13,9 +13,12 @@ As a successor to the CloudS2Mask library, OmniCloudMask offers higher accuracy 
 OmniCloudMask has been validated on Sentinel-2, PlanetScope and Landsat data and is also known to work well with Maxar data, it should work on any imagery with Red Green and NIR bands with a spatial resolution of 50 m or better.
 
 
-[The OmniCloudMask paper is now published 🎉](https://www.sciencedirect.com/science/article/pii/S0034425725000987)
+[OmniCloudMask paper 📜](https://www.sciencedirect.com/science/article/pii/S0034425725000987)
+
+[OmniCloudMask training data distribution map 🗺️](https://dpird-dma.github.io/OCM-training-data-map/)
 
 [Satellite Image Deep Learning podcast about OmniCloudMask](https://www.satellite-image-deep-learning.com/p/omnicloudmask)
+
 
 ## Changelog
 
