@@ -124,25 +124,33 @@ def check_patch_size(
     input_array: np.ndarray, no_data_value: int, patch_size: int, patch_overlap: int
 ) -> tuple[int, int]:
     """Used to check the inputs and adjust the patch size and overlap if necessary."""
+    # ideally the patch size would be above soft_minimum_patch_size
+    soft_minimum_patch_size = 50
+
+    # if the patch size is below hard_minimum_patch_size the models will error
+    hard_minimum_patch_size = 32
+
     # check the shape of the input array
     if len(input_array.shape) != 3:
         raise ValueError(
-            f"""Input array must have 3 dimensions, found {len(input_array.shape)}.
-            The input should be in format (bands (red,green,NIR), height, width)."""
+            f"Input array must have 3 dimensions, found {len(input_array.shape)}. "
+            f"The input should be in format (bands (red,green,NIR), height, width)."
         )
 
-    # check the width and height are greater than 10 pixels
-    if min(input_array.shape[1], input_array.shape[2]) < 10:
+    # check the width and height are greater than or equal to hard_minimum_patch_size
+    if min(input_array.shape[1], input_array.shape[2]) < hard_minimum_patch_size:
         raise ValueError(
-            f"""Input array must have a width and height greater than 10 pixels,
-            found shape {input_array.shape}. The input should be in format
-            (bands (red,green,NIR), height, width)."""
+            f"Input array must have a width and height greater than or "
+            f"equal to {hard_minimum_patch_size} pixels, "
+            f"found shape {input_array.shape}. "
+            f"You may add a nodata buffer to pad the input array to the minimum size. "
+            f"The input should be in format (bands (red,green,NIR), height, width)."
         )
-    if min(input_array.shape[1], input_array.shape[2]) < 50:
+    if min(input_array.shape[1], input_array.shape[2]) < soft_minimum_patch_size:
         warnings.warn(
-            f"""Input width or height is less than 50 pixels,
-            found shape {input_array.shape}. 
-            Small image may not provide adequate spatial context for the model.""",
+            f"Input width or height is less than {soft_minimum_patch_size} pixels, "
+            f"found shape {input_array.shape}. Small image may not provide adequate "
+            f"spatial context for the model.",
             stacklevel=2,
         )
 
@@ -150,34 +158,51 @@ def check_patch_size(
     # half the image size, we reduce the patch size and overlap
     if np.count_nonzero(input_array == no_data_value) / input_array.size > 0.3:
         if patch_size > min(input_array.shape[1], input_array.shape[2]) / 2:
-            patch_size = min(input_array.shape[1], input_array.shape[2]) // 2
+            patch_size = max(
+                min(input_array.shape[1], input_array.shape[2]) // 2,
+                hard_minimum_patch_size,
+            )  # make sure the new size is at least the hard minimum
             if patch_size // 2 < patch_overlap:
                 patch_overlap = patch_size // 2
 
             warnings.warn(
-                f"""Significant no-data areas detected. Adjusting patch size
-                to {patch_size}px and overlap to {patch_overlap}px to minimize
-                no-data patches.""",
+                f"Significant no-data areas detected. Adjusting patch size "
+                f"to {patch_size}px and overlap to {patch_overlap}px to minimize "
+                f"no-data patches.",
                 stacklevel=2,
             )
 
     # if the patch size is larger than the image size,
     # we reduce the patch size and overlap
     if patch_size > min(input_array.shape[1], input_array.shape[2]):
-        patch_size = min(input_array.shape[1], input_array.shape[2])
+        patch_size = max(
+            min(input_array.shape[1], input_array.shape[2]), hard_minimum_patch_size
+        )  # make sure the new size is at least the hard minimum
+
         if patch_size // 2 < patch_overlap:
             patch_overlap = patch_size // 2
         warnings.warn(
-            f"""Patch size too large, reducing to {patch_size} and 
-            overlap to {patch_overlap}.""",
+            f"Patch size too large, reducing to {patch_size} and "
+            f"overlap to {patch_overlap}.",
             stacklevel=2,
         )
 
     # if the patch overlap is larger than the patch size, raise an error
     if patch_overlap >= patch_size:
         raise ValueError(
-            f"""Patch overlap {patch_overlap}px must be less than patch size 
-            {patch_size}px."""
+            f"Patch overlap {patch_overlap}px must be less than patch size "
+            f"{patch_size}px."
+        )
+
+    if patch_size < hard_minimum_patch_size:
+        raise ValueError(
+            f"Patch size {patch_size}px must be at least {hard_minimum_patch_size}px."
+        )
+    if patch_size < soft_minimum_patch_size:
+        warnings.warn(
+            f"Patch size {patch_size}px is less than {soft_minimum_patch_size}px. "
+            "Small patch sizes may not provide adequate spatial context for the model.",
+            stacklevel=2,
         )
     return patch_overlap, patch_size
 
@@ -311,7 +336,7 @@ def collect_models(
     inference_dtype: torch.dtype,
     source: str,
     destination_model_dir: Union[str, Path, None] = None,
-    model_version: float = 2.0,
+    model_version: float = 3.0,
 ) -> list[torch.nn.Module]:
     if custom_models is None:
         models = []
@@ -356,7 +381,7 @@ def predict_from_array(
     model_download_source: str = "hugging_face",
     compile_models: bool = False,
     compile_mode: str = "default",
-    model_version: float = 2.0,
+    model_version: float = 3.0,
 ) -> np.ndarray:
     """Predict a cloud and cloud shadow mask from a Red, Green and NIR numpy array, with a spatial res between 10 m and 50 m.
 
@@ -378,7 +403,7 @@ def predict_from_array(
         model_download_source (str, optional): Source from which to download the model weights. Defaults to "hugging_face", can also be "google_drive".
         compile_models (bool, optional): If True, compiles the models for faster inference. Defaults to False.
         compile_mode (str, optional): Compilation mode for the models. Defaults to "default".
-        model_version (float, optional): Version of the model to use. Defaults to 2.0 can also be 1.0 for original models.
+        model_version (float, optional): Version of the model to use. Defaults to 3.0 can also be 2.0 or 1.0 for original models.
     Returns:
         np.ndarray: A numpy array with shape (1, height, width) or (4, height, width if export_confidence = True) representing the predicted cloud and cloud shadow mask.
 
@@ -458,7 +483,7 @@ def predict_from_load_func(
     model_download_source: str = "hugging_face",
     compile_models: bool = False,
     compile_mode: str = "default",
-    model_version: float = 2.0,
+    model_version: float = 3.0,
 ) -> list[Path]:
     """
     Predicts cloud and cloud shadow masks for a list of scenes using a specified loading function.
@@ -484,7 +509,7 @@ def predict_from_load_func(
         model_download_source (str, optional): Source from which to download the model weights. Defaults to "hugging_face", can also be "google_drive".
         compile_models (bool, optional): If True, compiles the models for faster inference. Defaults to False.
         compile_mode (str, optional): Compilation mode for the models. Defaults to "default".
-        model_version (float, optional): Version of the model to use. Defaults to 2.0 can also be 1.0 for original models.
+        model_version (float, optional): Version of the model to use. Defaults to 3.0 can also be 2.0 or 1.0 for original models.
     Returns:
         list[Path]: A list of paths to the output prediction files.
 
