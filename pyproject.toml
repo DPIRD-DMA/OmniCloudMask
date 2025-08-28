@@ -28,12 +28,20 @@ version = {attr = "omnicloudmask.__version__.__version__"}
 
 [dependency-groups]
 dev = [
+    "cubo>=2024.1.1",
     "geopandas>=1.0.1",
     "h5py>=3.14.0",
     "jupyter>=1.1.1",
+    "netcdf4>=1.7.2",
+    "opencv-python>=4.12.0.88",
+    "planetary-computer>=1.0.0",
+    "pystac>=1.10.1",
+    "pystac-client>=0.8.3",
     "pytest>=8.4.0",
+    "rioxarray>=0.15.0",
     "ruff>=0.12.2",
     "s2dl>=0.3",
+    "spandrel>=0.4.1",
     "tacoreader>=0.5.6",
 ]
 
@@ -46,5 +54,8 @@ omnicloudmask = ["model_download_links.csv"]
 [tool.setuptools]
 packages = ["omnicloudmask"]
 
-[tool.ruff]
+[tool.ruff.lint]
 select = ["E", "F", "B"]
+
+[tool.ruff]
+exclude = ["training/Train OCM models.ipynb"]

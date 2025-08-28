@@ -3,11 +3,11 @@ import platform
 from typing import Optional
 
 import fastai
+import matplotlib.colors as mcolors
 import numpy as np
 import torch
 from fastai.torch_core import default_device
 from matplotlib import pyplot as plt
-from torch import version
 
 
 def plot_batch(batch, image_num=0, labels: Optional[list[str]] = None):
@@ -60,14 +60,27 @@ def plot_batch(batch, image_num=0, labels: Optional[list[str]] = None):
         else:
             axs[ch + 1].set_title(f"Channel {ch + 1}")
         axs[ch + 1].axis("off")
+    colors = [
+        "#8B4513",
+        "white",
+        "#808080",
+        "black",
+        "pink",
+    ]  # brown, white, grey, black
+    n_bins = 5
+    cmap = mcolors.LinearSegmentedColormap.from_list(
+        "brown_white_grey_black", colors, N=n_bins
+    )
+    # remap 99 values to 5 for visualization
+    y[y == 99] = 5
 
     # Plot the label mask for the specified image number
     axs[-1].imshow(
         y[image_num].cpu().numpy(),
-        cmap="tab20b",
+        cmap=cmap,
         interpolation="nearest",
         vmin=0,
-        vmax=3,
+        vmax=4,
     )
     axs[-1].set_title("Label")
     axs[-1].axis("off")
@@ -122,10 +135,13 @@ def print_system_info():
     info = {
         "PyTorch Version": torch.__version__,
         "CUDA Available": "Yes" if torch.cuda.is_available() else "No",
-        "CUDA Version": version.cuda if torch.cuda.is_available() else "N/A",
+        "CUDA Version": torch.version.cuda if torch.cuda.is_available() else "N/A",  # type: ignore
         "Python Version": platform.python_version(),
         "Fastai Version": fastai.__version__,
         "Default Device": default_device(),
+        "Device Name": torch.cuda.get_device_name(0)
+        if torch.cuda.is_available()
+        else "N/A",
     }
 
     # Find the maximum key length for alignment
