@@ -234,7 +234,7 @@ def test_predict_from_load_func_s2_L2():
     )
     assert len(result_paths) == 1, "Unexpected number of results"
     assert result_paths[0].exists(), "Result file not created"
-    pred_array = rio.open(result_paths[0]).read()
+    pred_array = rio.open(result_paths[0]).read().astype(np.float32)
     # Check the result
     assert pred_array.shape == (1, 10980, 10980), "Unexpected shape for result"
     # make sure we dont have values outside of 0,1,2,3s
@@ -246,11 +246,11 @@ def test_predict_from_load_func_s2_L2():
         / "S2A_MSIL2A_20170725T142751_N9999_R053_T19GBQ_20240410T040247_expected_output.tif"  # noqa
     )
     assert expected_output_path.exists(), "Expected output file not found"
-    expected_output_array = rio.open(expected_output_path).read()
+    expected_output_array = rio.open(expected_output_path).read().astype(np.float32)
 
-    difference = np.abs(pred_array - expected_output_array).sum()
+    difference = (np.abs(pred_array - expected_output_array) > 0).sum()
     # Check that is within 0.1% of the expected output
-    assert difference < (10980 * 10980) * 0.01, (
+    assert difference < (10980 * 10980) * 0.001, (
         f"Unexpected difference between expected and actual output: {difference}"
     )
 
