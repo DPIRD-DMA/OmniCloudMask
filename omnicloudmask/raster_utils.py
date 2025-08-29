@@ -20,46 +20,55 @@ def get_patch(
     assert input_array.ndim == 3, "Input array must have 3 dimensions"
 
     top, bottom, left, right = index
-    patch = input_array[:, top:bottom, left:right].astype(np.float32)
+    patch = input_array[:, top:bottom, left:right]
 
-    if patch.sum() == 0:
+    #  If the entire patch is nodata, return None
+    if np.all(patch == no_data_value):
         return None, None
 
-    if no_data_value is None:
-        if np.all(patch == no_data_value):
-            return None, None
-
-    if np.any(patch == 0):
+    # If patch edges include nodata, shift inward until nodata is found on edge
+    # Only perform this if no_data_value is in the patch
+    if no_data_value is not None and np.any(patch == no_data_value):
+        # don't move outside the bounds of the input array
         max_bottom, max_right = input_array.shape[1:3]
 
-        if np.any(patch[:, 0, :]) or np.any(patch[:, -1, :]):
-            while not np.any(patch[:, 0, :]) and bottom < max_bottom:  # check top row
-                patch = patch[:, 1:, :]
+        # Used to avoid back-and-forth shifting
+        moved_vert = False
+        # If nodata is on the top edge, move down until it's not
+        if bottom < max_bottom and np.all(patch[:, 0, :] == no_data_value):
+            while bottom < max_bottom and np.all(patch[:, 0, :] == no_data_value):
                 top += 1
                 bottom += 1
+                patch = input_array[:, top:bottom, left:right]
+            moved_vert = True
 
-            while not np.any(patch[:, -1, :]) and top > 0:
-                patch = patch[:, :-1, :]
-                bottom -= 1
+        # If we didn't move down, see if the bottom edge contains nodata and move up
+        if not moved_vert and top > 0 and np.all(patch[:, -1, :] == no_data_value):
+            while top > 0 and np.all(patch[:, -1, :] == no_data_value):
                 top -= 1
+                bottom -= 1
+                patch = input_array[:, top:bottom, left:right]
 
-        # Both sides are not zero-filled
-        if np.any(patch[:, :, 0]) or np.any(patch[:, :, -1]):
-            while not np.any(patch[:, :, 0]) and right < max_right:  # check left column
-                patch = patch[:, :, 1:]
+        #  Same logic for left and right edges
+        moved_horiz = False
+
+        if right < max_right and np.all(patch[:, :, 0] == no_data_value):
+            while right < max_right and np.all(patch[:, :, 0] == no_data_value):
                 left += 1
                 right += 1
+                patch = input_array[:, top:bottom, left:right]
+            moved_horiz = True
 
-            while not np.any(patch[:, :, -1]) and left > 0:  # check right column
-                patch = patch[:, :, :-1]
-                right -= 1
+        if not moved_horiz and left > 0 and np.all(patch[:, :, -1] == no_data_value):
+            while left > 0 and np.all(patch[:, :, -1] == no_data_value):
                 left -= 1
-        patch = input_array[:, top:bottom, left:right].astype(np.float32)
-        index = (top, bottom, left, right)
+                right -= 1
+                patch = input_array[:, top:bottom, left:right]
 
-    # trim index bottom and right to match patch shape
+        patch = input_array[:, top:bottom, left:right]
+
     index = (top, top + patch.shape[1], left, left + patch.shape[2])
-    return channel_norm(patch, no_data_value), index
+    return channel_norm(patch.astype(np.float32), no_data_value), index
 
 
 def mask_prediction(
@@ -71,9 +80,9 @@ def mask_prediction(
     then return the masked prediction tracker and the mask."""
     assert scene.ndim == 3, "Scene must have 3 dimensions"
     assert pred_tracker_np.ndim == 3, "Prediction tracker must have 3 dimensions"
-    assert (
-        scene.shape[1:] == pred_tracker_np.shape[1:]
-    ), "Scene and prediction tracker must have the same shape"
+    assert scene.shape[1:] == pred_tracker_np.shape[1:], (
+        "Scene and prediction tracker must have the same shape"
+    )
     # if all bands at a single pixel are no_data_value,
     # then it is considered no data
     mask = (~np.all(scene == no_data_value, axis=0)).astype(np.uint8)
@@ -91,12 +100,12 @@ def make_patch_indexes(
     assert patch_size > patch_overlap, "Patch size must be greater than patch overlap"
     assert patch_overlap >= 0, "Patch overlap must be greater than or equal to 0"
     assert patch_size > 0, "Patch size must be greater than 0"
-    assert (
-        patch_size <= array_width
-    ), "Patch size must be less than or equal to array width"
-    assert (
-        patch_size <= array_height
-    ), "Patch size must be less than or equal to array height"
+    assert patch_size <= array_width, (
+        "Patch size must be less than or equal to array width"
+    )
+    assert patch_size <= array_height, (
+        "Patch size must be less than or equal to array height"
+    )
 
     stride = patch_size - patch_overlap
 
