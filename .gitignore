@@ -24,3 +24,4 @@ training/__pycache__/*
 omnicloudmask/models/*_PT_state.pth
 examples/Maxar data/*
 examples/PlanetScope data/*
+tests/speed test/speed test scenes/*
