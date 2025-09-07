@@ -19,7 +19,7 @@ from .model_utils import (
     inference_and_store,
     load_model_from_weights,
 )
-from .mps_patch import apply_mps_fix, remove_mps_fix
+from .mps_patch import patch_models_for_mps
 from .raster_utils import (
     get_patch,
     make_patch_indexes,
@@ -233,10 +233,6 @@ def coordinator(
         input_array, no_data_value, patch_size, patch_overlap
     )
 
-    # if using mps for inference, apply the mps fix
-    if inference_device.type == "mps":
-        apply_mps_fix()
-
     pred_tracker = torch.zeros(
         (pred_classes, *input_array.shape[1:3]),
         dtype=inference_dtype,
@@ -323,8 +319,6 @@ def coordinator(
                 nodata_mask=nodata_mask,
             )
 
-    if inference_device.type == "mps":
-        remove_mps_fix()
     if pbar:
         pbar.update(1)
     return pred_tracker_np
@@ -359,6 +353,14 @@ def collect_models(
         models = [
             model.to(inference_dtype).to(inference_device) for model in custom_models
         ]
+
+    # Patch models for MPS if needed
+    if inference_device.type == "mps":
+        models = patch_models_for_mps(
+            models=models,
+            inference_device=inference_device,
+            inference_dtype=inference_dtype,
+        )
 
     return models
 
