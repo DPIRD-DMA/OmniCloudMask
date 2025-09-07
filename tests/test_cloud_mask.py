@@ -1,4 +1,6 @@
+from concurrent.futures import ThreadPoolExecutor
 from functools import partial
+from multiprocessing.pool import ThreadPool
 from pathlib import Path
 
 import numpy as np
@@ -104,6 +106,36 @@ def test_predict_from_array_basic_v2():
     assert np.all(np.isin(np.unique(result), [0, 1, 2, 3])), (
         "Unexpected values in result"
     )
+
+
+def test_threaded_predict_from_array_basic():
+    # Create test input
+    shape = 1000
+    input_array = np.random.rand(3, shape, shape).astype(np.float32)
+    input_list = [input_array for _ in range(8)]
+
+    # Test ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        results_executor = list(executor.map(predict_from_array, input_list))
+
+    # Test ThreadPool
+    with ThreadPool(4) as pool:
+        results_pool = pool.map(predict_from_array, input_list)
+
+    # Verify results
+    assert len(results_executor) == 8, "ThreadPoolExecutor should return 8 results"
+    assert len(results_pool) == 8, "ThreadPool should return 8 results"
+
+    # Check that all results have expected shape
+    for result in results_executor:
+        assert result.shape == (1, shape, shape), f"Unexpected shape: {result.shape}"
+
+    # Verify results are deterministic (same input should give same output)
+    single_result = predict_from_array(input_array)
+    for result in results_executor:
+        np.testing.assert_array_equal(
+            result, single_result, "Threaded results should match single-threaded"
+        )
 
 
 def test_predict_from_array_cpu_mosaic():
