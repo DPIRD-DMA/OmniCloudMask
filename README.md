@@ -2,7 +2,7 @@
 [![image](https://img.shields.io/pypi/v/omnicloudmask.svg)](https://pypi.python.org/pypi/omnicloudmask)
 [![image](https://static.pepy.tech/badge/omnicloudmask)](https://pepy.tech/project/omnicloudmask)
 [![image](https://img.shields.io/conda/vn/conda-forge/omnicloudmask.svg)](https://anaconda.org/conda-forge/omnicloudmask)
-[![Conda Downloads](https://img.shields.io/conda/dn/conda-forge/omnicloudmask.svg?color=blue)](https://anaconda.org/conda-forge/omnicloudmask)
+[![Conda Downloads](https://img.shields.io/conda/dn/conda-forge/omnicloudmask.svg)](https://anaconda.org/conda-forge/omnicloudmask)
 [![image](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tutorials](https://img.shields.io/badge/Tutorials-Learn-brightgreen)](https://github.com/DPIRD-DMA/OmniCloudMask/tree/main/examples)
 
