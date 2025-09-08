@@ -1,8 +1,20 @@
 # Changelog
 
-## [1.5.0] - Aug 28, 2025
+
+## [1.6.0] - Sep 8, 2025
+
+### Added
+ - Added cache to load_model_from_weights for faster model loading
+
+### Changed
+- Modified patch compilation to use a queue to avoid overloading to cpu
 
 ### Fixed
+- Fixed nodata bug in get_patch
+
+## [1.5.0] - Aug 28, 2025
+
+### Added
 - New model weights (v3) trained on larger dataset
 
 ## [1.4.1] - Jul 11, 2025
