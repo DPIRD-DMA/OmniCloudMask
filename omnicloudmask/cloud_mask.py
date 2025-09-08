@@ -1,6 +1,7 @@
 import warnings
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from queue import Queue
 from threading import Thread
 from typing import Callable, Generator, Optional, Union
 
@@ -37,39 +38,60 @@ def compile_batches(
     inference_device: torch.device,
     inference_dtype: torch.dtype,
 ) -> Generator[tuple[torch.Tensor, list[tuple[int, int, int, int]]], None, None]:
-    """Compile batches of patches from the input array and return them as generator."""
+    """Compile batches of patches with queue-based processing.
+
+    Queue limits memory to 1 batch worth of results. Always yields full batches
+    except the final one which may be partial.
+    """
+
+    # Queue blocks when full, preventing memory buildup
+    result_queue = Queue(maxsize=batch_size)
+
+    def worker(idx: tuple[int, int, int, int]) -> None:
+        """Extract patch and put result in queue. May put (None, None) for invalid patches."""  # noqa: E501
+        patch, new_index = get_patch(input_array, idx, no_data_value)
+        result_queue.put((patch, new_index))
 
     with ThreadPoolExecutor(max_workers=batch_size) as executor:
-        futures = [
-            executor.submit(get_patch, input_array, index, no_data_value)
-            for index in patch_indexes
-        ]
+        # Submit all work upfront - queue maxsize provides limiting
+        for idx in patch_indexes:
+            executor.submit(worker, idx)
 
-        total_futures = len(futures)
+        # Collect valid results into full batches
         all_indexes = set()
         index_batch = []
         patch_batch_array = np.zeros(
             (batch_size, input_array.shape[0], patch_size, patch_size), dtype=np.float32
         )
 
-        for index, future in enumerate(as_completed(futures)):
-            patch, new_index = future.result()
+        for i in range(len(patch_indexes)):
+            patch, new_index = result_queue.get()
 
+            # Skip invalid patches (get_patch returned None)
             if patch is not None and new_index not in all_indexes:
                 index_batch.append(new_index)
                 patch_batch_array[len(index_batch) - 1] = patch
                 all_indexes.add(new_index)
 
-            if len(index_batch) == batch_size or index == total_futures - 1:
-                if len(index_batch) == 0:
-                    continue
-                input_tensor = (
-                    torch.tensor(
-                        patch_batch_array[: len(index_batch)], dtype=torch.float32
-                    )
-                    .to(inference_device)
-                    .to(inference_dtype)
+            # Yield full batch or final partial batch
+            is_last_task = i == len(patch_indexes) - 1
+            if len(index_batch) == batch_size or (index_batch and is_last_task):
+                input_tensor = torch.as_tensor(
+                    patch_batch_array[: len(index_batch)], dtype=torch.float32
                 )
+                if inference_device.type == "cuda":
+                    input_tensor = input_tensor.pin_memory()
+                    input_tensor = input_tensor.to(
+                        device=inference_device,
+                        dtype=inference_dtype,
+                        non_blocking=True,
+                    )
+                else:
+                    input_tensor = input_tensor.to(
+                        device=inference_device,
+                        dtype=inference_dtype,
+                    )
+
                 yield input_tensor, index_batch
                 index_batch = []
 
@@ -351,7 +373,8 @@ def collect_models(
             custom_models = [custom_models]
 
         models = [
-            model.to(inference_dtype).to(inference_device) for model in custom_models
+            model.to(device=inference_device, dtype=inference_dtype)
+            for model in custom_models
         ]
 
     # Patch models for MPS if needed
