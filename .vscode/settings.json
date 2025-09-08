@@ -51,6 +51,7 @@
         "neighbour",
         "nodata",
         "numpy",
+        "omnicloudmask",
         "opencv",
         "pathlib",
         "pbar",
