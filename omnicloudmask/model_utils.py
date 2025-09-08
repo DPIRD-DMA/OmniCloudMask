@@ -1,5 +1,5 @@
 import warnings
-from functools import partial
+from functools import lru_cache, partial
 from pathlib import Path
 from typing import Optional, Union, cast
 
@@ -14,13 +14,17 @@ def get_torch_dtype(dtype: Union[torch.dtype, str]) -> torch.dtype:
     """Return a torch.dtype from a string or torch.dtype."""
     if isinstance(dtype, str):
         dtype_mapping = {
+            "torch.float16": torch.float16,
             "float16": torch.float16,
-            "half": torch.float16,
             "fp16": torch.float16,
-            "float32": torch.float32,
-            "float": torch.float32,
+            "half": torch.float16,
+            "torch.bfloat16": torch.bfloat16,
             "bfloat16": torch.bfloat16,
             "bf16": torch.bfloat16,
+            "torch.float32": torch.float32,
+            "float32": torch.float32,
+            "fp32": torch.float32,
+            "float": torch.float32,
         }
         try:
             return dtype_mapping[dtype.lower()]
@@ -173,9 +177,10 @@ def load_model(
         raise RuntimeError(f"Error loading model: {e}") from None
 
     model.eval()
-    return model.to(dtype).to(device)
+    return model.to(device=device, dtype=dtype)
 
 
+@lru_cache(maxsize=2)
 def load_model_from_weights(
     model_name: str,
     weights_path: Union[Path, str],
@@ -213,7 +218,7 @@ def load_model_from_weights(
     model.load_state_dict(model_state)
     model.eval()
 
-    return model.to(dtype).to(device)
+    return model.to(device=device, dtype=dtype)
 
 
 def compile_torch_model(
