@@ -22,7 +22,9 @@ OmniCloudMask has been validated on Sentinel-2, PlanetScope and Landsat data and
 
 ## Changelog
 
-See [the changelog](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/CHANGELOG.md) for version history and release notes.
+See the [changelog](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/CHANGELOG.md) for version history and release notes.
+
+See the [model changelog](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/MODEL_CHANGELOG.md) for model version notes.
 
 ## Features
 
