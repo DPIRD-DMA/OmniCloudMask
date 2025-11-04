@@ -48,6 +48,7 @@ See the [model changelog](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/M
 - [Sentinel-2](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/Sentinel-2.ipynb) 
 - [PlanetScope](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/PlanetScope.ipynb)
 - [PlanetScope Hyperspectral](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/PlanetScope%20Hyperspectral.ipynb)
+- [Harmonized Landsat and Sentinel-2 (HLS)](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/HLS.ipynb)
 
 [Link]: https://colab.research.google.com/drive/1d53lg2yiSbqhrzDWlJoS5rjHgRLRJ3WY?usp=sharing 'Try OmniCloudMask In Colab'
 
