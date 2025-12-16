@@ -12,6 +12,14 @@ from safetensors.torch import load_file
 from .__version__ import __version__ as omnicloudmask_version
 
 
+def get_latest_model_version() -> float:
+    """Get the latest model version from the model_download_links.csv file"""
+    with (resources.files("omnicloudmask") / "model_download_links.csv").open() as f:
+        model_df = pd.read_csv(f)
+    model_df["version"] = model_df["version"].astype(float)
+    return float(model_df["version"].max())
+
+
 def download_file_from_google_drive(file_id: str, destination: Path) -> None:
     """
     Downloads a file from Google Drive and saves it at the given destination
@@ -76,7 +84,7 @@ def get_models(
     force_download: bool = False,
     model_dir: Union[str, Path, None] = None,
     source: str = "hugging_face",
-    model_version: float = 3.0,
+    model_version: float | None = None,
 ) -> list[dict]:
     """
     Downloads the model weights from Google Drive and saves them locally.
@@ -88,6 +96,8 @@ def get_models(
         should be saved.
         source (str): The source from which the model weights should be downloaded.
         Currently, only "google_drive" or "hugging_face" are supported.
+        model_version (float | None): Version of the model to use. Defaults to the latest
+        available version if None. Can be set to 4.0, 3.0, 2.0, or 1.0.
     """
 
     with (resources.files("omnicloudmask") / "model_download_links.csv").open() as f:
@@ -95,6 +105,11 @@ def get_models(
 
     # set version column to float
     model_df["version"] = model_df["version"].astype(float)
+
+    # Use latest version if not specified
+    if model_version is None:
+        model_version = float(model_df["version"].max())
+
     available_versions = model_df["version"].unique()
     if model_version not in available_versions:
         raise ValueError(
@@ -116,6 +131,7 @@ def get_models(
         model_dir.mkdir(exist_ok=True)
         destination = model_dir / str(row["file_name"])
         timm_model_name = row["timm_model_name"]
+        model_library = row["model_library"]
 
         if not destination.exists() or force_download:
             download_file(file_id=file_id, destination=destination, source=source)
@@ -123,5 +139,11 @@ def get_models(
         elif destination.stat().st_size <= 1024 * 1024:
             download_file(file_id=file_id, destination=destination, source=source)
 
-        model_paths.append({"Path": destination, "timm_model_name": timm_model_name})
+        model_paths.append(
+            {
+                "Path": destination,
+                "timm_model_name": timm_model_name,
+                "model_library": model_library,
+            }
+        )
     return model_paths

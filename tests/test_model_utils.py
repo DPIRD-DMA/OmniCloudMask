@@ -548,6 +548,7 @@ def test_load_model_from_weights():
                 weights_path=model_details["Path"],
                 device=torch.device("cpu"),
                 dtype=torch.float32,
+                model_library=model_details["model_library"],
             )
         )
     assert len(models) == 2

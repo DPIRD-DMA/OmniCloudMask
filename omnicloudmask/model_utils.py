@@ -4,9 +4,9 @@ from pathlib import Path
 from typing import Optional, Union, cast
 
 import numpy as np
+import segmentation_models_pytorch as smp
 import timm
 import torch
-from fastai.vision.learner import create_unet_model
 from safetensors.torch import load_file
 
 
@@ -75,13 +75,18 @@ def create_gradient_mask(
     return combined_gradient.to(dtype)
 
 
-def channel_norm(patch: np.ndarray, nodata_value: Optional[int] = 0) -> np.ndarray:
+def channel_norm(
+    patch: np.ndarray, nodata_value: Optional[int | float] = 0
+) -> np.ndarray:
     """Normalize each band of the input array by subtracting the nonzero mean and
     dividing by the nonzero standard deviation then fill nodata values with 0."""
     out_array = np.zeros(patch.shape).astype(np.float32)
     for id, band in enumerate(patch):
         # Mask for non-zero values
-        mask = band != nodata_value
+        if isinstance(nodata_value, float) and np.isnan(nodata_value):
+            mask = ~np.isnan(band)
+        else:
+            mask = band != nodata_value
         # Check if there are any non-zero values
         if np.any(mask):
             mean = band[mask].mean()
@@ -180,16 +185,22 @@ def load_model(
     return model.to(device=device, dtype=dtype)
 
 
-@lru_cache(maxsize=2)
-def load_model_from_weights(
+def build_fastai_model(
     model_name: str,
-    weights_path: Union[Path, str],
-    device: torch.device,
-    dtype: torch.dtype = torch.float32,
     in_chans: int = 3,
     n_out: int = 4,
 ) -> torch.nn.Module:
-    """Build Fastai DynamicUnet model from timm model and load weights from file"""
+    """Build Fastai DynamicUnet model from timm model"""
+    try:
+        from fastai.vision.learner import (  # type: ignore[import-not-found]
+            create_unet_model,
+        )
+    except ImportError as err:
+        raise ImportError(
+            "fastai is not installed. Please install OmniCloudMask[legacy] "
+            "to use model versions 1-3."
+        ) from err
+
     timm_model = partial(
         timm.create_model,
         model_name=model_name,
@@ -204,8 +215,41 @@ def load_model_from_weights(
         act_cls=torch.nn.Mish,
         pretrained=False,
     )
+    return model
 
-    # If using the v2 weights then the file will be saved as a .safetensors file
+
+@lru_cache(maxsize=2)
+def load_model_from_weights(
+    model_name: str,
+    weights_path: Union[Path, str],
+    model_library: str,
+    device: torch.device,
+    dtype: torch.dtype = torch.float32,
+    in_chans: int = 3,
+    n_out: int = 4,
+    compile_models: bool = False,
+    patch_size: int = 1000,
+    batch_size: int = 1,
+    compile_mode: str = "default",
+) -> torch.nn.Module:
+    """Build Fastai DynamicUnet model from timm model and load weights from file"""
+    if model_library == "fastai":
+        model = build_fastai_model(
+            model_name=model_name, in_chans=in_chans, n_out=n_out
+        )
+    elif model_library == "smp":
+        model = smp.Unet(
+            encoder_name=model_name,
+            encoder_weights=None,
+            in_channels=in_chans,
+            classes=n_out,
+        )
+    else:
+        raise ValueError(
+            f"Invalid model_library: {model_library}. Must be one of 'fastai' or 'smp'."
+        )
+
+    # If using the v2+ weights then the file will be saved as a .safetensors file
     if Path(weights_path).suffix == ".safetensors":
         model_state = load_file(weights_path)
 
@@ -218,7 +262,19 @@ def load_model_from_weights(
     model.load_state_dict(model_state)
     model.eval()
 
-    return model.to(device=device, dtype=dtype)
+    model = model.to(device=device, dtype=dtype)
+
+    if compile_models:
+        model = compile_torch_model(
+            model=model,
+            patch_size=patch_size,
+            batch_size=batch_size,
+            dtype=dtype,
+            device=device,
+            compile_mode=compile_mode,
+        )
+
+    return model
 
 
 def compile_torch_model(

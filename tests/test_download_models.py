@@ -44,6 +44,7 @@ def test_get_models_custom_dir_str():
         assert model["Path"].parent == model_dir
         assert Path(model["Path"]).stat().st_size > 1024 * 1024
         assert isinstance(model["timm_model_name"], str)
+        assert model["model_library"] in ["fastai", "smp"]
 
 
 def test_load_model_from_weights_hugging_face():
@@ -56,6 +57,7 @@ def test_load_model_from_weights_hugging_face():
                 weights_path=model_details["Path"],
                 device=torch.device("cpu"),
                 dtype=torch.float32,
+                model_library=model_details["model_library"],
             )
         )
     assert len(models) == 2
@@ -73,6 +75,7 @@ def test_load_model_from_weights_google_drive():
                 weights_path=model_details["Path"],
                 device=torch.device("cpu"),
                 dtype=torch.float32,
+                model_library=model_details["model_library"],
             )
         )
     assert len(models) == 2
