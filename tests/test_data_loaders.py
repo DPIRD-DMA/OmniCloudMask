@@ -104,10 +104,10 @@ def test_load_multiband_no_resample():
 
     assert isinstance(bands, np.ndarray)
     assert bands.shape[0] == 3
-    assert profile["width"] == bands.shape[1], f'{profile["width"]} != {bands.shape[1]}'
-    assert (
-        profile["height"] == bands.shape[2]
-    ), f'{profile["height"]} != {bands.shape[2]}'
+    assert profile["width"] == bands.shape[1], f"{profile['width']} != {bands.shape[1]}"
+    assert profile["height"] == bands.shape[2], (
+        f"{profile['height']} != {bands.shape[2]}"
+    )
 
 
 def test_ls8():

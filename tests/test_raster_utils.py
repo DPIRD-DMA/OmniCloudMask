@@ -2,7 +2,11 @@ import numpy as np
 import pytest
 
 from omnicloudmask.model_utils import channel_norm
-from omnicloudmask.raster_utils import get_patch, make_patch_indexes, mask_prediction
+from omnicloudmask.raster_utils import (
+    get_patch,
+    make_patch_indexes,
+    mask_prediction,
+)
 
 
 def test_get_patch_within_bounds():
@@ -77,12 +81,12 @@ def test_get_patch_get_correct_patch():
     expected_patch = channel_norm(
         input_array[:, index[0] : index[1], index[2] : index[3]], no_data_value
     )
-    assert (
-        patch.shape == expected_patch.shape
-    ), "Patch shape should match expected patch"
-    assert np.allclose(
-        patch, expected_patch, rtol=1e-5, atol=1e-5
-    ), f"Patch should equal slice; got {patch} vs {expected_patch}"
+    assert patch.shape == expected_patch.shape, (
+        "Patch shape should match expected patch"
+    )
+    assert np.allclose(patch, expected_patch, rtol=1e-5, atol=1e-5), (
+        f"Patch should equal slice; got {patch} vs {expected_patch}"
+    )
 
 
 def test_get_patch_move_away_from_nodata():
@@ -113,12 +117,12 @@ def test_get_patch_move_away_from_nodata():
         no_data_value,
     )
     assert patch is not None, "Patch should not be None for valid input"
-    assert (
-        patch.shape == expected_patch.shape
-    ), "Patch shape should match expected patch"
-    assert np.allclose(
-        patch, expected_patch, rtol=1e-5, atol=1e-5
-    ), f"Patch should equal slice; got {patch} vs {expected_patch}"
+    assert patch.shape == expected_patch.shape, (
+        "Patch shape should match expected patch"
+    )
+    assert np.allclose(patch, expected_patch, rtol=1e-5, atol=1e-5), (
+        f"Patch should equal slice; got {patch} vs {expected_patch}"
+    )
 
 
 def test_make_patch_indexes_count_first_and_last():
