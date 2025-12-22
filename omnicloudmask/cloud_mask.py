@@ -284,7 +284,10 @@ def coordinator(
     )
 
     if export_confidence:
-        assert grad_tracker is not None
+        if grad_tracker is None:
+            raise ValueError(
+                "Gradient tracker is required for confidence maps, but was not provided."
+            )
         pred_tracker_norm = pred_tracker / grad_tracker
         if softmax_output:
             pred_tracker = torch.clip(
@@ -300,11 +303,17 @@ def coordinator(
         pred_tracker_np = pred_tracker.float().numpy(force=True)
 
     else:
-        pred_tracker_np = (
-            torch.argmax(pred_tracker, 0, keepdim=True)
-            .numpy(force=True)
-            .astype(np.uint8)
-        )
+        # For MPS: transfer to CPU first, then use NumPy argmax (5x faster than MPS)
+        if mosaic_device.type == "mps":
+            pred_tracker_np = np.argmax(
+                pred_tracker.float().numpy(force=True), axis=0, keepdims=True
+            ).astype(np.uint8)
+        else:
+            pred_tracker_np = (
+                torch.argmax(pred_tracker, 0, keepdim=True)
+                .to(dtype=torch.uint8)
+                .numpy(force=True)
+            )
 
     if apply_no_data_mask:
         pred_tracker_np, nodata_mask = mask_prediction(
