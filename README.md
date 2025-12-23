@@ -130,7 +130,7 @@ pred_paths = predict_from_load_func(scene_paths, load_ls8)
 ```python
 pred_paths = predict_from_load_func(scene_paths=scene_paths, 
                                     load_func=load_s2,
-                                    inference_device='bf16',
+                                    inference_dtype='bf16',
                                     compile_models=True,
                                     batch_size=4)
 ```
@@ -143,7 +143,7 @@ torch.set_num_threads(4)
 
 pred_paths = predict_from_load_func(scene_paths=scene_paths, 
                                     load_func=load_s2,
-                                    inference_device='bf16',
+                                    inference_dtype='bf16',
                                     batch_size=1,
                                     mosaic_device='cpu')
 ```
