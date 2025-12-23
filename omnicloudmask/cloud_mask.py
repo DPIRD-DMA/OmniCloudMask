@@ -29,6 +29,22 @@ from .raster_utils import (
 )
 
 
+def warn_cpu_reduced_precision(device: torch.device, dtype: torch.dtype) -> None:
+    """Warn if using CPU with reduced precision (fp16/bf16) as it degrades
+    performance."""
+    if device.type == "cpu" and dtype in (torch.float16, torch.bfloat16):
+        dtype_name = "fp16" if dtype == torch.float16 else "bf16"
+        warnings.warn(
+            f"Using CPU inference with {dtype_name} precision may "
+            f"significantly degrade performance. "
+            f"Consider using fp32 (float32) precision for CPU inference "
+            f"instead. Set inference_dtype='fp32' or "
+            f"inference_dtype=torch.float32.",
+            UserWarning,
+            stacklevel=3,
+        )
+
+
 def compile_batches(
     batch_size: int,
     patch_size: int,
@@ -478,6 +494,10 @@ def predict_from_array(
         mosaic_device = torch.device(mosaic_device)
 
     inference_dtype = get_torch_dtype(inference_dtype)
+
+    # Warn if using CPU with reduced precision
+    warn_cpu_reduced_precision(inference_device, inference_dtype)
+
     # if no custom model paths are provided, use the default models
     models = collect_models(
         custom_models=custom_models,
@@ -577,6 +597,9 @@ def predict_from_load_func(
         mosaic_device = torch.device(mosaic_device)
 
     inference_dtype = get_torch_dtype(inference_dtype)
+
+    # Warn if using CPU with reduced precision
+    warn_cpu_reduced_precision(inference_device, inference_dtype)
 
     models = collect_models(
         custom_models=custom_models,
