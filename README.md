@@ -154,6 +154,18 @@ pred_paths = predict_from_load_func(scene_paths=scene_paths,
                                     mosaic_device='cpu')
 ```
 
+#### CPU inference
+```python
+import torch
+
+pred_paths = predict_from_load_func(scene_paths=scene_paths,
+                                    load_func=load_s2,
+                                    inference_dtype='fp32', # this is important for CPU inference
+                                    batch_size=1,
+                                    inference_device='cpu',
+                                    mosaic_device='cpu')
+```
+
 ## Output
 - Output classes are defined by the CloudSEN12 [paper](https://www.nature.com/articles/s41597-022-01878-2) and [dataset](https://cloudsen12.github.io/) used for training.
 - 0 = Clear
