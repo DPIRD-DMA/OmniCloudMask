@@ -132,11 +132,11 @@ scene_paths = [Path("path/to/scene1"), Path("path/to/scene2")]
 pred_paths = predict_from_load_func(scene_paths, load_ls8)
 ```
 
-#### Seep optimised options
+#### Seep optimised options (for GPU)
 ```python
 pred_paths = predict_from_load_func(scene_paths=scene_paths, 
                                     load_func=load_s2,
-                                    inference_device='bf16',
+                                    inference_dtype='bf16',
                                     compile_models=True,
                                     batch_size=4)
 ```
@@ -145,11 +145,11 @@ pred_paths = predict_from_load_func(scene_paths=scene_paths,
 ```python
 import torch
 # Set this to the number of CPU cores if using mosaic_device='cpu'
-torch.set_num_threads(4) 
+torch.set_num_threads(4)
 
-pred_paths = predict_from_load_func(scene_paths=scene_paths, 
+pred_paths = predict_from_load_func(scene_paths=scene_paths,
                                     load_func=load_s2,
-                                    inference_device='bf16',
+                                    inference_dtype='bf16',
                                     batch_size=1,
                                     mosaic_device='cpu')
 ```
