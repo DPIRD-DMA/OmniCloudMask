@@ -42,7 +42,7 @@ See the [model changelog](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/M
 
 OmniCloudMask has been continuously optimized across model versions, delivering significant speed improvements while maintaining accuracy:
 
-![Model Version Speed Comparison](tests/speed%20test/model_version_speed_comparison.png)
+<img src="tests/speed%20test/model_version_speed_comparison.png" alt="Model Version Speed Comparison" style="max-width: 800px; width: 100%;">
 
 ## Try in Colab
 
@@ -86,6 +86,35 @@ pip install git+https://github.com/DPIRD-DMA/OmniCloudMask.git
 ## Docker
 
 Alternatively you can install OmniCloudMask within a Docker container by following the [Docker instructions](docker/README.md)
+
+## Legacy Models (v1 to v3)
+
+If you need to use legacy model versions (v1.0, v2.0, or v3.0), you must install the `fastai` dependency. These older models were built using fastai + timm, while the current v4+ models use segmentation-models-pytorch + timm.
+
+See the [model changelog](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/MODEL_CHANGELOG.md) for details on the differences between model versions.
+
+To install with legacy model support:
+
+```bash
+pip install omnicloudmask[legacy]
+```
+
+```bash
+uv add omnicloudmask --extra legacy
+```
+
+```bash
+conda install conda-forge::omnicloudmask conda-forge::fastai
+```
+
+Once installed, you can specify the model version in your prediction functions:
+
+```python
+from omnicloudmask import predict_from_array
+
+# Use a legacy model version
+pred_mask = predict_from_array(input_array, model_version=3.0)
+```
 
 ## Usage
 

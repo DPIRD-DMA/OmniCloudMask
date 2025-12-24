@@ -197,8 +197,12 @@ def build_fastai_model(
         )
     except ImportError as err:
         raise ImportError(
-            "fastai is not installed. Please install OmniCloudMask[legacy] "
-            "to use model versions 1-3."
+            "fastai is not installed. Please install with legacy model support "
+            "to use model versions 1-3.\n\n"
+            "Installation options:\n"
+            "  pip install omnicloudmask[legacy]\n"
+            "  uv add omnicloudmask --extra legacy\n"
+            "  conda install conda-forge::omnicloudmask conda-forge::fastai"
         ) from err
 
     timm_model = partial(
