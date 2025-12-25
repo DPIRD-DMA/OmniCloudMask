@@ -20,7 +20,7 @@ from .model_utils import (
     load_model_from_weights,
     compile_torch_model,
 )
-from .mps_patch import patch_models_for_mps
+from .mps_patch import fast_argmax_mps, patch_models_for_mps
 from .raster_utils import (
     get_patch,
     make_patch_indexes,
@@ -319,17 +319,17 @@ def coordinator(
         pred_tracker_np = pred_tracker.float().numpy(force=True)
 
     else:
-        # For MPS: transfer to CPU first, then use NumPy argmax (5x faster than MPS)
-        if mosaic_device.type == "mps":
-            pred_tracker_np = np.argmax(
-                pred_tracker.float().numpy(force=True), axis=0, keepdims=True
-            ).astype(np.uint8)
+        # Use fast_argmax_mps which is optimized for MPS devices
+        if pred_tracker.device.type == "mps":
+            pred_tracker_arg_max = fast_argmax_mps(pred_tracker).to(dtype=torch.uint8)
+
         else:
-            pred_tracker_np = (
-                torch.argmax(pred_tracker, 0, keepdim=True)
-                .to(dtype=torch.uint8)
-                .numpy(force=True)
+            # For non-MPS devices, use standard argmax
+            pred_tracker_arg_max = torch.argmax(pred_tracker, dim=0, keepdim=True).to(
+                dtype=torch.uint8
             )
+
+        pred_tracker_np = pred_tracker_arg_max.numpy(force=True)
 
     if apply_no_data_mask:
         pred_tracker_np, nodata_mask = mask_prediction(
