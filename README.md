@@ -17,7 +17,7 @@ OmniCloudMask has been validated on Sentinel-2, PlanetScope and Landsat data and
 
 [OmniCloudMask training data distribution map 🗺️](https://dpird-dma.github.io/OCM-training-data-map/)
 
-[Satellite Image Deep Learning podcast about OmniCloudMask](https://www.satellite-image-deep-learning.com/p/omnicloudmask)
+[Satellite Image Deep Learning podcast about OmniCloudMask 🎙️](https://www.satellite-image-deep-learning.com/p/omnicloudmask)
 
 
 ## Changelog
@@ -185,8 +185,6 @@ pred_paths = predict_from_load_func(scene_paths=scene_paths,
 
 #### CPU inference
 ```python
-import torch
-
 pred_paths = predict_from_load_func(scene_paths=scene_paths,
                                     load_func=load_s2,
                                     inference_dtype='fp32', # this is important for CPU inference
