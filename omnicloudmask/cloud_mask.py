@@ -20,7 +20,8 @@ from .model_utils import (
     load_model_from_weights,
     compile_torch_model,
 )
-from .mps_patch import fast_argmax_mps, patch_models_for_mps
+from .mps_patch import patch_models_for_mps
+from .optimizations import optimized_argmax
 from .raster_utils import (
     get_patch,
     make_patch_indexes,
@@ -319,15 +320,10 @@ def coordinator(
         pred_tracker_np = pred_tracker.float().numpy(force=True)
 
     else:
-        # Use fast_argmax_mps which is optimized for MPS devices
-        if pred_tracker.device.type == "mps":
-            pred_tracker_arg_max = fast_argmax_mps(pred_tracker).to(dtype=torch.uint8)
-
-        else:
-            # For non-MPS devices, use standard argmax
-            pred_tracker_arg_max = torch.argmax(pred_tracker, dim=0, keepdim=True).to(
-                dtype=torch.uint8
-            )
+        # Use optimized argmax (pairwise for CPU/MPS, standard for CUDA)
+        pred_tracker_arg_max = optimized_argmax(pred_tracker, dim=0, keepdim=True).to(
+            dtype=torch.uint8
+        )
 
         pred_tracker_np = pred_tracker_arg_max.numpy(force=True)
 
