@@ -81,35 +81,6 @@ pip install git+https://github.com/DPIRD-DMA/OmniCloudMask.git
 
 Alternatively you can install OmniCloudMask within a Docker container by following the [Docker instructions](docker/README.md)
 
-## Legacy Models (v1 to v3)
-
-If you need to use legacy model versions (v1.0, v2.0, or v3.0), you must install the `fastai` dependency. These older models were built using fastai + timm, while the current v4+ models use segmentation-models-pytorch + timm.
-
-See the [model changelog](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/MODEL_CHANGELOG.md) for details on the differences between model versions.
-
-To install with legacy model support:
-
-```bash
-pip install omnicloudmask[legacy]
-```
-
-```bash
-uv add omnicloudmask --extra legacy
-```
-
-```bash
-conda install conda-forge::omnicloudmask conda-forge::fastai
-```
-
-Once installed, you can specify the model version in your prediction functions:
-
-```python
-from omnicloudmask import predict_from_array
-
-# Use a legacy model version
-pred_mask = predict_from_array(input_array, model_version=3.0)
-```
-
 ## Usage
 
 ### Predict from array
@@ -253,6 +224,35 @@ be saved in the same directory as the input scene.
 -   `compile_models (bool, optional)`: If True, compiles the models for faster inference. Defaults to False.
 -   `compile_mode (str, optional)`: Compilation mode for the models. Defaults to "default".
 -   `model_version (float, optional`: Version of the model to use. Defaults to the latest available version. Can also be set to 4.0, 3.0, 2.0, or 1.0 for older models.
+
+## Legacy Models (v1 to v3)
+
+If you need to use legacy model versions (v1.0, v2.0, or v3.0), you must install the `fastai` dependency. These older models were built using fastai + timm, while the current v4+ models use segmentation-models-pytorch + timm.
+
+See the [model changelog](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/MODEL_CHANGELOG.md) for details on the differences between model versions.
+
+To install with legacy model support:
+
+```bash
+pip install omnicloudmask[legacy]
+```
+
+```bash
+uv add omnicloudmask --extra legacy
+```
+
+```bash
+conda install conda-forge::omnicloudmask conda-forge::fastai
+```
+
+Once installed, you can specify the model version in your prediction functions:
+
+```python
+from omnicloudmask import predict_from_array
+
+# Use a legacy model version
+pred_mask = predict_from_array(input_array, model_version=3.0)
+```
 
 ## Contributing
 
