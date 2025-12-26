@@ -38,12 +38,6 @@ See the [model changelog](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/M
 -   Supports inference on cuda, mps and cpu.
 -   Model compilation for faster inference.
 
-## Performance
-
-OmniCloudMask has been continuously optimized across model versions, delivering significant speed improvements while maintaining accuracy:
-
-<img src="tests/speed%20test/model_version_speed_comparison.png" alt="Model Version Speed Comparison" style="max-width: 800px; width: 100%;">
-
 ## Try in Colab
 
 [![Colab_Button]][Link]
