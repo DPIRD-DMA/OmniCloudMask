@@ -80,7 +80,7 @@ def channel_norm(
 ) -> np.ndarray:
     """Normalize each band of the input array by subtracting the nonzero mean and
     dividing by the nonzero standard deviation then fill nodata values with 0."""
-    out_array = np.zeros(patch.shape).astype(np.float32)
+    out_array = np.zeros(patch.shape, dtype=np.float32)
     for id, band in enumerate(patch):
         # Mask for non-zero values
         if isinstance(nodata_value, float) and np.isnan(nodata_value):
@@ -89,16 +89,16 @@ def channel_norm(
             mask = band != nodata_value
         # Check if there are any non-zero values
         if np.any(mask):
-            mean = band[mask].mean()
-            std = band[mask].std()
+            masked_values = band[mask]
+            mean = masked_values.mean()
+            std = masked_values.std()
             if std == 0:
                 std = 1  # Prevent division by zero
             # Normalize only non-zero values
-            out_array[id][mask] = (band[mask] - mean) / std
+            out_array[id][mask] = (masked_values - mean) / std
         else:
             continue
-        # Fill original nodata values with 0
-        out_array[id][~mask] = 0
+
     return out_array
 
 
