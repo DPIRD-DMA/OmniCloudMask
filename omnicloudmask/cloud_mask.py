@@ -303,7 +303,8 @@ def coordinator(
     if export_confidence:
         if grad_tracker is None:
             raise ValueError(
-                "Gradient tracker is required for confidence maps, but was not provided."
+                "Gradient tracker is required for confidence maps, "
+                "but was not provided."
             )
         pred_tracker_norm = pred_tracker / grad_tracker
         if softmax_output:

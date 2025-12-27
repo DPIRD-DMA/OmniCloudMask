@@ -96,8 +96,8 @@ def get_models(
         should be saved.
         source (str): The source from which the model weights should be downloaded.
         Currently, only "google_drive" or "hugging_face" are supported.
-        model_version (float | None): Version of the model to use. Defaults to the latest
-        available version if None. Can be set to 4.0, 3.0, 2.0, or 1.0.
+        model_version (float | None): Version of the model to use. Defaults to
+        the latest available version if None. Can be set to 4.0, 3.0, 2.0, or 1.0.
     """
 
     with (resources.files("omnicloudmask") / "model_download_links.csv").open() as f:
