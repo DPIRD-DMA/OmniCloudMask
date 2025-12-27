@@ -30,6 +30,7 @@ version = {attr = "omnicloudmask.__version__.__version__"}
 dev = [
     "cubo>=2024.1.1",
     "earthaccess>=0.11.0",
+    "fastai>=2.7.19",
     "geopandas>=1.0.1",
     "h5py>=3.14.0",
     "jupyter>=1.1.1",
