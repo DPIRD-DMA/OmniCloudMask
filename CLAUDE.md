@@ -19,6 +19,19 @@ Python library for cloud masking optimized for CUDA MPS and CPU.
 - Use type hints for all functions and methods
 - Follow ruff formatting standards
 
+# Key Library Documentation
+
+## Core Dependencies
+- **PyTorch**: https://pytorch.org/docs/stable/index.html
+- **Rasterio**: https://rasterio.readthedocs.io/en/stable/
+- **segmentation-models-pytorch**: https://segmentation-modelspytorch.readthedocs.io/en/latest/
+- **timm**: https://pprp.github.io/timm/
+
+## Development Tools
+- **uv**: https://docs.astral.sh/uv/
+- **ruff**: https://docs.astral.sh/ruff/
+- **pytest**: https://docs.pytest.org/en/stable/
+
 # Workflow
 
 - User handles git management (no commits/pushes unless requested)
