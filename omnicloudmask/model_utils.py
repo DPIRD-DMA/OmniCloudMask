@@ -6,7 +6,7 @@ from typing import Optional, Union, cast
 import numpy as np
 import timm
 import torch
-from fastai.vision.learner import create_unet_model
+from .dynamic_unet import create_unet_model
 from safetensors.torch import load_file
 
 

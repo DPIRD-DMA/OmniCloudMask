@@ -350,14 +350,13 @@ def collect_models(
     custom_models: Optional[Union[list[torch.nn.Module], torch.nn.Module]],
     inference_device: torch.device,
     inference_dtype: torch.dtype,
-    source: str,
     destination_model_dir: Union[str, Path, None] = None,
     model_version: float = 3.0,
 ) -> list[torch.nn.Module]:
     if custom_models is None:
         models = []
         for model_details in get_models(
-            model_dir=destination_model_dir, source=source, model_version=model_version
+            model_dir=destination_model_dir, model_version=model_version
         ):
             models.append(
                 load_model_from_weights(
@@ -403,7 +402,6 @@ def predict_from_array(
     custom_models: Optional[Union[list[torch.nn.Module], torch.nn.Module]] = None,
     pred_classes: int = 4,
     destination_model_dir: Union[str, Path, None] = None,
-    model_download_source: str = "hugging_face",
     compile_models: bool = False,
     compile_mode: str = "default",
     model_version: float = 3.0,
@@ -425,7 +423,6 @@ def predict_from_array(
         custom_models Union[list[torch.nn.Module], torch.nn.Module], optional): A list or singular custom torch models to use for prediction. Defaults to None.
         pred_classes (int, optional): Number of classes to predict. Defaults to 4, to be used with custom models. Defaults to 4.
         destination_model_dir Union[str, Path, None]: Directory to save the model weights. Defaults to None.
-        model_download_source (str, optional): Source from which to download the model weights. Defaults to "hugging_face", can also be "google_drive".
         compile_models (bool, optional): If True, compiles the models for faster inference. Defaults to False.
         compile_mode (str, optional): Compilation mode for the models. Defaults to "default".
         model_version (float, optional): Version of the model to use. Defaults to 3.0 can also be 2.0 or 1.0 for original models.
@@ -449,7 +446,6 @@ def predict_from_array(
         custom_models=custom_models,
         inference_device=inference_device,
         inference_dtype=inference_dtype,
-        source=model_download_source,
         destination_model_dir=destination_model_dir,
         model_version=model_version,
     )
@@ -505,7 +501,6 @@ def predict_from_load_func(
     custom_models: Optional[Union[list[torch.nn.Module], torch.nn.Module]] = None,
     pred_classes: int = 4,
     destination_model_dir: Union[str, Path, None] = None,
-    model_download_source: str = "hugging_face",
     compile_models: bool = False,
     compile_mode: str = "default",
     model_version: float = 3.0,
@@ -531,7 +526,6 @@ def predict_from_load_func(
         custom_models Union[list[torch.nn.Module], torch.nn.Module], optional): A list or singular custom torch models to use for prediction. Defaults to None.
         pred_classes (int, optional): Number of classes to predict. Defaults to 4, to be used with custom models. Defaults to 4.
         destination_model_dir Union[str, Path, None]: Directory to save the model weights. Defaults to None.
-        model_download_source (str, optional): Source from which to download the model weights. Defaults to "hugging_face", can also be "google_drive".
         compile_models (bool, optional): If True, compiles the models for faster inference. Defaults to False.
         compile_mode (str, optional): Compilation mode for the models. Defaults to "default".
         model_version (float, optional): Version of the model to use. Defaults to 3.0 can also be 2.0 or 1.0 for original models.
@@ -558,7 +552,6 @@ def predict_from_load_func(
         inference_device=inference_device,
         inference_dtype=inference_dtype,
         destination_model_dir=destination_model_dir,
-        source=model_download_source,
         model_version=model_version,
     )
 

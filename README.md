@@ -6,6 +6,31 @@
 [![image](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tutorials](https://img.shields.io/badge/Tutorials-Learn-brightgreen)](https://github.com/DPIRD-DMA/OmniCloudMask/tree/main/examples)
 
+## Overstory-specific
+
+This is an Overstory-specific fork of OmniCLoudMask. We forked it because:
+1. There are way too many uneeded dependencies that are causing use trouble like torch with cuda and fastai.
+2. We would like to store the model weights on GCS for full control in case of file deletions on Hugging Face or GDrive.
+
+The model weights are stored in GCS at:
+``
+
+The process to add a new model version is:
+1. Merge changes in main. Resolve conflicts.
+2. Copy model weights files to GCS. Run `download_all_models.py` and then copy to GCS: `cd models && gsutil cp * gs://overstory-satellite-imagery/models/omnicloudmask/`.
+3. Update code with new model weights GCS paths.
+4. Make a new release.
+
+To run uv commands with overstory GAR login:
+```
+gcloud auth application-default login
+export UV_INDEX_OVERSTORY_USERNAME=oauth2accesstoken
+export UV_INDEX_OVERSTORY_PASSWORD=$(gcloud auth print-access-token)
+uv sync
+```
+
+## Intro
+
 OmniCloudMask is a Python library for state-of-the-art cloud and cloud shadow segmentation in high to moderate resolution satellite imagery.
 
 As a successor to the CloudS2Mask library, OmniCloudMask offers higher accuracy while supporting a wide range of resolutions, sensors, and processing levels.
