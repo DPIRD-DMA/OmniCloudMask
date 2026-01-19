@@ -13,7 +13,7 @@ uv sync
 Run the tests and make sure they all pass, depending on available devices some tests may be skipped.
 
 ```bash
-pytest tests/
+uv run pytest tests/
 ```
 ## 3. Remove old builds
 

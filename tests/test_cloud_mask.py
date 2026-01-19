@@ -162,6 +162,7 @@ def test_predict_from_array_custom_model():
         weights_path=model_detail["Path"],
         device=torch.device("cpu"),
         dtype=torch.float32,
+        model_library=model_detail["model_library"],
     )
 
     # Call the function

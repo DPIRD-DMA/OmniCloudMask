@@ -11,7 +11,7 @@ from .model_utils import channel_norm
 def get_patch(
     input_array: np.ndarray,
     index: tuple,
-    no_data_value: Optional[int] = 0,
+    no_data_value: Optional[int | float] = 0,
 ) -> tuple[Optional[np.ndarray], Optional[tuple[int, int, int, int]]]:
     """Extract a patch from a 3D array and normalize it. If the patch is
     entirely nodata, return None. If the patch contains nodata,
@@ -72,7 +72,7 @@ def get_patch(
 
 
 def mask_prediction(
-    scene: np.ndarray, pred_tracker_np: np.ndarray, no_data_value: int = 0
+    scene: np.ndarray, pred_tracker_np: np.ndarray, no_data_value: int | float = 0
 ) -> tuple[np.ndarray, np.ndarray]:
     """Create a no data mask from a raster scene,
     all bands at a pixel location must be equal to no_data_value,

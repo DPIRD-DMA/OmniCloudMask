@@ -17,7 +17,7 @@ OmniCloudMask has been validated on Sentinel-2, PlanetScope and Landsat data and
 
 [OmniCloudMask training data distribution map 🗺️](https://dpird-dma.github.io/OCM-training-data-map/)
 
-[Satellite Image Deep Learning podcast about OmniCloudMask](https://www.satellite-image-deep-learning.com/p/omnicloudmask)
+[Satellite Image Deep Learning podcast about OmniCloudMask 🎙️](https://www.satellite-image-deep-learning.com/p/omnicloudmask)
 
 
 ## Changelog
@@ -126,7 +126,7 @@ scene_paths = [Path("path/to/scene1"), Path("path/to/scene2")]
 pred_paths = predict_from_load_func(scene_paths, load_ls8)
 ```
 
-#### Seep optimised options
+#### Seep optimised options (for GPU)
 ```python
 pred_paths = predict_from_load_func(scene_paths=scene_paths, 
                                     load_func=load_s2,
@@ -139,12 +139,22 @@ pred_paths = predict_from_load_func(scene_paths=scene_paths,
 ```python
 import torch
 # Set this to the number of CPU cores if using mosaic_device='cpu'
-torch.set_num_threads(4) 
+torch.set_num_threads(4)
 
-pred_paths = predict_from_load_func(scene_paths=scene_paths, 
+pred_paths = predict_from_load_func(scene_paths=scene_paths,
                                     load_func=load_s2,
                                     inference_dtype='bf16',
                                     batch_size=1,
+                                    mosaic_device='cpu')
+```
+
+#### CPU inference
+```python
+pred_paths = predict_from_load_func(scene_paths=scene_paths,
+                                    load_func=load_s2,
+                                    inference_dtype='fp32', # this is important for CPU inference
+                                    batch_size=1,
+                                    inference_device='cpu',
                                     mosaic_device='cpu')
 ```
 
@@ -191,7 +201,7 @@ be saved in the same directory as the input scene.
 -   `model_download_source (str, optional)`: Source from which to download the model weights. Defaults to "hugging_face", can also be "google_drive".
 -   `compile_models (bool, optional)`: If True, compiles the models for faster inference. Defaults to False.
 -   `compile_mode (str, optional)`: Compilation mode for the models. Defaults to "default".
--   `model_version (float, optional`: Version of the model to use. Defaults to 3.0 can also be 2.0 or 1.0 for original models.
+-   `model_version (float, optional`: Version of the model to use. Defaults to the latest available version. Can also be set to 4.0, 3.0, 2.0, or 1.0 for older models.
 
 
 ### `predict_from_array`
@@ -213,7 +223,36 @@ be saved in the same directory as the input scene.
 -   `model_download_source (str, optional)`: Source from which to download the model weights. Defaults to "hugging_face", can also be "google_drive".
 -   `compile_models (bool, optional)`: If True, compiles the models for faster inference. Defaults to False.
 -   `compile_mode (str, optional)`: Compilation mode for the models. Defaults to "default".
--   `model_version (float, optional`: Version of the model to use. Defaults to 3.0 can also be 2.0 or 1.0 for original models.
+-   `model_version (float, optional`: Version of the model to use. Defaults to the latest available version. Can also be set to 4.0, 3.0, 2.0, or 1.0 for older models.
+
+## Legacy Models (v1 to v3)
+
+If you need to use legacy model versions (v1.0, v2.0, or v3.0), you must install the `fastai` dependency. These older models were built using fastai + timm, while the current v4+ models use segmentation-models-pytorch + timm.
+
+See the [model changelog](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/MODEL_CHANGELOG.md) for details on the differences between model versions.
+
+To install with legacy model support:
+
+```bash
+pip install omnicloudmask[legacy]
+```
+
+```bash
+uv add omnicloudmask --extra legacy
+```
+
+```bash
+conda install conda-forge::omnicloudmask conda-forge::fastai
+```
+
+Once installed, you can specify the model version in your prediction functions:
+
+```python
+from omnicloudmask import predict_from_array
+
+# Use a legacy model version
+pred_mask = predict_from_array(input_array, model_version=3.0)
+```
 
 ## Contributing
 
@@ -225,5 +264,5 @@ This project is licensed under the MIT License
 
 ## Acknowledgements
 
--   Special thanks to the [CloudSen12 project](https://cloudsen12.github.io/) for the dataset used for model versions 1.0, 2.0 and 3.0.
--   Special thanks to the [KappaSet authors](https://doi.org/10.5281/zenodo.7100327) for the dataset used for model version 3.0.
+-   Special thanks to the [CloudSen12 project](https://cloudsen12.github.io/) for the dataset used for model versions 1.0, 2.0, 3.0 and 4.0.
+-   Special thanks to the [KappaSet authors](https://doi.org/10.5281/zenodo.7100327) for the dataset used for model versions 3.0 and 4.0.

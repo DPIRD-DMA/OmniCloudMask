@@ -1,9 +1,11 @@
 import torch
 
-# This is a patch to fix MPS contiguity issues with certain PyTorch models on Apple Silicon  # noqa: E501
-# It replaces Conv2d layers with MPS-safe versions that ensure inputs are contiguous
-# This addresses RuntimeError: "view size is not compatible with input tensor's size and stride"  # noqa: E501
-# that occurs with some model architectures (like timm EdgeNeXt) on MPS devices
+
+# This module contains MPS (Apple Silicon) patches for PyTorch models:
+# Conv2d patch: Replaces Conv2d layers with MPS-safe versions that ensure inputs are contiguous  # noqa: E501
+#    - Addresses RuntimeError: "view size is not compatible with input tensor's size and stride"  # noqa: E501
+#    - Required for some model architectures (like timm EdgeNeXt) on MPS devices
+#
 
 
 def requires_mps_fix(

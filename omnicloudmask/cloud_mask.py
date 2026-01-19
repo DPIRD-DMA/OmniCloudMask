@@ -13,14 +13,15 @@ from tqdm.auto import tqdm
 from .__version__ import __version__
 from .download_models import get_models
 from .model_utils import (
-    compile_torch_model,
     create_gradient_mask,
     default_device,
     get_torch_dtype,
     inference_and_store,
     load_model_from_weights,
+    compile_torch_model,
 )
 from .mps_patch import patch_models_for_mps
+from .optimizations import optimized_argmax
 from .raster_utils import (
     get_patch,
     make_patch_indexes,
@@ -29,12 +30,28 @@ from .raster_utils import (
 )
 
 
+def warn_cpu_reduced_precision(device: torch.device, dtype: torch.dtype) -> None:
+    """Warn if using CPU with reduced precision (fp16/bf16) as it degrades
+    performance."""
+    if device.type == "cpu" and dtype in (torch.float16, torch.bfloat16):
+        dtype_name = "fp16" if dtype == torch.float16 else "bf16"
+        warnings.warn(
+            f"Using CPU inference with {dtype_name} precision may "
+            f"significantly degrade performance. "
+            f"Consider using fp32 (float32) precision for CPU inference "
+            f"instead. Set inference_dtype='fp32' or "
+            f"inference_dtype=torch.float32.",
+            UserWarning,
+            stacklevel=3,
+        )
+
+
 def compile_batches(
     batch_size: int,
     patch_size: int,
     patch_indexes: list[tuple[int, int, int, int]],
     input_array: np.ndarray,
-    no_data_value: int,
+    no_data_value: int | float,
     inference_device: torch.device,
     inference_dtype: torch.dtype,
 ) -> Generator[tuple[torch.Tensor, list[tuple[int, int, int, int]]], None, None]:
@@ -106,7 +123,7 @@ def run_models_on_array(
     inference_device: torch.device,
     batch_size: int = 2,
     inference_dtype: torch.dtype = torch.float32,
-    no_data_value: int = 0,
+    no_data_value: int | float = 0,
 ) -> None:
     """Used to execute the model on the input array, in patches. Predictions are stored
     in pred_tracker and grad_tracker, updated in place."""
@@ -143,7 +160,10 @@ def run_models_on_array(
 
 
 def check_patch_size(
-    input_array: np.ndarray, no_data_value: int, patch_size: int, patch_overlap: int
+    input_array: np.ndarray,
+    no_data_value: int | float,
+    patch_size: int,
+    patch_overlap: int,
 ) -> tuple[int, int]:
     """Used to check the inputs and adjust the patch size and overlap if necessary."""
     # ideally the patch size would be above soft_minimum_patch_size
@@ -242,7 +262,7 @@ def coordinator(
     batch_size: int,
     profile: Optional[Profile] = None,
     output_path: Path = Path(""),
-    no_data_value: int = 0,
+    no_data_value: int | float = 0,
     pbar: Optional[tqdm] = None,
     apply_no_data_mask: bool = False,
     export_to_disk: bool = True,
@@ -281,7 +301,11 @@ def coordinator(
     )
 
     if export_confidence:
-        assert grad_tracker is not None
+        if grad_tracker is None:
+            raise ValueError(
+                "Gradient tracker is required for confidence maps, "
+                "but was not provided."
+            )
         pred_tracker_norm = pred_tracker / grad_tracker
         if softmax_output:
             pred_tracker = torch.clip(
@@ -297,11 +321,12 @@ def coordinator(
         pred_tracker_np = pred_tracker.float().numpy(force=True)
 
     else:
-        pred_tracker_np = (
-            torch.argmax(pred_tracker, 0, keepdim=True)
-            .numpy(force=True)
-            .astype(np.uint8)
+        # Use optimized argmax (pairwise for CPU/MPS, standard for CUDA)
+        pred_tracker_arg_max = optimized_argmax(pred_tracker, dim=0, keepdim=True).to(
+            dtype=torch.uint8
         )
+
+        pred_tracker_np = pred_tracker_arg_max.numpy(force=True)
 
     if apply_no_data_mask:
         pred_tracker_np, nodata_mask = mask_prediction(
@@ -352,7 +377,11 @@ def collect_models(
     inference_dtype: torch.dtype,
     source: str,
     destination_model_dir: Union[str, Path, None] = None,
-    model_version: float = 3.0,
+    model_version: float | None = None,
+    compile_models: bool = False,
+    patch_size: int = 1000,
+    batch_size: int = 1,
+    compile_mode: str = "default",
 ) -> list[torch.nn.Module]:
     if custom_models is None:
         models = []
@@ -362,9 +391,14 @@ def collect_models(
             models.append(
                 load_model_from_weights(
                     model_name=model_details["timm_model_name"],
+                    model_library=model_details["model_library"],
                     weights_path=model_details["Path"],
                     device=inference_device,
                     dtype=inference_dtype,
+                    compile_models=compile_models,
+                    patch_size=patch_size,
+                    batch_size=batch_size,
+                    compile_mode=compile_mode,
                 )
             )
     else:
@@ -376,6 +410,19 @@ def collect_models(
             model.to(device=inference_device, dtype=inference_dtype)
             for model in custom_models
         ]
+
+        if compile_models:
+            models = [
+                compile_torch_model(
+                    model,
+                    patch_size=patch_size,
+                    batch_size=batch_size,
+                    dtype=inference_dtype,
+                    device=inference_device,
+                    compile_mode=compile_mode,
+                )
+                for model in models
+            ]
 
     # Patch models for MPS if needed
     if inference_device.type == "mps":
@@ -398,7 +445,7 @@ def predict_from_array(
     inference_dtype: Union[torch.dtype, str] = torch.float32,
     export_confidence: bool = False,
     softmax_output: bool = True,
-    no_data_value: int = 0,
+    no_data_value: int | float = 0,
     apply_no_data_mask: bool = True,
     custom_models: Optional[Union[list[torch.nn.Module], torch.nn.Module]] = None,
     pred_classes: int = 4,
@@ -406,7 +453,7 @@ def predict_from_array(
     model_download_source: str = "hugging_face",
     compile_models: bool = False,
     compile_mode: str = "default",
-    model_version: float = 3.0,
+    model_version: float | None = None,
 ) -> np.ndarray:
     """Predict a cloud and cloud shadow mask from a Red, Green and NIR numpy array, with a spatial res between 10 m and 50 m.
 
@@ -428,7 +475,7 @@ def predict_from_array(
         model_download_source (str, optional): Source from which to download the model weights. Defaults to "hugging_face", can also be "google_drive".
         compile_models (bool, optional): If True, compiles the models for faster inference. Defaults to False.
         compile_mode (str, optional): Compilation mode for the models. Defaults to "default".
-        model_version (float, optional): Version of the model to use. Defaults to 3.0 can also be 2.0 or 1.0 for original models.
+        model_version (float, optional): Version of the model to use. Defaults to the latest available version. Can also be set to 4.0, 3.0, 2.0, or 1.0 for older models.
     Returns:
         np.ndarray: A numpy array with shape (1, height, width) or (4, height, width if export_confidence = True) representing the predicted cloud and cloud shadow mask.
 
@@ -444,6 +491,10 @@ def predict_from_array(
         mosaic_device = torch.device(mosaic_device)
 
     inference_dtype = get_torch_dtype(inference_dtype)
+
+    # Warn if using CPU with reduced precision
+    warn_cpu_reduced_precision(inference_device, inference_dtype)
+
     # if no custom model paths are provided, use the default models
     models = collect_models(
         custom_models=custom_models,
@@ -452,20 +503,11 @@ def predict_from_array(
         source=model_download_source,
         destination_model_dir=destination_model_dir,
         model_version=model_version,
+        compile_models=compile_models,
+        patch_size=patch_size,
+        batch_size=batch_size,
+        compile_mode=compile_mode,
     )
-
-    if compile_models:
-        models = [
-            compile_torch_model(
-                model,
-                patch_size=patch_size,
-                batch_size=batch_size,
-                dtype=inference_dtype,
-                device=inference_device,
-                compile_mode=compile_mode,
-            )
-            for model in models
-        ]
 
     pred_tracker = coordinator(
         input_array=input_array,
@@ -498,7 +540,7 @@ def predict_from_load_func(
     inference_dtype: Union[torch.dtype, str] = torch.float32,
     export_confidence: bool = False,
     softmax_output: bool = True,
-    no_data_value: int = 0,
+    no_data_value: int | float = 0,
     overwrite: bool = True,
     apply_no_data_mask: bool = True,
     output_dir: Optional[Union[Path, str]] = None,
@@ -508,7 +550,7 @@ def predict_from_load_func(
     model_download_source: str = "hugging_face",
     compile_models: bool = False,
     compile_mode: str = "default",
-    model_version: float = 3.0,
+    model_version: float | None = None,
 ) -> list[Path]:
     """
     Predicts cloud and cloud shadow masks for a list of scenes using a specified loading function.
@@ -534,7 +576,7 @@ def predict_from_load_func(
         model_download_source (str, optional): Source from which to download the model weights. Defaults to "hugging_face", can also be "google_drive".
         compile_models (bool, optional): If True, compiles the models for faster inference. Defaults to False.
         compile_mode (str, optional): Compilation mode for the models. Defaults to "default".
-        model_version (float, optional): Version of the model to use. Defaults to 3.0 can also be 2.0 or 1.0 for original models.
+        model_version (float, optional): Version of the model to use. Defaults to the latest available version. Can also be set to 4.0, 3.0, 2.0, or 1.0 for older models.
     Returns:
         list[Path]: A list of paths to the output prediction files.
 
@@ -553,6 +595,9 @@ def predict_from_load_func(
 
     inference_dtype = get_torch_dtype(inference_dtype)
 
+    # Warn if using CPU with reduced precision
+    warn_cpu_reduced_precision(inference_device, inference_dtype)
+
     models = collect_models(
         custom_models=custom_models,
         inference_device=inference_device,
@@ -560,20 +605,11 @@ def predict_from_load_func(
         destination_model_dir=destination_model_dir,
         source=model_download_source,
         model_version=model_version,
+        compile_models=compile_models,
+        patch_size=patch_size,
+        batch_size=batch_size,
+        compile_mode=compile_mode,
     )
-
-    if compile_models:
-        models = [
-            compile_torch_model(
-                model,
-                patch_size=patch_size,
-                batch_size=batch_size,
-                dtype=inference_dtype,
-                device=inference_device,
-                compile_mode=compile_mode,
-            )
-            for model in models
-        ]
 
     pbar = tqdm(
         total=len(scene_paths),

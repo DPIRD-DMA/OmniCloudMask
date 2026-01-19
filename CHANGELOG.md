@@ -1,6 +1,16 @@
 # Changelog
 
 
+## [1.7.0] - Dec 16, 2025
+
+### Added
+- New v4 model weights with improved performance
+- Optional legacy dependency group for backward compatibility with older models
+
+### Changed
+- Migrated default model backend from fastai to segmentation-models-pytorch (smp)
+- Moved fastai to optional `legacy` dependency group for continued support of older models
+
 ## [1.6.0] - Sep 8, 2025
 
 ### Added
