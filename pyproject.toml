@@ -36,6 +36,7 @@ dev = [
     "jupyter>=1.1.1",
     "line-profiler>=5.0.0",
     "matplotlib>=3.0.0",
+    "myst-parser>=3.0.1",
     "netcdf4>=1.7.2",
     "opencv-python>=4.12.0.88",
     "planetary-computer>=1.0.0",
@@ -46,6 +47,8 @@ dev = [
     "ruff>=0.12.2",
     "s2dl>=0.3",
     "spandrel>=0.4.1",
+    "sphinx>=7.4.7",
+    "sphinx-rtd-theme>=3.1.0",
     "tacoreader>=0.5.6",
 ]
 
