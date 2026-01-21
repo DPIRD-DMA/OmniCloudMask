@@ -7,10 +7,11 @@ OmniCloudMask is a Python library for cloud and cloud shadow detection in high t
 ## Key Features
 
 - Works with any imagery containing Red, Green, and NIR bands (10 m to 50 m resolution)
+- Any processing level (L1C, L2A, TOA, surface reflectance, etc.)
 - Validated on Sentinel-2, Landsat 8, PlanetScope, and Maxar imagery
 - Supports CUDA, MPS (Apple Silicon), and CPU inference
 - Optional confidence map export
-- Very fast inference
+- Fast inference with multi-threaded patch-based processing
 
 ## Output Classes
 

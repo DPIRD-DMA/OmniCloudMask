@@ -49,4 +49,10 @@ We suggest that **other remote sensing deep learning models could benefit from s
 
 OCM uses an ensemble of two U-Net models with soft voting to combine predictions. The ensemble improves both accuracy and generalization compared to single models.
 
+The model architecture has evolved over time, with each version improving both accuracy and inference throughput. See the [model changelog](model-changelog.md) for details on architecture changes between versions.
+
 For full methodology details, see the [OmniCloudMask paper](https://www.sciencedirect.com/science/article/pii/S0034425725000987).
+
+## Video Explanation
+
+[![Sensor agnostic Deep Learning with OmniCloudMask](http://img.youtube.com/vi/eoKctlbsoMs/0.jpg)](http://www.youtube.com/watch?v=eoKctlbsoMs "Sensor agnostic Deep Learning with OmniCloudMask")

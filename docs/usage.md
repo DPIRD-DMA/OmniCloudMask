@@ -164,7 +164,7 @@ Use older model versions if needed:
 mask = predict_from_array(input_array, model_version=3.0)
 ```
 
-Available versions: `1.0`, `2.0`, `3.0`, `4.0` (default is latest). Versions 1-3 require the `legacy` extra.
+Available versions: `1.0`, `2.0`, `3.0`, `4.0` (default is latest). Versions 1-3 require the [legacy extra](installation.md#legacy-model-support).
 
 ## Custom Models
 

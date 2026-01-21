@@ -76,13 +76,16 @@ Images must be at least 32x32 pixels. For best results, use images at least 50x5
 
 ## Performance Tips
 
-See the [Usage Guide](usage.md) for GPU optimization, batch size tuning, downscaling strategies, and CPU inference configuration.
+- If processing many files, use `predict_from_load_func` instead of `predict_from_array` - it preloads data during inference for faster processing
+- See the [Usage Guide](usage.md) for GPU optimization, batch size tuning, downscaling strategies, and CPU inference configuration
 
 ## FAQ
 
 ### What bands are required?
 
 Red, Green, and NIR bands. The model was trained on these three bands from the CloudSEN12 dataset.
+
+If you don't have a NIR band, you can try passing Red, Green, and Blue bands instead - this has shown reasonable results in some cases, though NIR is recommended.
 
 ### How do I interpret confidence maps?
 
