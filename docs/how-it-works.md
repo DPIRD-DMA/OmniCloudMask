@@ -45,6 +45,18 @@ The techniques used in OCM are not specific to cloud masking. They represent a g
 
 We suggest that **other remote sensing deep learning models could benefit from similar training approaches**, potentially reducing the need for sensor-specific datasets and enabling broader applicability of trained models.
 
+## Training Data
+
+OmniCloudMask is trained on Sentinel-2 imagery from multiple datasets:
+
+- **[CloudSEN12](https://cloudsen12.github.io/)** - The primary training dataset, containing expert-labeled cloud masks for Sentinel-2 scenes globally. Includes "high quality", "scribble", and "2k" label subsets.
+- **[KappaSet](https://doi.org/10.5281/zenodo.7100327)** - Additional training data used in model versions 3.0+.
+- **OCM Hard Negatives** - Curated challenging scenes to improve edge cases.
+
+The training data covers diverse geographic regions, cloud types, and atmospheric conditions. You can explore the spatial distribution of training samples on the **[Training Data Distribution Map](https://dpird-dma.github.io/OCM-training-data-map/)**.
+
+See the [model changelog](model-changelog.md) for which datasets were used in each model version.
+
 ## Architecture
 
 OCM uses an ensemble of two U-Net models with soft voting to combine predictions. The ensemble improves both accuracy and generalization compared to single models.
