@@ -60,6 +60,7 @@ docker run --gpus all -p 127.0.0.1:8888:8888 -v /path/to/data:/workspace/data om
 
 Access Jupyter Lab at http://localhost:8888 (no password required).
 
+(legacy-model-support)=
 ## Legacy Model Support
 
 Model versions 1.0 through 3.0 were built with fastai. To use these older models, install the legacy extra:

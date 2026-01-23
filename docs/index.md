@@ -43,6 +43,7 @@ usage
 api
 troubleshooting
 contributing
+users
 changelog
 model-changelog
 ```
