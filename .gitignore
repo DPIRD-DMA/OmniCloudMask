@@ -27,3 +27,4 @@ examples/PlanetScope data/*
 tests/speed test/speed test scenes/*
 *.pyc
 validation dataset/Throughput/speed test scenes/*
+uv.lock
