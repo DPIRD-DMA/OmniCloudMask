@@ -17,6 +17,8 @@ As of early 2026, the OmniCloudMask Python package has been downloaded over 170,
 - [Orbio Earth](https://github.com/Orbio-Earth/Project-Eucalyptus)
 - [Geopera](https://geopera.com/)
 - [FrontierSI](https://frontiersi.com.au/)
+- [Direção-Geral do Território](https://www.dgterritorio.gov.pt/)
+- [Sentinel-Bird](https://sentinelbird.com/)
 
 ## Open Source Projects
 
