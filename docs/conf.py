@@ -5,6 +5,7 @@ from pathlib import Path
 project = "OmniCloudMask"
 copyright = "2025, Nick Wright"
 author = "Nick Wright"
+html_extra_path = ["googlef4150bdab6a1d90a.html"]
 
 extensions = [
     "myst_parser",
