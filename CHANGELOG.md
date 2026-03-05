@@ -1,6 +1,15 @@
 # Changelog
 
 
+## [1.7.1] - Mar 5, 2026
+
+### Fixed
+- Fixed MPS patch failing for custom models with non-default input channel counts
+- MPS compatibility check now gracefully handles unexpected errors instead of crashing
+
+### Added
+- Tests for MPS patch across smp and fastai models with various backbones and channel counts
+
 ## [1.7.0] - Dec 16, 2025
 
 ### Added

@@ -1,3 +1,5 @@
+import warnings
+
 import torch
 
 
@@ -8,6 +10,19 @@ import torch
 #
 
 
+def _get_model_in_channels(model: torch.nn.Module) -> int:
+    """Get the number of input channels from the model's first Conv2d layer."""
+    for module in model.modules():
+        if isinstance(module, torch.nn.Conv2d):
+            return module.in_channels
+    warnings.warn(
+        "No Conv2d layer found in model, "
+        "defaulting to 3 input channels for MPS compatibility check.",
+        stacklevel=2,
+    )
+    return 3
+
+
 def requires_mps_fix(
     model: torch.nn.Module, inference_device: torch.device, inference_dtype: torch.dtype
 ) -> bool:
@@ -16,8 +31,9 @@ def requires_mps_fix(
     Returns True if the MPS contiguity issue occurs, False otherwise
     """
     try:
+        in_channels = _get_model_in_channels(model)
         test_input = torch.randn(
-            1, 3, 65, 65, device=inference_device, dtype=inference_dtype
+            1, in_channels, 65, 65, device=inference_device, dtype=inference_dtype
         )
 
         with torch.no_grad():
@@ -27,8 +43,12 @@ def requires_mps_fix(
     except RuntimeError as e:
         if "view size is not compatible" in str(e):
             return True  # MPS contiguity issue detected
-        else:
-            raise
+        warnings.warn(
+            f"Unexpected error during MPS compatibility check: {e}. "
+            "Assuming model does not require MPS Conv2d patch.",
+            stacklevel=2,
+        )
+        return False
 
 
 class MPSSafeConv2d(torch.nn.Conv2d):

@@ -1,5 +1,4 @@
 # Configuration file for Sphinx documentation builder.
-import shutil
 from pathlib import Path
 
 project = "OmniCloudMask"
