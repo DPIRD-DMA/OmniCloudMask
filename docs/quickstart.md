@@ -74,8 +74,9 @@ pred_paths = predict_from_load_func(scene_paths, loader)
 
 ## Example notebooks
 
-- [Sentinel-2](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/Sentinel-2.ipynb)
-- [Landsat HLS](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/HLS.ipynb)
-- [PlanetScope](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/PlanetScope.ipynb)
-- [PlanetScope Hyperspectral](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/PlanetScope%20Hyperspectral.ipynb)
-- [Maxar](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/Maxar.ipynb)
+- [Sentinel-2 from .SAFE](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/sentinel2_safe.ipynb)
+- [Sentinel-2 via Planetary Computer](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/sentinel2_planetary_computer.ipynb)
+- [HLS (Harmonized Landsat Sentinel)](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/hls.ipynb)
+- [PlanetScope](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/planetscope.ipynb)
+- [PlanetScope Hyperspectral](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/planetscope_hyperspectral.ipynb)
+- [Maxar](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/maxar.ipynb)

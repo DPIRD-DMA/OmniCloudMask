@@ -50,10 +50,14 @@ No password or token is required by default.
 
 ## Example Notebooks
 
-The container includes example notebooks located in the default directory:
+The container includes the following example notebooks:
 
-- Sentinel-2 example
-- Maxar example
+- `sentinel2_safe.ipynb` — Sentinel-2 L1C/L2A from local .SAFE folders
+- `sentinel2_planetary_computer.ipynb` — Sentinel-2 L2A streamed from Planetary Computer
+- `hls.ipynb` — HLS (Harmonized Landsat Sentinel) via NASA Earthdata
+- `planetscope.ipynb` — PlanetScope single scene and batch processing
+- `planetscope_hyperspectral.ipynb` — PlanetScope hyperspectral (HDF5)
+- `maxar.ipynb` — Maxar open-data scenes (4-band and 8-band)
 
 ## Troubleshooting
 
