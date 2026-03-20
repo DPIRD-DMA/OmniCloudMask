@@ -20,6 +20,10 @@ mask = predict_from_array(input_array)
 # Values: 0=Clear, 1=Thick Cloud, 2=Thin Cloud, 3=Cloud Shadow
 ```
 
+:::{tip}
+Don't have a NIR band? You can pass an array of zeros in its place and still get good predictions. See {ref}`Spectral Channels <spectral-channels>` for details.
+:::
+
 ## Predict from scene files
 
 Use `predict_from_load_func` to process satellite scene files directly. The library includes loaders for Sentinel-2, Landsat 8, and multiband GeoTIFFs:

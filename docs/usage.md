@@ -2,6 +2,44 @@
 
 This page covers device selection, performance tuning, and advanced configuration options.
 
+(spectral-channels)=
+## Spectral Channels
+
+OmniCloudMask expects a 3-band input array in the order **Red, Green, NIR** with shape `(3, height, width)`.
+
+### What if I don't have a NIR band?
+
+If your imagery doesn't include a near-infrared (NIR) band, you can still use OmniCloudMask — just pass an array of zeros in place of the NIR channel. The model was trained to be robust to this and will still produce good cloud mask predictions using only the Red and Green bands.
+
+```python
+import numpy as np
+from omnicloudmask import predict_from_array
+
+# red and green are 2D arrays of shape (height, width)
+nir_placeholder = np.zeros_like(red)
+
+input_array = np.stack([red, green, nir_placeholder], axis=0)
+mask = predict_from_array(input_array)
+```
+
+The same approach works with `predict_from_load_func` — just return the zero-filled NIR band from your custom loader:
+
+```python
+import numpy as np
+import rasterio as rio
+from omnicloudmask import predict_from_load_func
+
+def load_rgb_only(input_path):
+    with rio.open(input_path) as src:
+        red = src.read(1)
+        green = src.read(2)
+        profile = src.profile
+    nir_placeholder = np.zeros_like(red)
+    return np.stack([red, green, nir_placeholder], axis=0), profile
+
+pred_paths = predict_from_load_func(scene_paths, load_rgb_only)
+```
+
 ## Device Selection
 
 OmniCloudMask automatically selects the best available device (CUDA > MPS > CPU). Override this with the `inference_device` parameter:
@@ -164,7 +202,7 @@ Use older model versions if needed:
 mask = predict_from_array(input_array, model_version=3.0)
 ```
 
-Available versions: `1.0`, `2.0`, `3.0`, `4.0` (default is latest). Versions 1-3 require the [legacy extra](installation.md#legacy-model-support).
+Available versions: `1.0`, `2.0`, `3.0`, `4.0` (default is latest). Versions 1-3 require the {ref}`legacy extra <legacy-model-support>`.
 
 ## Custom Models
 
