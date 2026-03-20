@@ -46,6 +46,15 @@ pred_paths = predict_from_load_func(scene_paths, load_s2)
 
 See the [quickstart guide](https://omnicloudmask.readthedocs.io/en/latest/quickstart.html) for more examples.
 
+## Example Notebooks
+
+- [Sentinel-2 from .SAFE](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/sentinel2_safe.ipynb)
+- [Sentinel-2 via Planetary Computer](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/sentinel2_planetary_computer.ipynb)
+- [HLS (Harmonized Landsat Sentinel)](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/hls.ipynb)
+- [PlanetScope](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/planetscope.ipynb)
+- [PlanetScope Hyperspectral](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/planetscope_hyperspectral.ipynb)
+- [Maxar](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/maxar.ipynb)
+
 ## Try in Colab
 
 [![Open In Colab](https://img.shields.io/badge/Try%20in%20Colab-grey?style=for-the-badge&logo=google-colab)](https://colab.research.google.com/drive/1d53lg2yiSbqhrzDWlJoS5rjHgRLRJ3WY?usp=sharing)

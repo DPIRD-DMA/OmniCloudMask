@@ -17,10 +17,8 @@ WORKDIR /workspace
 # Set up a directory for data
 RUN mkdir -p /workspace/data
 
-# Copy example notebooks
-COPY ["examples/Maxar.ipynb", "/workspace/"]
-COPY ["examples/Sentinel-2.ipynb", "/workspace/"]
-COPY ["examples/PlanetScope Hyperspectral.ipynb", "/workspace/"]
+# Copy all example notebooks
+COPY examples/*.ipynb /workspace/
 
 # Copy README file
 COPY docker/README.md /workspace

@@ -1,9 +1,13 @@
 # Configuration file for Sphinx documentation builder.
 from pathlib import Path
 
+from omnicloudmask.__version__ import __version__
+
 project = "OmniCloudMask"
 copyright = "2025, Nick Wright"
 author = "Nick Wright"
+version = __version__
+release = __version__
 html_extra_path = ["googlef4150bdab6a1d90a.html"]
 
 extensions = [
