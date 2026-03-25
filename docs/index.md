@@ -40,6 +40,7 @@ installation
 quickstart
 how-it-works
 usage
+benchmarks
 api
 troubleshooting
 contributing
