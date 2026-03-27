@@ -49,6 +49,7 @@ dev = [
     "seaborn>=0.13.0",
     "spandrel>=0.4.1",
     "sphinx>=7.4.7",
+    "sphinx-autobuild>=2024.10.3",
     "sphinx-rtd-theme>=3.1.0",
     "tacoreader>=0.5.6",
 ]
