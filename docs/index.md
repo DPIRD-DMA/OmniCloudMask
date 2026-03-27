@@ -2,6 +2,8 @@
 
 **State-of-the-art cloud and cloud shadow segmentation for satellite imagery**
 
+![OmniCloudMask example](_static/example.png)
+
 OmniCloudMask is a Python library for cloud and cloud shadow detection in high to moderate resolution satellite imagery. It supports resolutions from 10 m to 50 m and works with imagery from Sentinel-2, Landsat, PlanetScope, Maxar, and other sensors with Red, Green, and NIR bands.
 
 ## Key Features

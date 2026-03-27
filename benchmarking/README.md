@@ -29,6 +29,16 @@ This writes:
 
 Run this script and commit both outputs whenever new results are added.
 
+### Previewing the docs locally
+
+To build and serve the documentation locally with live reloading:
+
+```bash
+uv run --with sphinx-autobuild --with sphinx-rtd-theme --with myst-parser sphinx-autobuild docs docs/_build/html
+```
+
+The docs will be served at `http://127.0.0.1:8000` and will automatically rebuild when you edit any source files.
+
 ## Adding results for your hardware
 
 1. Open `benchmarking.ipynb` and run all cells

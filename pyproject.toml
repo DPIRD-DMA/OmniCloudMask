@@ -46,6 +46,7 @@ dev = [
     "rioxarray>=0.15.0",
     "ruff>=0.12.2",
     "s2dl>=0.3",
+    "seaborn>=0.13.0",
     "spandrel>=0.4.1",
     "sphinx>=7.4.7",
     "sphinx-rtd-theme>=3.1.0",
