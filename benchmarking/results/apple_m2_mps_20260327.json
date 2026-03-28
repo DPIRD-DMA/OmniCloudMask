@@ -1,0 +1,331 @@
+{
+  "fingerprint": {
+    "timestamp": "2026-03-27T08:00:27.677927+00:00",
+    "omnicloudmask_version": "1.7.1",
+    "pytorch_version": "2.11.0",
+    "os": "Darwin 24.6.0",
+    "python_version": "3.12.10",
+    "cpu": "Apple M2",
+    "ram_gb": 16.0,
+    "gpu": "Apple M2 (MPS)"
+  },
+  "settings": {
+    "repeats_small": 6,
+    "repeats_large": 3,
+    "bs_search_repeats": 3
+  },
+  "results": [
+    {
+      "device": "cpu",
+      "dtype": "float32",
+      "scene_size": 50,
+      "batch_size": 1,
+      "mean_seconds": 0.0684,
+      "std_seconds": 0.0089
+    },
+    {
+      "device": "cpu",
+      "dtype": "float32",
+      "scene_size": 100,
+      "batch_size": 1,
+      "mean_seconds": 0.09,
+      "std_seconds": 0.0015
+    },
+    {
+      "device": "cpu",
+      "dtype": "float32",
+      "scene_size": 200,
+      "batch_size": 1,
+      "mean_seconds": 0.1525,
+      "std_seconds": 0.0029
+    },
+    {
+      "device": "cpu",
+      "dtype": "float32",
+      "scene_size": 300,
+      "batch_size": 1,
+      "mean_seconds": 0.264,
+      "std_seconds": 0.0105
+    },
+    {
+      "device": "cpu",
+      "dtype": "float32",
+      "scene_size": 400,
+      "batch_size": 1,
+      "mean_seconds": 0.4103,
+      "std_seconds": 0.0106
+    },
+    {
+      "device": "cpu",
+      "dtype": "float32",
+      "scene_size": 500,
+      "batch_size": 1,
+      "mean_seconds": 0.6163,
+      "std_seconds": 0.0178
+    },
+    {
+      "device": "cpu",
+      "dtype": "float32",
+      "scene_size": 750,
+      "batch_size": 1,
+      "mean_seconds": 1.2816,
+      "std_seconds": 0.0246
+    },
+    {
+      "device": "cpu",
+      "dtype": "float32",
+      "scene_size": 1000,
+      "batch_size": 1,
+      "mean_seconds": 2.2163,
+      "std_seconds": 0.0198
+    },
+    {
+      "device": "cpu",
+      "dtype": "float32",
+      "scene_size": 2000,
+      "batch_size": 1,
+      "mean_seconds": 19.5043,
+      "std_seconds": 0.5506
+    },
+    {
+      "device": "cpu",
+      "dtype": "float32",
+      "scene_size": 3000,
+      "batch_size": 4,
+      "mean_seconds": 38.4562,
+      "std_seconds": 1.6234
+    },
+    {
+      "device": "cpu",
+      "dtype": "float32",
+      "scene_size": 5000,
+      "batch_size": 4,
+      "mean_seconds": 117.1392,
+      "std_seconds": 3.6268
+    },
+    {
+      "device": "cpu",
+      "dtype": "float32",
+      "scene_size": 10000,
+      "batch_size": 1,
+      "mean_seconds": 424.0215,
+      "std_seconds": 2.7836
+    },
+    {
+      "device": "mps",
+      "dtype": "float32",
+      "scene_size": 50,
+      "batch_size": 1,
+      "mean_seconds": 0.0508,
+      "std_seconds": 0.0015,
+      "speedup_vs_cpu": 1.35
+    },
+    {
+      "device": "mps",
+      "dtype": "float32",
+      "scene_size": 100,
+      "batch_size": 1,
+      "mean_seconds": 0.0547,
+      "std_seconds": 0.0039,
+      "speedup_vs_cpu": 1.65
+    },
+    {
+      "device": "mps",
+      "dtype": "float32",
+      "scene_size": 200,
+      "batch_size": 1,
+      "mean_seconds": 0.066,
+      "std_seconds": 0.0014,
+      "speedup_vs_cpu": 2.31
+    },
+    {
+      "device": "mps",
+      "dtype": "float32",
+      "scene_size": 300,
+      "batch_size": 1,
+      "mean_seconds": 0.0744,
+      "std_seconds": 0.0117,
+      "speedup_vs_cpu": 3.55
+    },
+    {
+      "device": "mps",
+      "dtype": "float32",
+      "scene_size": 400,
+      "batch_size": 1,
+      "mean_seconds": 0.0905,
+      "std_seconds": 0.0076,
+      "speedup_vs_cpu": 4.53
+    },
+    {
+      "device": "mps",
+      "dtype": "float32",
+      "scene_size": 500,
+      "batch_size": 1,
+      "mean_seconds": 0.0994,
+      "std_seconds": 0.0145,
+      "speedup_vs_cpu": 6.2
+    },
+    {
+      "device": "mps",
+      "dtype": "float32",
+      "scene_size": 750,
+      "batch_size": 1,
+      "mean_seconds": 0.186,
+      "std_seconds": 0.0019,
+      "speedup_vs_cpu": 6.89
+    },
+    {
+      "device": "mps",
+      "dtype": "float32",
+      "scene_size": 1000,
+      "batch_size": 1,
+      "mean_seconds": 0.3002,
+      "std_seconds": 0.0128,
+      "speedup_vs_cpu": 7.38
+    },
+    {
+      "device": "mps",
+      "dtype": "float32",
+      "scene_size": 2000,
+      "batch_size": 1,
+      "mean_seconds": 2.9765,
+      "std_seconds": 0.1281,
+      "speedup_vs_cpu": 6.55
+    },
+    {
+      "device": "mps",
+      "dtype": "float32",
+      "scene_size": 3000,
+      "batch_size": 2,
+      "mean_seconds": 4.1159,
+      "std_seconds": 0.0085,
+      "speedup_vs_cpu": 9.34
+    },
+    {
+      "device": "mps",
+      "dtype": "float32",
+      "scene_size": 5000,
+      "batch_size": 2,
+      "mean_seconds": 12.6979,
+      "std_seconds": 0.0412,
+      "speedup_vs_cpu": 9.23
+    },
+    {
+      "device": "mps",
+      "dtype": "float32",
+      "scene_size": 10000,
+      "batch_size": 2,
+      "mean_seconds": 53.6367,
+      "std_seconds": 0.4041,
+      "speedup_vs_cpu": 7.91
+    },
+    {
+      "device": "mps",
+      "dtype": "float16",
+      "scene_size": 50,
+      "batch_size": 1,
+      "mean_seconds": 0.0729,
+      "std_seconds": 0.0041,
+      "speedup_vs_cpu": 0.94
+    },
+    {
+      "device": "mps",
+      "dtype": "float16",
+      "scene_size": 100,
+      "batch_size": 1,
+      "mean_seconds": 0.0555,
+      "std_seconds": 0.0101,
+      "speedup_vs_cpu": 1.62
+    },
+    {
+      "device": "mps",
+      "dtype": "float16",
+      "scene_size": 200,
+      "batch_size": 1,
+      "mean_seconds": 0.0594,
+      "std_seconds": 0.0057,
+      "speedup_vs_cpu": 2.57
+    },
+    {
+      "device": "mps",
+      "dtype": "float16",
+      "scene_size": 300,
+      "batch_size": 1,
+      "mean_seconds": 0.0698,
+      "std_seconds": 0.0054,
+      "speedup_vs_cpu": 3.78
+    },
+    {
+      "device": "mps",
+      "dtype": "float16",
+      "scene_size": 400,
+      "batch_size": 1,
+      "mean_seconds": 0.0849,
+      "std_seconds": 0.0097,
+      "speedup_vs_cpu": 4.83
+    },
+    {
+      "device": "mps",
+      "dtype": "float16",
+      "scene_size": 500,
+      "batch_size": 1,
+      "mean_seconds": 0.0906,
+      "std_seconds": 0.011,
+      "speedup_vs_cpu": 6.8
+    },
+    {
+      "device": "mps",
+      "dtype": "float16",
+      "scene_size": 750,
+      "batch_size": 1,
+      "mean_seconds": 0.1605,
+      "std_seconds": 0.0031,
+      "speedup_vs_cpu": 7.99
+    },
+    {
+      "device": "mps",
+      "dtype": "float16",
+      "scene_size": 1000,
+      "batch_size": 1,
+      "mean_seconds": 0.262,
+      "std_seconds": 0.0242,
+      "speedup_vs_cpu": 8.46
+    },
+    {
+      "device": "mps",
+      "dtype": "float16",
+      "scene_size": 2000,
+      "batch_size": 1,
+      "mean_seconds": 3.0039,
+      "std_seconds": 0.514,
+      "speedup_vs_cpu": 6.49
+    },
+    {
+      "device": "mps",
+      "dtype": "float16",
+      "scene_size": 3000,
+      "batch_size": 4,
+      "mean_seconds": 9.5417,
+      "std_seconds": 1.2475,
+      "speedup_vs_cpu": 4.03
+    },
+    {
+      "device": "mps",
+      "dtype": "float16",
+      "scene_size": 5000,
+      "batch_size": 1,
+      "mean_seconds": 12.2326,
+      "std_seconds": 0.2273,
+      "speedup_vs_cpu": 9.58
+    },
+    {
+      "device": "mps",
+      "dtype": "float16",
+      "scene_size": 10000,
+      "batch_size": 1,
+      "mean_seconds": 43.5122,
+      "std_seconds": 1.0532,
+      "speedup_vs_cpu": 9.74
+    }
+  ]
+}
