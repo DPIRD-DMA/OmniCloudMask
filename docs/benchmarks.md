@@ -1,6 +1,8 @@
 # Benchmarks
 
-To add results for your hardware, run [`benchmarking/benchmarking.ipynb`](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/benchmarking/benchmarking.ipynb) and submit the JSON file in `benchmarking/results/` via a pull request.
+:::{note}
+To add results for your hardware, see [`benchmarking/README.md`](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/benchmarking/README.md) for instructions, then submit the JSON file in `benchmarking/results/` via a pull request.
+:::
 
 Inference time for a square scene at various sizes.
 Results show mean seconds over multiple runs.

@@ -2,6 +2,12 @@
 
 This directory contains tools for profiling OmniCloudMask inference performance across devices and scene sizes.
 
+Install the required dependencies before running any notebooks or scripts:
+
+```bash
+uv sync --group dev
+```
+
 ## Files
 
 ### `benchmarking.ipynb`
