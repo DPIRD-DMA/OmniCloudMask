@@ -150,7 +150,6 @@ def make_plot(all_data: list[dict]) -> None:
     PLOT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     sns.set_theme(style="whitegrid", context="notebook")
-    palette = sns.color_palette("colorblind")
 
     fig, ax = plt.subplots(figsize=(9, 5))
 
@@ -203,9 +202,9 @@ def make_plot(all_data: list[dict]) -> None:
 
     series.sort(key=lambda s: s[0])
 
+    palette = sns.color_palette("husl", len(series))
     for i, (_, label, megapixels, times) in enumerate(series):
-        color = palette[i % len(palette)]
-        ax.plot(megapixels, times, "-o", label=label, color=color, lw=2, ms=4)
+        ax.plot(megapixels, times, "-o", label=label, color=palette[i], lw=2, ms=4)
 
     ax.set_yscale("log")
     ax.set_xlim(left=-2)
