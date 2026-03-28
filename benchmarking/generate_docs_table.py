@@ -3,7 +3,6 @@
 import json
 import re
 from pathlib import Path
-from typing import Any
 
 RESULTS_DIR = Path(__file__).parent / "results"
 DOCS_DIR = Path(__file__).parent.parent / "docs"
@@ -141,6 +140,17 @@ def make_tables(data: dict) -> list[tuple[float, str]]:
     return sections
 
 
+_VENDOR_PREFIXES = ("Apple ", "NVIDIA GeForce ", "NVIDIA ", "Intel Core ", "AMD ")
+
+
+def _short_hw_name(name: str) -> str:
+    """Strip common vendor prefixes, e.g. 'NVIDIA GeForce RTX 4090' → 'RTX 4090'."""
+    for prefix in _VENDOR_PREFIXES:
+        if name.startswith(prefix):
+            return name[len(prefix):]
+    return name
+
+
 def _wrap_hw_name(name: str, max_len: int = 12) -> str:
     """Insert <br> at the last word boundary before max_len chars."""
     if len(name) <= max_len:
@@ -242,13 +252,14 @@ def make_plot(all_data: list[dict]) -> None:
     series.sort(key=lambda s: s[0])
 
     palette = sns.color_palette("husl", len(series))
-    plot_handles: list[tuple[float, Any, str]] = []
-    for i, (sort_key, _device, label, megapixels, times) in enumerate(series):
+    for i, (*_, label, megapixels, times) in enumerate(series):
         color = palette[i]
-        (line,) = ax.plot(megapixels, times, "-", label=label, color=color, lw=2)
-        plot_handles.append((sort_key, line, label))
+        ax.plot(megapixels, times, "-", color=color, lw=2)
+        hw_name = label.rsplit(" (", 1)[0]
+        short = _short_hw_name(hw_name)
+        dev_str = label.rsplit(" (", 1)[1].rstrip(")")
         ax.annotate(
-            f"{times[-1]:.3g}s",
+            f"{short} ({dev_str})  {times[-1]:.3g}s",
             xy=(megapixels[-1], times[-1]),
             xytext=(6, 0),
             textcoords="offset points",
@@ -258,12 +269,12 @@ def make_plot(all_data: list[dict]) -> None:
         )
 
     ax.set_yscale("log")
-    ax.set_xlim(left=-2, right=110)
+    ax.set_xlim(left=-2, right=130)
     y_min = min(t for _, _, _, _, times in series for t in times)
     ax.set_ylim(bottom=y_min * 0.5)
     all_x = sorted({mp for _, _, _, megapixels, _ in series for mp in megapixels})
-    preferred = [1, 4, 9, 25, 100]
-    ax.set_xticks([x for x in preferred if x in all_x])
+    preferred = {1, 5, 10, 25, 50, 100}
+    ax.set_xticks([x for x in sorted(preferred & set(all_x))])
     ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f"{x:g}"))
     ax.yaxis.set_major_locator(ticker.LogLocator(base=10, numticks=10))
     ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f"{x:g}"))
@@ -274,12 +285,6 @@ def make_plot(all_data: list[dict]) -> None:
     ax.grid(True, axis="x", linestyle="--", linewidth=0.5, alpha=0.6)
     ax.grid(True, axis="y", which="major", linestyle="--", linewidth=0.5, alpha=0.6)
     ax.grid(False, which="minor")
-    ax.legend(
-        [e[1] for e in plot_handles],
-        [e[2] for e in plot_handles],
-        frameon=True, fancybox=False, shadow=False, fontsize=9,
-        ncol=2, loc="lower right",
-    )
     fig.tight_layout()
     fig.savefig(PLOT_PATH, dpi=150, bbox_inches="tight")
     plt.close(fig)
