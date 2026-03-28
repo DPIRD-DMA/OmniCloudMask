@@ -3,6 +3,7 @@
 import json
 import re
 from pathlib import Path
+from typing import Any
 
 RESULTS_DIR = Path(__file__).parent / "results"
 DOCS_DIR = Path(__file__).parent.parent / "docs"
@@ -241,7 +242,7 @@ def make_plot(all_data: list[dict]) -> None:
     series.sort(key=lambda s: s[0])
 
     palette = sns.color_palette("husl", len(series))
-    plot_handles: list[tuple[float, object, str]] = []
+    plot_handles: list[tuple[float, Any, str]] = []
     for i, (sort_key, _device, label, megapixels, times) in enumerate(series):
         color = palette[i]
         (line,) = ax.plot(megapixels, times, "-", label=label, color=color, lw=2)
