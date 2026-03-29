@@ -21,8 +21,11 @@ def load_results() -> list[dict]:
 
 
 def _clean_cpu_name(name: str) -> str:
-    """Strip common suffixes like '16-Core Processor' from CPU names."""
-    return re.sub(r"\s+\d+-Core Processor$", "", name)
+    """Clean CPU names, e.g. 'Intel(R) Core(TM) i5-8400 CPU @ 2.80GHz' -> 'Intel Core i5-8400'."""  # noqa: E501
+    name = re.sub(r"\s+\d+-Core Processor$", "", name)       # AMD suffix
+    name = re.sub(r"\s+CPU\s+@\s+[\d.]+GHz$", "", name)      # Intel clock speed
+    name = name.replace("(R)", "").replace("(TM)", "")
+    return re.sub(r"\s+", " ", name).strip()
 
 
 def _get_hw_label(fp: dict) -> tuple[str, str]:
@@ -75,8 +78,8 @@ def _make_device_table(
         col_headers.append(dt)
         col_headers.append(f"Batch ({dt})" if len(dtypes) > 1 else "Batch")
 
-    header = "| Megapixels | Dimensions | " + " | ".join(col_headers) + " |"
-    separator = "| --- | --- | " + " | ".join("---" for _ in col_headers) + " |"
+    header = "| Scene size | " + " | ".join(col_headers) + " |"
+    separator = "| --- | " + " | ".join("---" for _ in col_headers) + " |"
 
     table_rows = []
     for i, size in enumerate(sizes):
@@ -88,7 +91,7 @@ def _make_device_table(
             mp_str = f"{mp:.3f}"
         else:
             mp_str = f"{mp:.2f}"
-        cells = [f"**{mp_str}**", f"{size}\u00d7{size}"]
+        cells = [f"**{mp_str} MP** ({size}\u00d7{size} px)"]
         for dtype in dtypes:
             val = index.get((device, dtype, size))
             cells.append(f"{val[0]:.{decimals}f}s" if val is not None else "\u2014")
@@ -201,7 +204,7 @@ def make_summary_table(all_data: list[dict]) -> str:
             mp_str = f"{mp:.3f}"
         else:
             mp_str = f"{mp:.2f}"
-        cells = [f"**{mp_str}**", f"{size}\u00d7{size}"]
+        cells = [f"**{mp_str} MP** ({size}\u00d7{size} px)"]
         for label in col_labels:
             val = index.get((label, size))
             cells.append(f"{val:.{decimals}f}s" if val is not None else "\u2014")
@@ -236,10 +239,15 @@ def make_plot(all_data: list[dict]) -> None:
         for device in dict.fromkeys(d for d, _ in combos):
             dtypes_for_device = [dt for dev, dt in combos if dev == device]
             dtype = "float16" if "float16" in dtypes_for_device else dtypes_for_device[0]
-            sizes = sorted(
+            all_sizes_for_series = {
                 r["scene_size"] for r in rows
                 if r["device"] == device and r["dtype"] == dtype
+            }
+            plot_skip = (
+                ({2000} if 2236 in all_sizes_for_series else set()) |
+                ({3000} if 3162 in all_sizes_for_series else set())
             )
+            sizes = sorted(all_sizes_for_series - plot_skip)
             megapixels = [s**2 / 1e6 for s in sizes]
             times = [index[(device, dtype, s)] for s in sizes]
 
@@ -273,8 +281,8 @@ def make_plot(all_data: list[dict]) -> None:
     y_min = min(t for _, _, _, _, times in series for t in times)
     ax.set_ylim(bottom=y_min * 0.5)
     all_x = sorted({mp for _, _, _, megapixels, _ in series for mp in megapixels})
-    preferred = {1, 5, 10, 25, 50, 100}
-    ax.set_xticks([x for x in sorted(preferred & set(all_x))])
+    preferred = [1, 5, 10, 25, 50, 100]
+    ax.set_xticks([p for p in preferred if any(abs(x - p) / p < 0.01 for x in all_x)])
     ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f"{x:g}"))
     ax.yaxis.set_major_locator(ticker.LogLocator(base=10, numticks=10))
     ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f"{x:g}"))
@@ -306,14 +314,6 @@ def main() -> None:
         [
             "# Benchmarks",
             "",
-            ":::{note}",
-            "To add results for your hardware, see"
-            " [`benchmarking/README.md`]"
-            "(https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/benchmarking/README.md)"
-            " for instructions, then submit the JSON file in"
-            " `benchmarking/results/` via a pull request.",
-            ":::",
-            "",
             "Inference time for a square scene at various sizes.",
             "Results show mean seconds over multiple runs.",
             "Batch size was selected automatically by searching for the fastest value on each device.",  # noqa: E501
@@ -323,6 +323,14 @@ def main() -> None:
             make_summary_table(all_data),
             "",
             *("\n\n".join(tables).splitlines()),
+            "",
+            "---",
+            "",
+            "To add results for your hardware, see"
+            " [`benchmarking/README.md`]"
+            "(https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/benchmarking/README.md)"
+            " for instructions, then submit the JSON file in"
+            " `benchmarking/results/` via a pull request.",
         ]
     )
 
