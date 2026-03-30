@@ -42,7 +42,7 @@ pred_paths = predict_from_load_func(scene_paths, load_rgb_only)
 
 ## Device Selection
 
-OmniCloudMask automatically selects the best available device (CUDA > MPS > CPU). Override this with the `inference_device` parameter:
+OmniCloudMask automatically selects the best available device (CUDA > MPS > CPU). See the [Performance](performance.md) page for detailed benchmarks across hardware. Override this with the `inference_device` parameter:
 
 ```python
 from omnicloudmask import predict_from_array
@@ -59,7 +59,7 @@ mask = predict_from_array(input_array, inference_device="mps")
 
 ## GPU Performance Optimization
 
-For NVIDIA GPUs, increase batch size and enable reduced precision:
+For NVIDIA GPUs, increase batch size and enable reduced precision (see [Performance](performance.md) for the impact of these settings):
 
 ```python
 from omnicloudmask import predict_from_load_func, load_s2

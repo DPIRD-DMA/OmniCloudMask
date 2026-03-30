@@ -29,7 +29,7 @@ OmniCloudMask produces segmentation masks with four classes defined by the [Clou
 ## Resources
 
 - [GitHub Repository](https://github.com/DPIRD-DMA/OmniCloudMask)
-- [OmniCloudMask Paper](https://www.sciencedirect.com/science/article/pii/S0034425725000987)
+- [OmniCloudMask Paper](https://doi.org/10.1016/j.rse.2025.114694)
 - [Training Data Map](https://dpird-dma.github.io/OCM-training-data-map/)
 - [Satellite Image Deep Learning Podcast](https://www.satellite-image-deep-learning.com/p/omnicloudmask)
 - [Example Notebooks](https://github.com/DPIRD-DMA/OmniCloudMask/tree/main/examples)
@@ -42,7 +42,7 @@ installation
 quickstart
 how-it-works
 usage
-benchmarks
+performance
 api
 troubleshooting
 contributing

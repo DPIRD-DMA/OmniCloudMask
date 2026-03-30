@@ -1,4 +1,4 @@
-"""Generate docs/benchmarks.md from benchmarking/results/*.json."""
+"""Generate docs/performance.md from benchmarking/results/*.json."""
 
 import json
 import re
@@ -6,7 +6,7 @@ from pathlib import Path
 
 RESULTS_DIR = Path(__file__).parent / "results"
 DOCS_DIR = Path(__file__).parent.parent / "docs"
-DOCS_PAGE = DOCS_DIR / "benchmarks.md"
+DOCS_PAGE = DOCS_DIR / "performance.md"
 PLOT_PATH = DOCS_DIR / "_static" / "benchmark.png"
 
 DTYPE_ORDER = {"float32": 0, "float16": 1, "bfloat16": 2}
@@ -192,8 +192,8 @@ def make_summary_table(all_data: list[dict]) -> str:
     col_labels = [label for _, label in columns]
     all_sizes = sorted({size for _, size in index})
 
-    header = "| Megapixels | Dimensions | " + " | ".join(col_labels) + " |"
-    separator = "| --- | --- | " + " | ".join("---" for _ in col_labels) + " |"
+    header = "| Megapixels | " + " | ".join(col_labels) + " |"
+    separator = "| --- | " + " | ".join("---" for _ in col_labels) + " |"
     table_rows = []
     for i, size in enumerate(all_sizes):
         decimals = 3 if i == 0 else 2
@@ -210,7 +210,7 @@ def make_summary_table(all_data: list[dict]) -> str:
             cells.append(f"{val:.{decimals}f}s" if val is not None else "\u2014")
         table_rows.append("| " + " | ".join(cells) + " |")
 
-    return "\n".join(["## Summary", "", header, separator, *table_rows])
+    return "\n".join([header, separator, *table_rows])
 
 
 def make_plot(all_data: list[dict]) -> None:
@@ -259,18 +259,39 @@ def make_plot(all_data: list[dict]) -> None:
 
     series.sort(key=lambda s: s[0])
 
-    palette = sns.color_palette("husl", len(series))
+    palette = sns.color_palette("tab10", len(series))
+    # Collect label info, then space them out to avoid overlap
+    labels_info: list[tuple[str, float, object]] = []
     for i, (*_, label, megapixels, times) in enumerate(series):
         color = palette[i]
         ax.plot(megapixels, times, "-", color=color, lw=2)
         hw_name = label.rsplit(" (", 1)[0]
         short = _short_hw_name(hw_name)
         dev_str = label.rsplit(" (", 1)[1].rstrip(")")
+        text = f"{short} ({dev_str})  {times[-1]:.3g}s"
+        labels_info.append((text, times[-1], color))
+
+    # Space labels vertically in log space so they don't overlap
+    import math
+
+    log_positions = [math.log10(y) for _, y, _ in labels_info]
+    min_gap = 0.15  # minimum gap in log10 units
+    indexed = sorted(enumerate(log_positions), key=lambda x: x[1])
+    adjusted = [0.0] * len(indexed)
+    for j, (orig_idx, log_y) in enumerate(indexed):
+        if j > 0:
+            prev_idx = indexed[j - 1][0]
+            log_y = max(log_y, adjusted[prev_idx] + min_gap)
+        adjusted[orig_idx] = log_y
+
+    last_x = max(mp[-1] for _, _, _, mp, _ in series)
+    for i, (text, orig_y, color) in enumerate(labels_info):
+        adj_y = 10 ** adjusted[i]
         ax.annotate(
-            f"{short} ({dev_str})  {times[-1]:.3g}s",
-            xy=(megapixels[-1], times[-1]),
-            xytext=(6, 0),
-            textcoords="offset points",
+            text,
+            xy=(last_x, orig_y),
+            xytext=(last_x * 1.01, adj_y),
+            textcoords="data",
             va="center",
             fontsize=8,
             color=color,
@@ -312,11 +333,20 @@ def main() -> None:
 
     page = "\n".join(
         [
-            "# Benchmarks",
+            "# Performance",
             "",
-            "Inference time for a square scene at various sizes.",
-            "Results show mean seconds over multiple runs.",
-            "Batch size was selected automatically by searching for the fastest value on each device.",  # noqa: E501
+            "## Performance notes",
+            "",
+            "- **Device hierarchy**: In general, CUDA GPUs are fastest, followed by MPS (Apple Silicon GPU), then CPU. The gap widens with scene size. At small scenes the difference is modest, but at 100 MP a high-end CUDA GPU can be over 100x faster than a CPU.",  # noqa: E501
+            "- **Tiling and scaling**: Scenes up to 1000x1000 px (1 MP) are processed as a single tile. On GPUs, small scenes are dominated by fixed overhead so times stay nearly flat up to 1 MP. Above 1 MP the scene is split into 1000x1000 px tiles with 300 px overlap, and inference time scales roughly linearly with megapixels.",  # noqa: E501
+            "- **Batch size**: For tiled scenes (>1 MP), processing multiple tiles per batch can significantly speed up GPU inference.",  # noqa: E501
+            "- **fp16 vs fp32**: On CUDA and MPS, fp16 inference is typically faster than fp32 with no meaningful change in output quality.",  # noqa: E501
+            "",
+            "Inference time for a square scene at various sizes. Results show mean seconds over multiple runs."  # noqa: E501
+            " Batch size was selected automatically by searching for the fastest value on each device."  # noqa: E501
+            " CPU gains little from batching since it lacks the massive parallelism of a GPU."  # noqa: E501
+            " fp16 was not tested on CPU as it does not offer any performance benefit."
+            " bfloat16 is also supported by the library but has equivalent throughput to fp16 on modern GPUs, so it was not evaluated separately.",  # noqa: E501
             "",
             "![Benchmark plot](_static/benchmark.png)",
             "",

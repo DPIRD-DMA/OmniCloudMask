@@ -41,4 +41,4 @@ OmniCloudMask is released under the MIT License.
 ## Acknowledgements
 
 - [CloudSEN12 project](https://cloudsen12.github.io/) for the training dataset used in model versions 1.0-4.0
-- [KappaSet authors](https://doi.org/10.5281/zenodo.7100327) for additional training data used in versions 3.0 and 4.0
+- [KappaSet authors](https://doi.org/10.5281/zenodo.7100327) for additional training data used in model versions 3.0+

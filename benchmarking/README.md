@@ -30,7 +30,7 @@ uv run benchmarking/generate_docs_table.py
 ```
 
 This writes:
-- `docs/benchmarks.md` — a page with a summary plot and per-hardware tables
+- `docs/performance.md` — a page with a summary plot and per-hardware tables
 - `docs/_static/benchmark.png` — the plot embedded in the page
 
 Run this script and commit both outputs whenever new results are added.
