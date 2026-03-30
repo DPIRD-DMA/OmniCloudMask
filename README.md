@@ -10,6 +10,8 @@ State-of-the-art cloud and cloud shadow segmentation for high to moderate resolu
 
 Works with any imagery containing Red, Green, and NIR bands at 10-50 m resolution. Validated on Sentinel-2, Landsat 8, PlanetScope and Maxar imagery.
 
+![OmniCloudMask example](https://raw.githubusercontent.com/DPIRD-DMA/OmniCloudMask/main/docs/_static/example.png)
+
 [Documentation](https://omnicloudmask.readthedocs.io/) | [Paper](https://www.sciencedirect.com/science/article/pii/S0034425725000987) | [Training Data Map](https://dpird-dma.github.io/OCM-training-data-map/) | [Podcast](https://www.satellite-image-deep-learning.com/p/omnicloudmask)
 
 ## Installation

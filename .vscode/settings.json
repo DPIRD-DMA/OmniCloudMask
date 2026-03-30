@@ -78,6 +78,7 @@
         "rtol",
         "safetensor",
         "safetensors",
+        "seaborn",
         "setuptools",
         "softmax",
         "Stac",

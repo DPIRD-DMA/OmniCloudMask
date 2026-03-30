@@ -63,7 +63,7 @@ OCM uses an ensemble of two U-Net models with soft voting to combine predictions
 
 The model architecture has evolved over time, with each version improving both accuracy and inference throughput. See the [model changelog](model-changelog.md) for details on architecture changes between versions.
 
-For full methodology details, see the [OmniCloudMask paper](https://www.sciencedirect.com/science/article/pii/S0034425725000987).
+For full methodology details, see the [OmniCloudMask paper](https://doi.org/10.1016/j.rse.2025.114694).
 
 ## Video Explanation
 
