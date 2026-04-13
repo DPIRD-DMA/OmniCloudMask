@@ -43,6 +43,7 @@ quickstart
 how-it-works
 usage
 performance
+spatial-context
 api
 troubleshooting
 contributing

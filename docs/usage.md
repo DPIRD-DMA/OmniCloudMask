@@ -77,7 +77,7 @@ Enable `compile_models=True` when processing many scenes. This adds startup over
 
 ## Downscale for Higher Throughput
 
-Since OmniCloudMask works with variable resolution imagery (10-50 m), you can downscale for higher throughput with minimal accuracy loss. For Sentinel-2, process at 20 m instead of 10 m:
+Since OmniCloudMask works with variable resolution imagery (10-50 m), you can downscale for higher throughput at the cost of some accuracy. Higher resolution imagery produces better results for the same ground extent (see [Spatial Context](spatial-context.md) for benchmarks). For example, to process Sentinel-2 at 20 m instead of 10 m:
 
 ```python
 from functools import partial

@@ -1,0 +1,556 @@
+{
+  "fingerprint": {
+    "timestamp": "2026-04-13T03:04:26.744850+00:00",
+    "omnicloudmask_version": "1.7.1",
+    "pytorch_version": "2.9.1+cu128",
+    "dataset": "CloudSEN12 High Test",
+    "n_scenes": 975,
+    "eval_size": 32
+  },
+  "results": [
+    {
+      "resolution": "10 m",
+      "resolution_m": 10,
+      "patch_size": 32,
+      "patch_geo_size_m": 320,
+      "eval_size": 32,
+      "context_margin_px": 0,
+      "context_margin_m": 0,
+      "boa": 0.5520734031757777,
+      "dice_per_class": {
+        "Clear": 0.8187981803763773,
+        "Thick Cloud": 0.7441183344101838,
+        "Thin Cloud": 0.30175641532982256,
+        "Cloud Shadow": 0.35898516742629816
+      }
+    },
+    {
+      "resolution": "10 m",
+      "resolution_m": 10,
+      "patch_size": 48,
+      "patch_geo_size_m": 480,
+      "eval_size": 32,
+      "context_margin_px": 8,
+      "context_margin_m": 80,
+      "boa": 0.6348241584297792,
+      "dice_per_class": {
+        "Clear": 0.8660554893463167,
+        "Thick Cloud": 0.8191403277817365,
+        "Thin Cloud": 0.36566881925280514,
+        "Cloud Shadow": 0.5387965503949557
+      }
+    },
+    {
+      "resolution": "10 m",
+      "resolution_m": 10,
+      "patch_size": 64,
+      "patch_geo_size_m": 640,
+      "eval_size": 32,
+      "context_margin_px": 16,
+      "context_margin_m": 160,
+      "boa": 0.7029932273311699,
+      "dice_per_class": {
+        "Clear": 0.8883444722548971,
+        "Thick Cloud": 0.849474258021622,
+        "Thin Cloud": 0.4755958759592921,
+        "Cloud Shadow": 0.6423901067784219
+      }
+    },
+    {
+      "resolution": "10 m",
+      "resolution_m": 10,
+      "patch_size": 96,
+      "patch_geo_size_m": 960,
+      "eval_size": 32,
+      "context_margin_px": 32,
+      "context_margin_m": 320,
+      "boa": 0.782768481139327,
+      "dice_per_class": {
+        "Clear": 0.9173608204980819,
+        "Thick Cloud": 0.8922126445432317,
+        "Thin Cloud": 0.6251050243656529,
+        "Cloud Shadow": 0.7255996006780566
+      }
+    },
+    {
+      "resolution": "10 m",
+      "resolution_m": 10,
+      "patch_size": 128,
+      "patch_geo_size_m": 1280,
+      "eval_size": 32,
+      "context_margin_px": 48,
+      "context_margin_m": 480,
+      "boa": 0.7915130130568143,
+      "dice_per_class": {
+        "Clear": 0.9271500852916048,
+        "Thick Cloud": 0.9042988697703803,
+        "Thin Cloud": 0.6321673815901728,
+        "Cloud Shadow": 0.7392568143631368
+      }
+    },
+    {
+      "resolution": "10 m",
+      "resolution_m": 10,
+      "patch_size": 192,
+      "patch_geo_size_m": 1920,
+      "eval_size": 32,
+      "context_margin_px": 80,
+      "context_margin_m": 800,
+      "boa": 0.8063996801948476,
+      "dice_per_class": {
+        "Clear": 0.9346522042222611,
+        "Thick Cloud": 0.9077688754445489,
+        "Thin Cloud": 0.6589631821130424,
+        "Cloud Shadow": 0.7782992793897426
+      }
+    },
+    {
+      "resolution": "10 m",
+      "resolution_m": 10,
+      "patch_size": 256,
+      "patch_geo_size_m": 2560,
+      "eval_size": 32,
+      "context_margin_px": 112,
+      "context_margin_m": 1120,
+      "boa": 0.8115888559795579,
+      "dice_per_class": {
+        "Clear": 0.9350657041959558,
+        "Thick Cloud": 0.9129560382998886,
+        "Thin Cloud": 0.6573676021082799,
+        "Cloud Shadow": 0.7981214103382259
+      }
+    },
+    {
+      "resolution": "10 m",
+      "resolution_m": 10,
+      "patch_size": 320,
+      "patch_geo_size_m": 3200,
+      "eval_size": 32,
+      "context_margin_px": 144,
+      "context_margin_m": 1440,
+      "boa": 0.8181188042388726,
+      "dice_per_class": {
+        "Clear": 0.938265852685127,
+        "Thick Cloud": 0.9156364642941968,
+        "Thin Cloud": 0.6689142314667186,
+        "Cloud Shadow": 0.8061599731827028
+      }
+    },
+    {
+      "resolution": "10 m",
+      "resolution_m": 10,
+      "patch_size": 384,
+      "patch_geo_size_m": 3840,
+      "eval_size": 32,
+      "context_margin_px": 176,
+      "context_margin_m": 1760,
+      "boa": 0.8267391290587409,
+      "dice_per_class": {
+        "Clear": 0.9409948725184916,
+        "Thick Cloud": 0.9168578769475969,
+        "Thin Cloud": 0.6920505335578192,
+        "Cloud Shadow": 0.8131307087870447
+      }
+    },
+    {
+      "resolution": "10 m",
+      "resolution_m": 10,
+      "patch_size": 448,
+      "patch_geo_size_m": 4480,
+      "eval_size": 32,
+      "context_margin_px": 208,
+      "context_margin_m": 2080,
+      "boa": 0.8295022704907149,
+      "dice_per_class": {
+        "Clear": 0.9421160348392398,
+        "Thick Cloud": 0.9164845677631601,
+        "Thin Cloud": 0.7055903302395856,
+        "Cloud Shadow": 0.8085234183773069
+      }
+    },
+    {
+      "resolution": "10 m",
+      "resolution_m": 10,
+      "patch_size": 509,
+      "patch_geo_size_m": 5090,
+      "eval_size": 32,
+      "context_margin_px": 238,
+      "context_margin_m": 2380,
+      "boa": 0.8323681236970867,
+      "dice_per_class": {
+        "Clear": 0.9426459833309019,
+        "Thick Cloud": 0.9174177672166397,
+        "Thin Cloud": 0.7074573214786861,
+        "Cloud Shadow": 0.8121465906095675
+      }
+    },
+    {
+      "resolution": "20 m",
+      "resolution_m": 20,
+      "patch_size": 32,
+      "patch_geo_size_m": 640,
+      "eval_size": 32,
+      "context_margin_px": 0,
+      "context_margin_m": 0,
+      "boa": 0.619233733816029,
+      "dice_per_class": {
+        "Clear": 0.8768982945012158,
+        "Thick Cloud": 0.8414178100192837,
+        "Thin Cloud": 0.37701427642932384,
+        "Cloud Shadow": 0.4748050887468259
+      }
+    },
+    {
+      "resolution": "20 m",
+      "resolution_m": 20,
+      "patch_size": 48,
+      "patch_geo_size_m": 960,
+      "eval_size": 32,
+      "context_margin_px": 8,
+      "context_margin_m": 160,
+      "boa": 0.7027291075129033,
+      "dice_per_class": {
+        "Clear": 0.8993209450981453,
+        "Thick Cloud": 0.8831449819363798,
+        "Thin Cloud": 0.4820206736044618,
+        "Cloud Shadow": 0.6466841271380994
+      }
+    },
+    {
+      "resolution": "20 m",
+      "resolution_m": 20,
+      "patch_size": 64,
+      "patch_geo_size_m": 1280,
+      "eval_size": 32,
+      "context_margin_px": 16,
+      "context_margin_m": 320,
+      "boa": 0.7440326974574227,
+      "dice_per_class": {
+        "Clear": 0.9112195565955534,
+        "Thick Cloud": 0.8879062107429249,
+        "Thin Cloud": 0.5355230934762663,
+        "Cloud Shadow": 0.7145282117482035
+      }
+    },
+    {
+      "resolution": "20 m",
+      "resolution_m": 20,
+      "patch_size": 96,
+      "patch_geo_size_m": 1920,
+      "eval_size": 32,
+      "context_margin_px": 32,
+      "context_margin_m": 640,
+      "boa": 0.7931642621718924,
+      "dice_per_class": {
+        "Clear": 0.9269950951070702,
+        "Thick Cloud": 0.8948046255109912,
+        "Thin Cloud": 0.6540208454320384,
+        "Cloud Shadow": 0.7502828139234551
+      }
+    },
+    {
+      "resolution": "20 m",
+      "resolution_m": 20,
+      "patch_size": 128,
+      "patch_geo_size_m": 2560,
+      "eval_size": 32,
+      "context_margin_px": 48,
+      "context_margin_m": 960,
+      "boa": 0.7944963678116941,
+      "dice_per_class": {
+        "Clear": 0.9284941430611114,
+        "Thick Cloud": 0.8983011755796141,
+        "Thin Cloud": 0.6335370845721532,
+        "Cloud Shadow": 0.7763437216580125
+      }
+    },
+    {
+      "resolution": "20 m",
+      "resolution_m": 20,
+      "patch_size": 192,
+      "patch_geo_size_m": 3840,
+      "eval_size": 32,
+      "context_margin_px": 80,
+      "context_margin_m": 1600,
+      "boa": 0.8060658166727936,
+      "dice_per_class": {
+        "Clear": 0.930418996772568,
+        "Thick Cloud": 0.9055530040643528,
+        "Thin Cloud": 0.6591702210158976,
+        "Cloud Shadow": 0.7895630754561437
+      }
+    },
+    {
+      "resolution": "20 m",
+      "resolution_m": 20,
+      "patch_size": 254,
+      "patch_geo_size_m": 5080,
+      "eval_size": 32,
+      "context_margin_px": 111,
+      "context_margin_m": 2220,
+      "boa": 0.8135597541099049,
+      "dice_per_class": {
+        "Clear": 0.9331144959228883,
+        "Thick Cloud": 0.9093433966456397,
+        "Thin Cloud": 0.6718606727108218,
+        "Cloud Shadow": 0.7955362359022091
+      }
+    },
+    {
+      "resolution": "30 m",
+      "resolution_m": 30,
+      "patch_size": 32,
+      "patch_geo_size_m": 960,
+      "eval_size": 32,
+      "context_margin_px": 0,
+      "context_margin_m": 0,
+      "boa": 0.6335544065422155,
+      "dice_per_class": {
+        "Clear": 0.87957275080624,
+        "Thick Cloud": 0.8463482577227696,
+        "Thin Cloud": 0.36112345287210407,
+        "Cloud Shadow": 0.5520584040418691
+      }
+    },
+    {
+      "resolution": "30 m",
+      "resolution_m": 30,
+      "patch_size": 48,
+      "patch_geo_size_m": 1440,
+      "eval_size": 32,
+      "context_margin_px": 8,
+      "context_margin_m": 240,
+      "boa": 0.7171897981057684,
+      "dice_per_class": {
+        "Clear": 0.9064013629027661,
+        "Thick Cloud": 0.8732594439579392,
+        "Thin Cloud": 0.5227644521872146,
+        "Cloud Shadow": 0.6768509019406685
+      }
+    },
+    {
+      "resolution": "30 m",
+      "resolution_m": 30,
+      "patch_size": 64,
+      "patch_geo_size_m": 1920,
+      "eval_size": 32,
+      "context_margin_px": 16,
+      "context_margin_m": 480,
+      "boa": 0.750057406420018,
+      "dice_per_class": {
+        "Clear": 0.9141307335247053,
+        "Thick Cloud": 0.8794455023841194,
+        "Thin Cloud": 0.5700489396411093,
+        "Cloud Shadow": 0.7074934480038676
+      }
+    },
+    {
+      "resolution": "30 m",
+      "resolution_m": 30,
+      "patch_size": 96,
+      "patch_geo_size_m": 2880,
+      "eval_size": 32,
+      "context_margin_px": 32,
+      "context_margin_m": 960,
+      "boa": 0.7831549804299477,
+      "dice_per_class": {
+        "Clear": 0.9199719115883805,
+        "Thick Cloud": 0.8936337909502601,
+        "Thin Cloud": 0.6406594353677004,
+        "Cloud Shadow": 0.7353099351129115
+      }
+    },
+    {
+      "resolution": "30 m",
+      "resolution_m": 30,
+      "patch_size": 128,
+      "patch_geo_size_m": 3840,
+      "eval_size": 32,
+      "context_margin_px": 48,
+      "context_margin_m": 1440,
+      "boa": 0.7990392300389327,
+      "dice_per_class": {
+        "Clear": 0.9217684270272655,
+        "Thick Cloud": 0.8980773630065658,
+        "Thin Cloud": 0.6628306028158083,
+        "Cloud Shadow": 0.7568805080990596
+      }
+    },
+    {
+      "resolution": "30 m",
+      "resolution_m": 30,
+      "patch_size": 170,
+      "patch_geo_size_m": 5100,
+      "eval_size": 32,
+      "context_margin_px": 69,
+      "context_margin_m": 2070,
+      "boa": 0.8122925758912241,
+      "dice_per_class": {
+        "Clear": 0.9293607819343039,
+        "Thick Cloud": 0.8992088334100597,
+        "Thin Cloud": 0.6938615863235108,
+        "Cloud Shadow": 0.7700104910087622
+      }
+    },
+    {
+      "resolution": "40 m",
+      "resolution_m": 40,
+      "patch_size": 32,
+      "patch_geo_size_m": 1280,
+      "eval_size": 32,
+      "context_margin_px": 0,
+      "context_margin_m": 0,
+      "boa": 0.6341474554982306,
+      "dice_per_class": {
+        "Clear": 0.8855556648317292,
+        "Thick Cloud": 0.8403918804717797,
+        "Thin Cloud": 0.37699827669729435,
+        "Cloud Shadow": 0.5674207371415316
+      }
+    },
+    {
+      "resolution": "40 m",
+      "resolution_m": 40,
+      "patch_size": 48,
+      "patch_geo_size_m": 1920,
+      "eval_size": 32,
+      "context_margin_px": 8,
+      "context_margin_m": 320,
+      "boa": 0.6988127218722097,
+      "dice_per_class": {
+        "Clear": 0.9032599388548324,
+        "Thick Cloud": 0.8649934155514857,
+        "Thin Cloud": 0.48448967826337613,
+        "Cloud Shadow": 0.6634115354385813
+      }
+    },
+    {
+      "resolution": "40 m",
+      "resolution_m": 40,
+      "patch_size": 64,
+      "patch_geo_size_m": 2560,
+      "eval_size": 32,
+      "context_margin_px": 16,
+      "context_margin_m": 640,
+      "boa": 0.7307991276764174,
+      "dice_per_class": {
+        "Clear": 0.912929799995703,
+        "Thick Cloud": 0.8718177185113184,
+        "Thin Cloud": 0.554235474981049,
+        "Cloud Shadow": 0.6935733502300797
+      }
+    },
+    {
+      "resolution": "40 m",
+      "resolution_m": 40,
+      "patch_size": 96,
+      "patch_geo_size_m": 3840,
+      "eval_size": 32,
+      "context_margin_px": 32,
+      "context_margin_m": 1280,
+      "boa": 0.7686634122599222,
+      "dice_per_class": {
+        "Clear": 0.9151307422833451,
+        "Thick Cloud": 0.8828499806247406,
+        "Thin Cloud": 0.6180367118914605,
+        "Cloud Shadow": 0.7317273830903673
+      }
+    },
+    {
+      "resolution": "40 m",
+      "resolution_m": 40,
+      "patch_size": 127,
+      "patch_geo_size_m": 5080,
+      "eval_size": 32,
+      "context_margin_px": 47,
+      "context_margin_m": 1880,
+      "boa": 0.7774342715131823,
+      "dice_per_class": {
+        "Clear": 0.9161078690267399,
+        "Thick Cloud": 0.8837035274481607,
+        "Thin Cloud": 0.6468885764188835,
+        "Cloud Shadow": 0.7268227754498398
+      }
+    },
+    {
+      "resolution": "50 m",
+      "resolution_m": 50,
+      "patch_size": 32,
+      "patch_geo_size_m": 1600,
+      "eval_size": 32,
+      "context_margin_px": 0,
+      "context_margin_m": 0,
+      "boa": 0.6236695308623647,
+      "dice_per_class": {
+        "Clear": 0.8812598902029767,
+        "Thick Cloud": 0.8301367731598192,
+        "Thin Cloud": 0.36460835840965555,
+        "Cloud Shadow": 0.553050628508968
+      }
+    },
+    {
+      "resolution": "50 m",
+      "resolution_m": 50,
+      "patch_size": 48,
+      "patch_geo_size_m": 2400,
+      "eval_size": 32,
+      "context_margin_px": 8,
+      "context_margin_m": 400,
+      "boa": 0.6835261039523447,
+      "dice_per_class": {
+        "Clear": 0.8962186505163444,
+        "Thick Cloud": 0.8521475111692995,
+        "Thin Cloud": 0.47349021831584914,
+        "Cloud Shadow": 0.6443599574701163
+      }
+    },
+    {
+      "resolution": "50 m",
+      "resolution_m": 50,
+      "patch_size": 64,
+      "patch_geo_size_m": 3200,
+      "eval_size": 32,
+      "context_margin_px": 16,
+      "context_margin_m": 800,
+      "boa": 0.7199027193485437,
+      "dice_per_class": {
+        "Clear": 0.9058019177918509,
+        "Thick Cloud": 0.8625685324761134,
+        "Thin Cloud": 0.5383333939548248,
+        "Cloud Shadow": 0.6835271478232081
+      }
+    },
+    {
+      "resolution": "50 m",
+      "resolution_m": 50,
+      "patch_size": 96,
+      "patch_geo_size_m": 4800,
+      "eval_size": 32,
+      "context_margin_px": 32,
+      "context_margin_m": 1600,
+      "boa": 0.7483802822912133,
+      "dice_per_class": {
+        "Clear": 0.908970472960277,
+        "Thick Cloud": 0.8711757077656331,
+        "Thin Cloud": 0.5908220665153459,
+        "Cloud Shadow": 0.7009209839372696
+      }
+    },
+    {
+      "resolution": "50 m",
+      "resolution_m": 50,
+      "patch_size": 102,
+      "patch_geo_size_m": 5100,
+      "eval_size": 32,
+      "context_margin_px": 35,
+      "context_margin_m": 1750,
+      "boa": 0.7583556949897363,
+      "dice_per_class": {
+        "Clear": 0.9104296822180343,
+        "Thick Cloud": 0.875624154323279,
+        "Thin Cloud": 0.6059884002566083,
+        "Cloud Shadow": 0.7149451703335348
+      }
+    }
+  ]
+}
