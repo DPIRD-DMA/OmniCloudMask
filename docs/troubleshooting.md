@@ -72,7 +72,7 @@ input_array = np.transpose(input_array, (2, 0, 1))
 
 ### Minimum image size
 
-Images must be at least 32x32 pixels. For best results, use images at least 50x50 pixels to provide adequate spatial context. Larger images generally produce better results as they give the model more context for accurate predictions.
+Images must be at least 32x32 pixels. For best results, use images of at least 96x96 pixels. Accuracy improves rapidly up to this size, then continues to improve more gradually with larger patches. See [Spatial Context](spatial-context.md) for detailed benchmarks on how patch size affects accuracy at different resolutions.
 
 ## Performance Tips
 
@@ -85,7 +85,7 @@ Images must be at least 32x32 pixels. For best results, use images at least 50x5
 
 Red, Green, and NIR bands. The model was trained on these three bands from the CloudSEN12 dataset.
 
-If you don't have a NIR band, you can try passing Red, Green, and Blue bands instead - this has shown reasonable results in some cases, though NIR is recommended.
+If you don't have a NIR band, you can try passing Red, Green, and an empty third band - this has shown reasonable results in most cases, though NIR is recommended.
 
 ### How do I interpret confidence maps?
 
