@@ -1,6 +1,6 @@
 {
   "fingerprint": {
-    "timestamp": "2026-04-13T03:04:26.744850+00:00",
+    "timestamp": "2026-04-14T01:39:13.001560+00:00",
     "omnicloudmask_version": "1.7.1",
     "pytorch_version": "2.9.1+cu128",
     "dataset": "CloudSEN12 High Test",
@@ -9,547 +9,547 @@
   },
   "results": [
     {
-      "resolution": "10 m",
+      "resolution": "10m",
       "resolution_m": 10,
       "patch_size": 32,
       "patch_geo_size_m": 320,
       "eval_size": 32,
       "context_margin_px": 0,
       "context_margin_m": 0,
-      "boa": 0.5520734031757777,
+      "boa": 0.5508918830131815,
       "dice_per_class": {
-        "Clear": 0.8187981803763773,
-        "Thick Cloud": 0.7441183344101838,
-        "Thin Cloud": 0.30175641532982256,
-        "Cloud Shadow": 0.35898516742629816
+        "Clear": 0.8144871097778671,
+        "Thick Cloud": 0.7409870362760115,
+        "Thin Cloud": 0.31016769069069644,
+        "Cloud Shadow": 0.35391543715374957
       }
     },
     {
-      "resolution": "10 m",
+      "resolution": "10m",
       "resolution_m": 10,
       "patch_size": 48,
       "patch_geo_size_m": 480,
       "eval_size": 32,
       "context_margin_px": 8,
       "context_margin_m": 80,
-      "boa": 0.6348241584297792,
+      "boa": 0.640125526190857,
       "dice_per_class": {
-        "Clear": 0.8660554893463167,
-        "Thick Cloud": 0.8191403277817365,
-        "Thin Cloud": 0.36566881925280514,
-        "Cloud Shadow": 0.5387965503949557
+        "Clear": 0.8681006165734209,
+        "Thick Cloud": 0.817668684444079,
+        "Thin Cloud": 0.3969168368404959,
+        "Cloud Shadow": 0.5352189065060352
       }
     },
     {
-      "resolution": "10 m",
+      "resolution": "10m",
       "resolution_m": 10,
       "patch_size": 64,
       "patch_geo_size_m": 640,
       "eval_size": 32,
       "context_margin_px": 16,
       "context_margin_m": 160,
-      "boa": 0.7029932273311699,
+      "boa": 0.7042526470031549,
       "dice_per_class": {
-        "Clear": 0.8883444722548971,
-        "Thick Cloud": 0.849474258021622,
-        "Thin Cloud": 0.4755958759592921,
-        "Cloud Shadow": 0.6423901067784219
+        "Clear": 0.8872471954563124,
+        "Thick Cloud": 0.849895303336081,
+        "Thin Cloud": 0.48498678720332117,
+        "Cloud Shadow": 0.6381636536508023
       }
     },
     {
-      "resolution": "10 m",
+      "resolution": "10m",
       "resolution_m": 10,
       "patch_size": 96,
       "patch_geo_size_m": 960,
       "eval_size": 32,
       "context_margin_px": 32,
       "context_margin_m": 320,
-      "boa": 0.782768481139327,
+      "boa": 0.7779673757661533,
       "dice_per_class": {
-        "Clear": 0.9173608204980819,
-        "Thick Cloud": 0.8922126445432317,
-        "Thin Cloud": 0.6251050243656529,
-        "Cloud Shadow": 0.7255996006780566
+        "Clear": 0.9174352990305107,
+        "Thick Cloud": 0.8933164933272244,
+        "Thin Cloud": 0.615809168579058,
+        "Cloud Shadow": 0.7195642485763802
       }
     },
     {
-      "resolution": "10 m",
+      "resolution": "10m",
       "resolution_m": 10,
       "patch_size": 128,
       "patch_geo_size_m": 1280,
       "eval_size": 32,
       "context_margin_px": 48,
       "context_margin_m": 480,
-      "boa": 0.7915130130568143,
+      "boa": 0.7955182808910544,
       "dice_per_class": {
-        "Clear": 0.9271500852916048,
-        "Thick Cloud": 0.9042988697703803,
-        "Thin Cloud": 0.6321673815901728,
-        "Cloud Shadow": 0.7392568143631368
+        "Clear": 0.9264562749957109,
+        "Thick Cloud": 0.905043519631623,
+        "Thin Cloud": 0.6388536749228727,
+        "Cloud Shadow": 0.7476105500636607
       }
     },
     {
-      "resolution": "10 m",
+      "resolution": "10m",
       "resolution_m": 10,
       "patch_size": 192,
       "patch_geo_size_m": 1920,
       "eval_size": 32,
       "context_margin_px": 80,
       "context_margin_m": 800,
-      "boa": 0.8063996801948476,
+      "boa": 0.8098944175717832,
       "dice_per_class": {
-        "Clear": 0.9346522042222611,
-        "Thick Cloud": 0.9077688754445489,
-        "Thin Cloud": 0.6589631821130424,
-        "Cloud Shadow": 0.7782992793897426
+        "Clear": 0.9348304955862758,
+        "Thick Cloud": 0.9093791747923161,
+        "Thin Cloud": 0.6740679325459582,
+        "Cloud Shadow": 0.7731439443889757
       }
     },
     {
-      "resolution": "10 m",
+      "resolution": "10m",
       "resolution_m": 10,
       "patch_size": 256,
       "patch_geo_size_m": 2560,
       "eval_size": 32,
       "context_margin_px": 112,
       "context_margin_m": 1120,
-      "boa": 0.8115888559795579,
+      "boa": 0.8149998190122554,
       "dice_per_class": {
-        "Clear": 0.9350657041959558,
-        "Thick Cloud": 0.9129560382998886,
-        "Thin Cloud": 0.6573676021082799,
-        "Cloud Shadow": 0.7981214103382259
+        "Clear": 0.9369343680684117,
+        "Thick Cloud": 0.911528223399413,
+        "Thin Cloud": 0.6720687474606147,
+        "Cloud Shadow": 0.7947811363975897
       }
     },
     {
-      "resolution": "10 m",
+      "resolution": "10m",
       "resolution_m": 10,
       "patch_size": 320,
       "patch_geo_size_m": 3200,
       "eval_size": 32,
       "context_margin_px": 144,
       "context_margin_m": 1440,
-      "boa": 0.8181188042388726,
+      "boa": 0.8190094671568537,
       "dice_per_class": {
-        "Clear": 0.938265852685127,
-        "Thick Cloud": 0.9156364642941968,
-        "Thin Cloud": 0.6689142314667186,
-        "Cloud Shadow": 0.8061599731827028
+        "Clear": 0.9387256118277149,
+        "Thick Cloud": 0.9151855279159946,
+        "Thin Cloud": 0.674938358764949,
+        "Cloud Shadow": 0.8040678879646461
       }
     },
     {
-      "resolution": "10 m",
+      "resolution": "10m",
       "resolution_m": 10,
       "patch_size": 384,
       "patch_geo_size_m": 3840,
       "eval_size": 32,
       "context_margin_px": 176,
       "context_margin_m": 1760,
-      "boa": 0.8267391290587409,
+      "boa": 0.8246661877482899,
       "dice_per_class": {
-        "Clear": 0.9409948725184916,
-        "Thick Cloud": 0.9168578769475969,
-        "Thin Cloud": 0.6920505335578192,
-        "Cloud Shadow": 0.8131307087870447
+        "Clear": 0.9401801260410866,
+        "Thick Cloud": 0.9140564709080788,
+        "Thin Cloud": 0.6919829441036148,
+        "Cloud Shadow": 0.8093328481592772
       }
     },
     {
-      "resolution": "10 m",
+      "resolution": "10m",
       "resolution_m": 10,
       "patch_size": 448,
       "patch_geo_size_m": 4480,
       "eval_size": 32,
       "context_margin_px": 208,
       "context_margin_m": 2080,
-      "boa": 0.8295022704907149,
+      "boa": 0.829446843984581,
       "dice_per_class": {
-        "Clear": 0.9421160348392398,
-        "Thick Cloud": 0.9164845677631601,
-        "Thin Cloud": 0.7055903302395856,
-        "Cloud Shadow": 0.8085234183773069
+        "Clear": 0.9421138840744684,
+        "Thick Cloud": 0.9141961225324923,
+        "Thin Cloud": 0.7097488468679543,
+        "Cloud Shadow": 0.8068844040556291
       }
     },
     {
-      "resolution": "10 m",
+      "resolution": "10m",
       "resolution_m": 10,
       "patch_size": 509,
       "patch_geo_size_m": 5090,
       "eval_size": 32,
       "context_margin_px": 238,
       "context_margin_m": 2380,
-      "boa": 0.8323681236970867,
+      "boa": 0.8303068841010917,
       "dice_per_class": {
-        "Clear": 0.9426459833309019,
-        "Thick Cloud": 0.9174177672166397,
-        "Thin Cloud": 0.7074573214786861,
-        "Cloud Shadow": 0.8121465906095675
+        "Clear": 0.9423135479462433,
+        "Thick Cloud": 0.9154962130947063,
+        "Thin Cloud": 0.7075215045686517,
+        "Cloud Shadow": 0.8080088241296376
       }
     },
     {
-      "resolution": "20 m",
+      "resolution": "20m",
       "resolution_m": 20,
       "patch_size": 32,
       "patch_geo_size_m": 640,
       "eval_size": 32,
       "context_margin_px": 0,
       "context_margin_m": 0,
-      "boa": 0.619233733816029,
+      "boa": 0.6209838673720037,
       "dice_per_class": {
-        "Clear": 0.8768982945012158,
-        "Thick Cloud": 0.8414178100192837,
-        "Thin Cloud": 0.37701427642932384,
-        "Cloud Shadow": 0.4748050887468259
+        "Clear": 0.8796271976433486,
+        "Thick Cloud": 0.8412779788656951,
+        "Thin Cloud": 0.38033448455672864,
+        "Cloud Shadow": 0.48184982436347784
       }
     },
     {
-      "resolution": "20 m",
+      "resolution": "20m",
       "resolution_m": 20,
       "patch_size": 48,
       "patch_geo_size_m": 960,
       "eval_size": 32,
       "context_margin_px": 8,
       "context_margin_m": 160,
-      "boa": 0.7027291075129033,
+      "boa": 0.6989973105632961,
       "dice_per_class": {
-        "Clear": 0.8993209450981453,
-        "Thick Cloud": 0.8831449819363798,
-        "Thin Cloud": 0.4820206736044618,
-        "Cloud Shadow": 0.6466841271380994
+        "Clear": 0.901233906179505,
+        "Thick Cloud": 0.8814417062640401,
+        "Thin Cloud": 0.46864547309938204,
+        "Cloud Shadow": 0.6473143266677888
       }
     },
     {
-      "resolution": "20 m",
+      "resolution": "20m",
       "resolution_m": 20,
       "patch_size": 64,
       "patch_geo_size_m": 1280,
       "eval_size": 32,
       "context_margin_px": 16,
       "context_margin_m": 320,
-      "boa": 0.7440326974574227,
+      "boa": 0.7492522590443343,
       "dice_per_class": {
-        "Clear": 0.9112195565955534,
-        "Thick Cloud": 0.8879062107429249,
-        "Thin Cloud": 0.5355230934762663,
-        "Cloud Shadow": 0.7145282117482035
+        "Clear": 0.914394401150407,
+        "Thick Cloud": 0.8908118286833749,
+        "Thin Cloud": 0.5483759140797718,
+        "Cloud Shadow": 0.7160842819625831
       }
     },
     {
-      "resolution": "20 m",
+      "resolution": "20m",
       "resolution_m": 20,
       "patch_size": 96,
       "patch_geo_size_m": 1920,
       "eval_size": 32,
       "context_margin_px": 32,
       "context_margin_m": 640,
-      "boa": 0.7931642621718924,
+      "boa": 0.7876013499219403,
       "dice_per_class": {
-        "Clear": 0.9269950951070702,
-        "Thick Cloud": 0.8948046255109912,
-        "Thin Cloud": 0.6540208454320384,
-        "Cloud Shadow": 0.7502828139234551
+        "Clear": 0.9249495260647688,
+        "Thick Cloud": 0.8962488886765311,
+        "Thin Cloud": 0.6396776056320723,
+        "Cloud Shadow": 0.7464752010589438
       }
     },
     {
-      "resolution": "20 m",
+      "resolution": "20m",
       "resolution_m": 20,
       "patch_size": 128,
       "patch_geo_size_m": 2560,
       "eval_size": 32,
       "context_margin_px": 48,
       "context_margin_m": 960,
-      "boa": 0.7944963678116941,
+      "boa": 0.7945718842392926,
       "dice_per_class": {
-        "Clear": 0.9284941430611114,
-        "Thick Cloud": 0.8983011755796141,
-        "Thin Cloud": 0.6335370845721532,
-        "Cloud Shadow": 0.7763437216580125
+        "Clear": 0.9297095879297157,
+        "Thick Cloud": 0.9017283349981798,
+        "Thin Cloud": 0.6387979528562853,
+        "Cloud Shadow": 0.7706283137728255
       }
     },
     {
-      "resolution": "20 m",
+      "resolution": "20m",
       "resolution_m": 20,
       "patch_size": 192,
       "patch_geo_size_m": 3840,
       "eval_size": 32,
       "context_margin_px": 80,
       "context_margin_m": 1600,
-      "boa": 0.8060658166727936,
+      "boa": 0.8086560153283554,
       "dice_per_class": {
-        "Clear": 0.930418996772568,
-        "Thick Cloud": 0.9055530040643528,
-        "Thin Cloud": 0.6591702210158976,
-        "Cloud Shadow": 0.7895630754561437
+        "Clear": 0.9328093032251459,
+        "Thick Cloud": 0.9064336087915892,
+        "Thin Cloud": 0.6674043610030184,
+        "Cloud Shadow": 0.7889168965722565
       }
     },
     {
-      "resolution": "20 m",
+      "resolution": "20m",
       "resolution_m": 20,
       "patch_size": 254,
       "patch_geo_size_m": 5080,
       "eval_size": 32,
       "context_margin_px": 111,
       "context_margin_m": 2220,
-      "boa": 0.8135597541099049,
+      "boa": 0.8134984353305342,
       "dice_per_class": {
-        "Clear": 0.9331144959228883,
-        "Thick Cloud": 0.9093433966456397,
-        "Thin Cloud": 0.6718606727108218,
-        "Cloud Shadow": 0.7955362359022091
+        "Clear": 0.9346302219435523,
+        "Thick Cloud": 0.909312704035563,
+        "Thin Cloud": 0.676424730522749,
+        "Cloud Shadow": 0.7941573567157757
       }
     },
     {
-      "resolution": "30 m",
+      "resolution": "30m",
       "resolution_m": 30,
       "patch_size": 32,
       "patch_geo_size_m": 960,
       "eval_size": 32,
       "context_margin_px": 0,
       "context_margin_m": 0,
-      "boa": 0.6335544065422155,
+      "boa": 0.6341016343074598,
       "dice_per_class": {
-        "Clear": 0.87957275080624,
-        "Thick Cloud": 0.8463482577227696,
-        "Thin Cloud": 0.36112345287210407,
-        "Cloud Shadow": 0.5520584040418691
+        "Clear": 0.880537887568737,
+        "Thick Cloud": 0.8478765819518468,
+        "Thin Cloud": 0.3699110763997637,
+        "Cloud Shadow": 0.5511884780816049
       }
     },
     {
-      "resolution": "30 m",
+      "resolution": "30m",
       "resolution_m": 30,
       "patch_size": 48,
       "patch_geo_size_m": 1440,
       "eval_size": 32,
       "context_margin_px": 8,
       "context_margin_m": 240,
-      "boa": 0.7171897981057684,
+      "boa": 0.7143460008385873,
       "dice_per_class": {
-        "Clear": 0.9064013629027661,
-        "Thick Cloud": 0.8732594439579392,
-        "Thin Cloud": 0.5227644521872146,
-        "Cloud Shadow": 0.6768509019406685
+        "Clear": 0.9053154782522465,
+        "Thick Cloud": 0.8735624597129452,
+        "Thin Cloud": 0.5093289862096312,
+        "Cloud Shadow": 0.6743699130919205
       }
     },
     {
-      "resolution": "30 m",
+      "resolution": "30m",
       "resolution_m": 30,
       "patch_size": 64,
       "patch_geo_size_m": 1920,
       "eval_size": 32,
       "context_margin_px": 16,
       "context_margin_m": 480,
-      "boa": 0.750057406420018,
+      "boa": 0.7539318386566234,
       "dice_per_class": {
-        "Clear": 0.9141307335247053,
-        "Thick Cloud": 0.8794455023841194,
-        "Thin Cloud": 0.5700489396411093,
-        "Cloud Shadow": 0.7074934480038676
+        "Clear": 0.9139386520263652,
+        "Thick Cloud": 0.882656641351571,
+        "Thin Cloud": 0.5777779218484848,
+        "Cloud Shadow": 0.7095158660906745
       }
     },
     {
-      "resolution": "30 m",
+      "resolution": "30m",
       "resolution_m": 30,
       "patch_size": 96,
       "patch_geo_size_m": 2880,
       "eval_size": 32,
       "context_margin_px": 32,
       "context_margin_m": 960,
-      "boa": 0.7831549804299477,
+      "boa": 0.775134022388987,
       "dice_per_class": {
-        "Clear": 0.9199719115883805,
-        "Thick Cloud": 0.8936337909502601,
-        "Thin Cloud": 0.6406594353677004,
-        "Cloud Shadow": 0.7353099351129115
+        "Clear": 0.91913327269809,
+        "Thick Cloud": 0.8907256368792311,
+        "Thin Cloud": 0.6169060037801696,
+        "Cloud Shadow": 0.7397651196382591
       }
     },
     {
-      "resolution": "30 m",
+      "resolution": "30m",
       "resolution_m": 30,
       "patch_size": 128,
       "patch_geo_size_m": 3840,
       "eval_size": 32,
       "context_margin_px": 48,
       "context_margin_m": 1440,
-      "boa": 0.7990392300389327,
+      "boa": 0.7925740471099707,
       "dice_per_class": {
-        "Clear": 0.9217684270272655,
-        "Thick Cloud": 0.8980773630065658,
-        "Thin Cloud": 0.6628306028158083,
-        "Cloud Shadow": 0.7568805080990596
+        "Clear": 0.9222829507214799,
+        "Thick Cloud": 0.8951327328064238,
+        "Thin Cloud": 0.6547501359300084,
+        "Cloud Shadow": 0.7513122832182316
       }
     },
     {
-      "resolution": "30 m",
+      "resolution": "30m",
       "resolution_m": 30,
       "patch_size": 170,
       "patch_geo_size_m": 5100,
       "eval_size": 32,
       "context_margin_px": 69,
       "context_margin_m": 2070,
-      "boa": 0.8122925758912241,
+      "boa": 0.809237573541005,
       "dice_per_class": {
-        "Clear": 0.9293607819343039,
-        "Thick Cloud": 0.8992088334100597,
-        "Thin Cloud": 0.6938615863235108,
-        "Cloud Shadow": 0.7700104910087622
+        "Clear": 0.9287380428237789,
+        "Thick Cloud": 0.8988625116239298,
+        "Thin Cloud": 0.6853642103466042,
+        "Cloud Shadow": 0.7707268374525368
       }
     },
     {
-      "resolution": "40 m",
+      "resolution": "40m",
       "resolution_m": 40,
       "patch_size": 32,
       "patch_geo_size_m": 1280,
       "eval_size": 32,
       "context_margin_px": 0,
       "context_margin_m": 0,
-      "boa": 0.6341474554982306,
+      "boa": 0.6231942963680317,
       "dice_per_class": {
-        "Clear": 0.8855556648317292,
-        "Thick Cloud": 0.8403918804717797,
-        "Thin Cloud": 0.37699827669729435,
-        "Cloud Shadow": 0.5674207371415316
+        "Clear": 0.8799936389920776,
+        "Thick Cloud": 0.8358957230359166,
+        "Thin Cloud": 0.358409331405446,
+        "Cloud Shadow": 0.5483097177284392
       }
     },
     {
-      "resolution": "40 m",
+      "resolution": "40m",
       "resolution_m": 40,
       "patch_size": 48,
       "patch_geo_size_m": 1920,
       "eval_size": 32,
       "context_margin_px": 8,
       "context_margin_m": 320,
-      "boa": 0.6988127218722097,
+      "boa": 0.696483142714791,
       "dice_per_class": {
-        "Clear": 0.9032599388548324,
-        "Thick Cloud": 0.8649934155514857,
-        "Thin Cloud": 0.48448967826337613,
-        "Cloud Shadow": 0.6634115354385813
+        "Clear": 0.8999529301012003,
+        "Thick Cloud": 0.8616333744904691,
+        "Thin Cloud": 0.48927673257469045,
+        "Cloud Shadow": 0.6537815982239573
       }
     },
     {
-      "resolution": "40 m",
+      "resolution": "40m",
       "resolution_m": 40,
       "patch_size": 64,
       "patch_geo_size_m": 2560,
       "eval_size": 32,
       "context_margin_px": 16,
       "context_margin_m": 640,
-      "boa": 0.7307991276764174,
+      "boa": 0.7275415282800995,
       "dice_per_class": {
-        "Clear": 0.912929799995703,
-        "Thick Cloud": 0.8718177185113184,
-        "Thin Cloud": 0.554235474981049,
-        "Cloud Shadow": 0.6935733502300797
+        "Clear": 0.9094433646348031,
+        "Thick Cloud": 0.8669961690487542,
+        "Thin Cloud": 0.5485670501272424,
+        "Cloud Shadow": 0.6844750250627861
       }
     },
     {
-      "resolution": "40 m",
+      "resolution": "40m",
       "resolution_m": 40,
       "patch_size": 96,
       "patch_geo_size_m": 3840,
       "eval_size": 32,
       "context_margin_px": 32,
       "context_margin_m": 1280,
-      "boa": 0.7686634122599222,
+      "boa": 0.7640437224943712,
       "dice_per_class": {
-        "Clear": 0.9151307422833451,
-        "Thick Cloud": 0.8828499806247406,
-        "Thin Cloud": 0.6180367118914605,
-        "Cloud Shadow": 0.7317273830903673
+        "Clear": 0.9144448135308987,
+        "Thick Cloud": 0.8771054535231742,
+        "Thin Cloud": 0.6118567443650005,
+        "Cloud Shadow": 0.7226728610837242
       }
     },
     {
-      "resolution": "40 m",
+      "resolution": "40m",
       "resolution_m": 40,
       "patch_size": 127,
       "patch_geo_size_m": 5080,
       "eval_size": 32,
       "context_margin_px": 47,
       "context_margin_m": 1880,
-      "boa": 0.7774342715131823,
+      "boa": 0.7715092382000627,
       "dice_per_class": {
-        "Clear": 0.9161078690267399,
-        "Thick Cloud": 0.8837035274481607,
-        "Thin Cloud": 0.6468885764188835,
-        "Cloud Shadow": 0.7268227754498398
+        "Clear": 0.9160790065198084,
+        "Thick Cloud": 0.8834076334830767,
+        "Thin Cloud": 0.6263245795899562,
+        "Cloud Shadow": 0.7304388032097366
       }
     },
     {
-      "resolution": "50 m",
+      "resolution": "50m",
       "resolution_m": 50,
       "patch_size": 32,
       "patch_geo_size_m": 1600,
       "eval_size": 32,
       "context_margin_px": 0,
       "context_margin_m": 0,
-      "boa": 0.6236695308623647,
+      "boa": 0.6214343194694122,
       "dice_per_class": {
-        "Clear": 0.8812598902029767,
-        "Thick Cloud": 0.8301367731598192,
-        "Thin Cloud": 0.36460835840965555,
-        "Cloud Shadow": 0.553050628508968
+        "Clear": 0.877951566445357,
+        "Thick Cloud": 0.8312835823877507,
+        "Thin Cloud": 0.34653304185322015,
+        "Cloud Shadow": 0.5622792617633114
       }
     },
     {
-      "resolution": "50 m",
+      "resolution": "50m",
       "resolution_m": 50,
       "patch_size": 48,
       "patch_geo_size_m": 2400,
       "eval_size": 32,
       "context_margin_px": 8,
       "context_margin_m": 400,
-      "boa": 0.6835261039523447,
+      "boa": 0.6800892911268316,
       "dice_per_class": {
-        "Clear": 0.8962186505163444,
-        "Thick Cloud": 0.8521475111692995,
-        "Thin Cloud": 0.47349021831584914,
-        "Cloud Shadow": 0.6443599574701163
+        "Clear": 0.8953691231915887,
+        "Thick Cloud": 0.8545083796778795,
+        "Thin Cloud": 0.44881518250907576,
+        "Cloud Shadow": 0.649423637983447
       }
     },
     {
-      "resolution": "50 m",
+      "resolution": "50m",
       "resolution_m": 50,
       "patch_size": 64,
       "patch_geo_size_m": 3200,
       "eval_size": 32,
       "context_margin_px": 16,
       "context_margin_m": 800,
-      "boa": 0.7199027193485437,
+      "boa": 0.7175042967203821,
       "dice_per_class": {
-        "Clear": 0.9058019177918509,
-        "Thick Cloud": 0.8625685324761134,
-        "Thin Cloud": 0.5383333939548248,
-        "Cloud Shadow": 0.6835271478232081
+        "Clear": 0.9058418612803855,
+        "Thick Cloud": 0.8647700233141319,
+        "Thin Cloud": 0.5155751716154006,
+        "Cloud Shadow": 0.6898505631385624
       }
     },
     {
-      "resolution": "50 m",
+      "resolution": "50m",
       "resolution_m": 50,
       "patch_size": 96,
       "patch_geo_size_m": 4800,
       "eval_size": 32,
       "context_margin_px": 32,
       "context_margin_m": 1600,
-      "boa": 0.7483802822912133,
+      "boa": 0.7512989564179753,
       "dice_per_class": {
-        "Clear": 0.908970472960277,
-        "Thick Cloud": 0.8711757077656331,
-        "Thin Cloud": 0.5908220665153459,
-        "Cloud Shadow": 0.7009209839372696
+        "Clear": 0.911209806697193,
+        "Thick Cloud": 0.8710770897347159,
+        "Thin Cloud": 0.5908612762342809,
+        "Cloud Shadow": 0.7053495280562712
       }
     },
     {
-      "resolution": "50 m",
+      "resolution": "50m",
       "resolution_m": 50,
       "patch_size": 102,
       "patch_geo_size_m": 5100,
       "eval_size": 32,
       "context_margin_px": 35,
       "context_margin_m": 1750,
-      "boa": 0.7583556949897363,
+      "boa": 0.7595531241913115,
       "dice_per_class": {
-        "Clear": 0.9104296822180343,
-        "Thick Cloud": 0.875624154323279,
-        "Thin Cloud": 0.6059884002566083,
-        "Cloud Shadow": 0.7149451703335348
+        "Clear": 0.9139976711680813,
+        "Thick Cloud": 0.8771963838297,
+        "Thin Cloud": 0.6015454561969359,
+        "Cloud Shadow": 0.722461510891195
       }
     }
   ]
