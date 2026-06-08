@@ -26,6 +26,7 @@ This approach works because for cloud detection, **image texture and spatial rel
 
 A practical benefit: **your input data can be raw values or pre-normalized**. If you've already normalized imagery for another model, OCM will still work correctly since it re-normalizes each patch independently.
 
+(mixed-resolution-training)=
 ## Mixed Resolution Training
 
 To handle different sensor resolutions (10m Sentinel-2, 30m Landsat, 3m PlanetScope), OCM uses **mixed resolution training**:
@@ -35,6 +36,8 @@ To handle different sensor resolutions (10m Sentinel-2, 30m Landsat, 3m PlanetSc
 - Higher resolution imagery (like 3m PlanetScope) is resampled to 10m for inference
 
 This approach not only enables cross-sensor generalization but actually **improves accuracy on the native training resolution** by acting as a data augmentation technique.
+
+Recent model versions (V3 and later) were additionally trained on Sentinel-2 imagery super-resolved to 2×, extending the supported range down to 5 m. Note that 5 m is no more accurate than 10 m — it simply widens the range of imagery the model accepts. See [Choosing a Resolution](resolution.md) for guidance on selecting an inference resolution for your data.
 
 ## Why These Techniques Matter
 

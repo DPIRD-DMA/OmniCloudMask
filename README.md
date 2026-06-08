@@ -8,7 +8,7 @@
 
 State-of-the-art cloud and cloud shadow segmentation for high to moderate resolution satellite imagery.
 
-Works with any imagery containing Red, Green, and NIR bands at 10-50 m resolution. Validated on Sentinel-2, Landsat 8, PlanetScope and Maxar imagery.
+Works with any imagery containing Red, Green, and NIR bands at 10-50 m resolution (and down to 5 m with recent model versions). Validated on Sentinel-2, Landsat 8, PlanetScope and Maxar imagery. See [choosing a resolution](https://omnicloudmask.readthedocs.io/en/latest/resolution.html) for guidance on picking the right resolution for your data.
 
 ![OmniCloudMask example](https://raw.githubusercontent.com/DPIRD-DMA/OmniCloudMask/main/docs/_static/example.png)
 

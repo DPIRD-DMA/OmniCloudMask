@@ -4,11 +4,11 @@
 
 ![OmniCloudMask example](_static/example.png)
 
-OmniCloudMask is a Python library for cloud and cloud shadow detection in high to moderate resolution satellite imagery. It supports resolutions from 10 m to 50 m and works with imagery from Sentinel-2, Landsat, PlanetScope, Maxar, and other sensors with Red, Green, and NIR bands.
+OmniCloudMask is a Python library for cloud and cloud shadow detection in high to moderate resolution satellite imagery. It supports resolutions from 10 m to 50 m — and down to 5 m with recent model versions — and works with imagery from Sentinel-2, Landsat, PlanetScope, Maxar, and other sensors with Red, Green, and NIR bands. See [Choosing a Resolution](resolution.md) for guidance on picking the right resolution for your data.
 
 ## Key Features
 
-- Works with any imagery containing Red, Green, and NIR bands (10 m to 50 m resolution)
+- Works with any imagery containing Red, Green, and NIR bands (10 m to 50 m resolution, and down to 5 m with recent models)
 - Any processing level (L1C, L2A, TOA, surface reflectance, etc.)
 - Validated on Sentinel-2, Landsat 8, PlanetScope, and Maxar imagery
 - Supports CUDA, MPS (Apple Silicon), and CPU inference
@@ -42,6 +42,7 @@ installation
 quickstart
 how-it-works
 usage
+resolution
 performance
 spatial-context
 api

@@ -77,7 +77,7 @@ Enable `compile_models=True` when processing many scenes. This adds startup over
 
 ## Downscale for Higher Throughput
 
-Since OmniCloudMask works with variable resolution imagery (10-50 m), you can downscale for higher throughput at the cost of some accuracy. Higher resolution imagery produces better results for the same ground extent (see [Spatial Context](spatial-context.md) for benchmarks). For example, to process Sentinel-2 at 20 m instead of 10 m:
+Since OmniCloudMask works with variable resolution imagery (10-50 m, and down to 5 m with recent models), you can downscale for higher throughput at the cost of some accuracy. Within the validated 10-50 m range, finer imagery produces better results for the same ground extent (see [Spatial Context](spatial-context.md) for benchmarks); below about 10 m there is little further gain. For guidance on which resolution to run at — including why running finer than 10 m rarely helps — see [Choosing a Resolution](resolution.md). For example, to process Sentinel-2 at 20 m instead of 10 m:
 
 ```python
 from functools import partial
@@ -161,6 +161,7 @@ pred_paths = predict_from_load_func(
 )
 ```
 
+(custom-data-loaders)=
 ## Custom Data Loaders
 
 Create a custom loader for other sensors. The loader must return a numpy array of shape `(3, height, width)` containing Red, Green, and NIR bands, plus a rasterio profile:
