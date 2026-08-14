@@ -37,7 +37,9 @@ def download_file_from_google_drive(file_id: str, destination: Path) -> None:
     gdown.download(url, str(destination), quiet=False)
 
 
-def download_file_from_hugging_face(destination: Path) -> None:
+def download_file_from_hugging_face(
+    destination: Path, force_download: bool = False
+) -> None:
     """
     Downloads a file from Hugging Face and saves it at the given destination using
     hf_hub_download.
@@ -45,14 +47,17 @@ def download_file_from_hugging_face(destination: Path) -> None:
     compatibility with the rest of the codebase.
 
     Args:
-        file_id (str): The ID of the file on Hugging Face.
         destination (Path): The local path where the file should be saved.
+        force_download (bool): If True, forces a fresh download even if the file
+            is already cached. Defaults to False so that the local Hugging Face
+            cache is reused, which makes the call resilient to transient network
+            errors on the HEAD request.
     """
     file_name = destination.stem
     safetensor_path = hf_hub_download(
         repo_id="NickWright/OmniCloudMask",
         filename=f"{file_name}.safetensors",
-        force_download=True,
+        force_download=force_download,
         cache_dir=destination.parent,
         local_dir=destination.parent,
     )
@@ -63,11 +68,13 @@ def download_file_from_hugging_face(destination: Path) -> None:
         torch.save(model_state, destination)
 
 
-def download_file(file_id: str, destination: Path, source: str) -> None:
+def download_file(
+    file_id: str, destination: Path, source: str, force_download: bool = False
+) -> None:
     if source == "google_drive":
         download_file_from_google_drive(file_id, destination)
     elif source == "hugging_face":
-        download_file_from_hugging_face(destination)
+        download_file_from_hugging_face(destination, force_download=force_download)
     else:
         raise ValueError(
             "Invalid source. Supported sources are 'google_drive' and 'hugging_face'."
@@ -137,6 +144,7 @@ def get_models(
                 file_id=str(model_dict["google_drive_id"]),
                 destination=destination,
                 source=source,
+                force_download=force_download,
             )
 
         model_paths.append(
