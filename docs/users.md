@@ -4,7 +4,7 @@ OmniCloudMask has been adopted by research institutions, government agencies, an
 
 ## Adoption
 
-As of early 2026, the OmniCloudMask Python package has been downloaded over 170,000 times. The [paper](https://doi.org/10.1016/j.rse.2025.114694) (Wright et al., 2025) has been included in the [NASA Select Landsat Publications](https://science.nasa.gov/mission/landsat/publications/) collection.
+As of August 2026, the OmniCloudMask Python package has been downloaded over 290,000 times. The [paper](https://doi.org/10.1016/j.rse.2025.114694) (Wright et al., 2025) has been included in the [NASA Select Landsat Publications](https://science.nasa.gov/mission/landsat/publications/) collection.
 
 ## Organizations
 
@@ -34,6 +34,7 @@ As of early 2026, the OmniCloudMask Python package has been downloaded over 170,
 | [burnarea-classifier-gui](https://github.com/MatteoGobbiF/burnarea-classifier-gui) | GUI tool for burned area detection in satellite imagery |
 | [OpenResIN](https://github.com/nicoarrroyo/IPDMP) | Automated water body identification from satellite imagery |
 | [OmniCloudMask_APP](https://github.com/franz-geoeco/OmniCloudMask_APP) | Desktop application for OmniCloudMask |
+| [i.omnicloudmask](https://grass.osgeo.org/grass-stable/manuals/addons/i.omnicloudmask.html) | GRASS GIS addon for cloud and shadow masking within GRASS |
 
 ## Using It?
 
