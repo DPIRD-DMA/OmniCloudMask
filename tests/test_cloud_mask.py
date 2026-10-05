@@ -2,6 +2,8 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
+import traceback
+from threading import Thread
 
 import numpy as np
 import pytest
@@ -180,6 +182,149 @@ def test_predict_from_array_custom_model():
     assert np.all(np.isin(np.unique(result), [0, 1, 2, 3])), (
         "Unexpected values in result"
     )
+
+
+def test_predict_from_array_custom_model_pred_classes_mismatch():
+    data = np.random.rand(3, 100, 100)
+    model = torch.nn.Conv2d(3, 2, kernel_size=3, padding=1)
+
+    with pytest.raises(ValueError, match="pred_classes"):
+        predict_from_array(
+            data,
+            patch_size=100,
+            patch_overlap=0,
+            inference_device="cpu",
+            custom_models=model,
+        )
+
+    result = predict_from_array(
+        data,
+        patch_size=100,
+        patch_overlap=0,
+        inference_device="cpu",
+        custom_models=model,
+        pred_classes=2,
+        export_confidence=True,
+    )
+    assert result.shape == (2, 100, 100)
+
+
+class FailingModel(torch.nn.Module):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        raise RuntimeError("model failed")
+
+
+def run_with_timeout(func, timeout: float = 120):
+    """Run func in a daemon thread, failing the test if it hangs, otherwise
+    returning its result or re-raising its error."""
+    outcome = {}
+
+    def target():
+        try:
+            outcome["result"] = func()
+        except BaseException as e:
+            # Release the frames' locals as a real caller would, so open
+            # generators are closed here and any hang during cleanup is caught
+            traceback.clear_frames(e.__traceback__)
+            outcome["error"] = e
+
+    thread = Thread(target=target, daemon=True)
+    thread.start()
+    thread.join(timeout)
+    if thread.is_alive():
+        pytest.fail(f"Call did not finish within {timeout}s, it may have deadlocked")
+    if "error" in outcome:
+        raise outcome["error"]
+    return outcome["result"]
+
+
+def test_predict_from_array_model_error_propagates():
+    # many patches with a small batch fills the patch queue; this used to deadlock
+    data = np.random.rand(3, 400, 400)
+    with pytest.raises(RuntimeError, match="model failed"):
+        run_with_timeout(
+            lambda: predict_from_array(
+                data,
+                patch_size=100,
+                patch_overlap=0,
+                batch_size=1,
+                inference_device="cpu",
+                custom_models=FailingModel(),
+            )
+        )
+
+
+def test_predict_from_array_patch_error_propagates(monkeypatch):
+    def failing_get_patch(*args, **kwargs):
+        raise RuntimeError("patch failed")
+
+    monkeypatch.setattr("omnicloudmask.cloud_mask.get_patch", failing_get_patch)
+    data = np.random.rand(3, 400, 400)
+    with pytest.raises(RuntimeError, match="patch failed"):
+        run_with_timeout(
+            lambda: predict_from_array(
+                data,
+                patch_size=100,
+                patch_overlap=0,
+                inference_device="cpu",
+                custom_models=torch.nn.Conv2d(3, 4, kernel_size=1),
+            )
+        )
+
+
+def _write_test_scene(path: Path) -> Path:
+    with rio.open(
+        path,
+        "w",
+        driver="GTiff",
+        height=200,
+        width=200,
+        count=3,
+        dtype="float32",
+        crs="EPSG:32750",
+        transform=rio.transform.from_origin(400000, 6500000, 10, 10),
+    ) as dst:
+        dst.write(np.random.rand(3, 200, 200).astype(np.float32))
+    return path
+
+
+def _load_test_scene(input_path: Path) -> tuple[np.ndarray, dict]:
+    with rio.open(input_path) as src:
+        return src.read(), src.profile
+
+
+def test_predict_from_load_func_model_error_propagates(tmp_path):
+    scene_paths = [_write_test_scene(tmp_path / f"scene_{i}.tif") for i in range(2)]
+    with pytest.raises(RuntimeError, match="model failed"):
+        run_with_timeout(
+            lambda: predict_from_load_func(
+                scene_paths,
+                _load_test_scene,
+                patch_size=100,
+                patch_overlap=0,
+                inference_device="cpu",
+                custom_models=FailingModel(),
+                output_dir=tmp_path / "out",
+            )
+        )
+
+
+def test_predict_from_load_func_save_error_propagates(tmp_path, monkeypatch):
+    def failing_save(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr("omnicloudmask.cloud_mask.save_prediction", failing_save)
+    scene_paths = [_write_test_scene(tmp_path / "scene.tif")]
+    with pytest.raises(OSError, match="disk full"):
+        predict_from_load_func(
+            scene_paths,
+            _load_test_scene,
+            patch_size=100,
+            patch_overlap=0,
+            inference_device="cpu",
+            custom_models=torch.nn.Conv2d(3, 4, kernel_size=1),
+            output_dir=tmp_path / "out",
+        )
 
 
 def test_predict_from_array_with_confidence():

@@ -3,11 +3,20 @@
 
 ## [Unreleased]
 
-### Fixed
-- No-data masking now works when `no_data_value` is NaN; previously no pixels were masked because NaN never compares equal
-
 ### Added
+- `predict_from_batch` for predicting many same-sized images (e.g. dataset chips) several per batch, from arrays, tensors or file paths via a `load_func`, with optional GeoTIFF export
+- `channel_norm_torch`, a batched GPU version of `channel_norm`
 - Test for no-data masking with a NaN `no_data_value`
+
+### Changed
+- `pairwise_argmax` and `optimized_argmax` now support any class dimension
+- `compile_torch_model` accepts a `(height, width)` warm-up size
+- A custom model whose class count doesn't match `pred_classes` now raises a `ValueError` explaining the mismatch, instead of an `AssertionError`
+
+### Fixed
+- `predict_from_array` no longer hangs forever when a model or patch extraction raises an error; the error is now raised to the caller
+- `predict_from_load_func` now raises errors from inference and from saving predictions; previously they were printed from a background thread and the function returned paths to files that were never written
+- No-data masking now works when `no_data_value` is NaN; previously no pixels were masked because NaN never compares equal
 
 ## [1.7.1] - Mar 5, 2026
 

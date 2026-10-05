@@ -102,6 +102,28 @@ def channel_norm(
     return out_array
 
 
+def channel_norm_torch(
+    batch: torch.Tensor, nodata_value: Optional[int | float] = 0
+) -> torch.Tensor:
+    """Batched torch version of channel_norm. Normalize each band of each image in
+    a (B, C, H, W) batch by subtracting the nonzero mean and dividing by the nonzero
+    standard deviation then fill nodata values with 0."""
+    batch = batch.to(torch.float32)
+    if nodata_value is None:
+        valid = torch.ones_like(batch, dtype=torch.bool)
+    elif isinstance(nodata_value, float) and np.isnan(nodata_value):
+        valid = ~torch.isnan(batch)
+    else:
+        valid = batch != nodata_value
+
+    count = valid.sum(dim=(2, 3), keepdim=True).clamp(min=1)
+    mean = torch.where(valid, batch, 0).sum(dim=(2, 3), keepdim=True) / count
+    centered = torch.where(valid, batch - mean, 0)
+    std = ((centered**2).sum(dim=(2, 3), keepdim=True) / count).sqrt()
+    std = torch.where(std == 0, 1, std)  # Prevent division by zero
+    return centered / std
+
+
 def store_results(
     pred_batch: torch.Tensor,
     index_batch: list[tuple],
@@ -114,7 +136,12 @@ def store_results(
     # Store the predictions in the pred_tracker tensor
     assert pred_batch.ndim == 4, "pred_batch must have 4 dimensions, (B, class, H, W)"
     assert pred_batch.shape[0] == len(index_batch), "Batch size must match index_batch"
-    assert pred_batch.shape[1] == pred_tracker.shape[0], "Number of classes must match"
+    if pred_batch.shape[1] != pred_tracker.shape[0]:
+        raise ValueError(
+            f"Models predicted {pred_batch.shape[1]} classes, but pred_classes is "
+            f"{pred_tracker.shape[0]}. Set pred_classes to match the output of your "
+            f"custom models."
+        )
     assert pred_batch.shape[2] == gradient.shape[0], "Height must match gradient"
     assert pred_batch.shape[3] == gradient.shape[1], "Width must match gradient"
 
@@ -128,6 +155,19 @@ def store_results(
             )
 
 
+def infer_batch(
+    models: list[torch.nn.Module], patch_batch: torch.Tensor
+) -> torch.Tensor:
+    """Run each model on the patch_batch and return the mean prediction."""
+    all_preds = []
+
+    for model in models:
+        with torch.no_grad():
+            all_preds.append(model(patch_batch))
+
+    return torch.mean(torch.stack(all_preds), dim=0)
+
+
 def inference_and_store(
     models: list[torch.nn.Module],
     patch_batch: torch.Tensor,
@@ -139,13 +179,7 @@ def inference_and_store(
     """Perform inference on the patch_batch and store the results
     in the pred_tracker and grad_tracker tensors."""
 
-    all_preds = []
-
-    for model in models:
-        with torch.no_grad():
-            all_preds.append(model(patch_batch))
-
-    mean_preds = torch.mean(torch.stack(all_preds), dim=0)
+    mean_preds = infer_batch(models, patch_batch)
 
     store_results(
         pred_batch=mean_preds,
@@ -232,7 +266,7 @@ def load_model_from_weights(
     in_chans: int = 3,
     n_out: int = 4,
     compile_models: bool = False,
-    patch_size: int = 1000,
+    patch_size: int | tuple[int, int] = 1000,
     batch_size: int = 1,
     compile_mode: str = "default",
 ) -> torch.nn.Module:
@@ -283,13 +317,16 @@ def load_model_from_weights(
 
 def compile_torch_model(
     model: torch.nn.Module,
-    patch_size: int,
+    patch_size: int | tuple[int, int],
     batch_size: int,
     dtype: torch.dtype,
     device: torch.device,
     compile_mode: str,
 ) -> torch.nn.Module:
-    """Compile a PyTorch model for inference with dynamic batch sizes."""
+    """Compile a PyTorch model for inference with dynamic batch sizes.
+    patch_size is the warm-up input size, either square or (height, width)."""
+    if isinstance(patch_size, int):
+        patch_size = (patch_size, patch_size)
 
     try:
         # Try to compile the model with dynamic batch size
@@ -299,9 +336,7 @@ def compile_torch_model(
             torch.compile(model, mode=compile_mode, fullgraph=False, dynamic=True),
         )
         for i in range(1, batch_size + 1):
-            dummy_temp = torch.zeros(
-                (i, 3, patch_size, patch_size), dtype=dtype, device=device
-            )
+            dummy_temp = torch.zeros((i, 3, *patch_size), dtype=dtype, device=device)
             with torch.no_grad():
                 _ = compiled_model(dummy_temp)
         return compiled_model
