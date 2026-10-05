@@ -1,6 +1,14 @@
 # Changelog
 
 
+## [Unreleased]
+
+### Fixed
+- No-data masking now works when `no_data_value` is NaN; previously no pixels were masked because NaN never compares equal
+
+### Added
+- Test for no-data masking with a NaN `no_data_value`
+
 ## [1.7.1] - Mar 5, 2026
 
 ### Fixed

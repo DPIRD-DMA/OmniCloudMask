@@ -85,7 +85,11 @@ def mask_prediction(
     )
     # if all bands at a single pixel are no_data_value,
     # then it is considered no data
-    mask = (~np.all(scene == no_data_value, axis=0)).astype(np.uint8)
+    if isinstance(no_data_value, float) and np.isnan(no_data_value):
+        is_no_data = np.isnan(scene)
+    else:
+        is_no_data = scene == no_data_value
+    mask = (~np.all(is_no_data, axis=0)).astype(np.uint8)
     pred_tracker_np *= mask
     return pred_tracker_np, mask
 
