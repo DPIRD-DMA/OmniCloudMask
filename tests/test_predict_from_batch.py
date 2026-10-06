@@ -1,3 +1,7 @@
+import itertools
+import threading
+import time
+import traceback
 from pathlib import Path
 
 import numpy as np
@@ -6,10 +10,34 @@ import rasterio as rio
 import torch
 from rasterio.transform import from_origin
 
-from omnicloudmask import predict_from_array, predict_from_batch
-from omnicloudmask.cloud_mask import make_output_path
+from omnicloudmask import predict_from_array, predict_from_batch, predict_from_load_func
+from omnicloudmask.cloud_mask import _prefetch, make_output_path
 
 IMAGE_SIZE = 64
+
+
+def run_with_timeout(func, timeout: float = 120):
+    """Run func in a daemon thread, failing the test if it hangs, otherwise
+    returning its result or re-raising its error."""
+    outcome = {}
+
+    def target():
+        try:
+            outcome["result"] = func()
+        except BaseException as e:
+            # Release the frames' locals as a real caller would, so open
+            # generators are closed here and any hang during cleanup is caught
+            traceback.clear_frames(e.__traceback__)
+            outcome["error"] = e
+
+    thread = threading.Thread(target=target, daemon=True)
+    thread.start()
+    thread.join(timeout)
+    if thread.is_alive():
+        pytest.fail(f"Call did not finish within {timeout}s, it may have deadlocked")
+    if "error" in outcome:
+        raise outcome["error"]
+    return outcome["result"]
 
 
 @pytest.fixture(scope="module")
@@ -290,8 +318,10 @@ def test_predict_from_batch_load_func_error_propagates(tif_paths: list[Path]) ->
         return load_tif_array_only(input_path)
 
     with pytest.raises(RuntimeError, match="corrupt file"):
-        predict_from_batch(
-            tif_paths, batch_size=2, load_func=loader, inference_device="cpu"
+        run_with_timeout(
+            lambda: predict_from_batch(
+                tif_paths, batch_size=2, load_func=loader, inference_device="cpu"
+            )
         )
 
 
@@ -305,3 +335,200 @@ def test_predict_from_batch_custom_model_classes(images: np.ndarray) -> None:
         export_confidence=True,
     )
     assert result.shape == (2, 2, IMAGE_SIZE, IMAGE_SIZE)
+
+
+def test_predict_from_batch_model_error_mid_run(images: np.ndarray) -> None:
+    class FailOnSecondBatch(torch.nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.conv = torch.nn.Conv2d(3, 4, kernel_size=1)
+            self.calls = 0
+
+        def forward(self, x: torch.Tensor) -> torch.Tensor:
+            self.calls += 1
+            if self.calls == 2:
+                raise RuntimeError("model failed")
+            return self.conv(x)
+
+    # many small batches keep the prefetch queue full when the error is raised
+    data = np.repeat(images, 4, axis=0)
+    with pytest.raises(RuntimeError, match="model failed"):
+        run_with_timeout(
+            lambda: predict_from_batch(
+                data,
+                batch_size=1,
+                inference_device="cpu",
+                custom_models=FailOnSecondBatch(),
+            )
+        )
+
+
+DEVICES = [
+    pytest.param(
+        "cuda",
+        marks=pytest.mark.skipif(
+            not torch.cuda.is_available(), reason="CUDA not available"
+        ),
+    ),
+    pytest.param(
+        "mps",
+        marks=pytest.mark.skipif(
+            not torch.backends.mps.is_available(), reason="MPS not available"
+        ),
+    ),
+]
+
+
+@pytest.mark.parametrize("device", DEVICES)
+@pytest.mark.parametrize("dtype", ["fp32", "fp16"])
+def test_predict_from_batch_accelerator_matches_cpu(
+    images: np.ndarray, reference_masks: np.ndarray, device: str, dtype: str
+) -> None:
+    result = predict_from_batch(
+        images, batch_size=2, inference_device=device, inference_dtype=dtype
+    )
+    agreement = (result == reference_masks).mean()
+    assert agreement >= 0.99, f"Only {agreement:.4f} of pixels agree"
+
+
+@pytest.mark.parametrize("device", DEVICES)
+def test_predict_from_batch_accelerator_tensor_input(
+    images: np.ndarray, device: str
+) -> None:
+    expected = predict_from_batch(images, batch_size=2, inference_device=device)
+    result = predict_from_batch(
+        torch.from_numpy(images).to(device), batch_size=2, inference_device=device
+    )
+    np.testing.assert_array_equal(result, expected)
+
+
+def test_predict_from_batch_default_device(
+    images: np.ndarray, reference_masks: np.ndarray
+) -> None:
+    result = predict_from_batch(images, batch_size=2)
+    agreement = (result == reference_masks).mean()
+    assert agreement >= 0.99, f"Only {agreement:.4f} of pixels agree"
+
+
+def test_predict_from_batch_without_no_data_mask(images: np.ndarray) -> None:
+    data = images[:3].copy()
+    data[0, :, :10, :] = 0  # partial no data
+    data[1] = 0  # entirely no data
+
+    kwargs = {"batch_size": 3, "inference_device": "cpu", "export_confidence": True}
+    unmasked = predict_from_batch(data, apply_no_data_mask=False, **kwargs)
+    masked = predict_from_batch(data, apply_no_data_mask=True, **kwargs)
+
+    # no-data pixels keep their predictions when the mask is not applied
+    assert unmasked[0, :, :10, :].min() >= 0.001
+    assert np.all(masked[0, :, :10, :] == 0)
+    np.testing.assert_array_equal(unmasked[0, :, 10:, :], masked[0, :, 10:, :])
+    np.testing.assert_array_equal(unmasked[2], masked[2])
+    # images that are entirely no data are never predicted, as in the tiled path
+    assert np.all(unmasked[1] == 0)
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+@pytest.mark.parametrize("softmax_output", [True, False])
+def test_predict_from_batch_all_no_data_matches_predict_from_array(
+    softmax_output: bool,
+) -> None:
+    data = np.zeros((1, 3, IMAGE_SIZE, IMAGE_SIZE), dtype=np.float32)
+    kwargs = {
+        "inference_device": "cpu",
+        "export_confidence": True,
+        "softmax_output": softmax_output,
+    }
+    result = predict_from_batch(data, **kwargs)
+    expected = predict_from_array(
+        data[0], patch_size=IMAGE_SIZE, patch_overlap=0, **kwargs
+    )
+    # zeros with softmax, NaN for raw logits (assert_array_equal treats NaN as equal)
+    np.testing.assert_array_equal(result[0], expected)
+    assert np.isnan(result).all() != softmax_output
+
+
+@pytest.mark.parametrize("apply_no_data_mask", [True, False])
+def test_predict_from_batch_export_matches_predict_from_load_func(
+    tmp_path: Path, images: np.ndarray, apply_no_data_mask: bool
+) -> None:
+    data = images[0].copy()
+    data[:, :10, :] = 0
+    path = write_tif(tmp_path / "chip.tif", data)
+
+    [batch_path] = predict_from_batch(
+        [path],
+        load_func=load_tif,
+        inference_device="cpu",
+        export_to_disk=True,
+        output_dir=tmp_path / "batch",
+        apply_no_data_mask=apply_no_data_mask,
+    )
+    [tiled_path] = predict_from_load_func(
+        [path],
+        load_tif,
+        patch_size=IMAGE_SIZE,
+        patch_overlap=0,
+        inference_device="cpu",
+        output_dir=tmp_path / "tiled",
+        apply_no_data_mask=apply_no_data_mask,
+    )
+
+    with rio.open(batch_path) as batch, rio.open(tiled_path) as tiled:
+        np.testing.assert_array_equal(batch.read(), tiled.read())
+        np.testing.assert_array_equal(batch.read_masks(1), tiled.read_masks(1))
+        assert batch.profile == tiled.profile
+        if apply_no_data_mask:
+            assert np.all(batch.read_masks(1)[:10] == 0)
+            assert np.all(batch.read_masks(1)[10:] == 255)
+        else:
+            assert np.all(batch.read_masks(1) == 255)
+
+
+def _single_image_batches(count: int):
+    for i in range(count):
+        yield [np.full((3, 4, 4), i, dtype=np.float32)], [None], [i]
+
+
+def test_prefetch_slow_consumer_keeps_order() -> None:
+    received = []
+    for batch, profiles, items in _prefetch(
+        _single_image_batches(6), torch.device("cpu"), depth=1
+    ):
+        # slower than the producer, so it retries puts on a full queue
+        time.sleep(0.25)
+        assert batch.shape == (1, 3, 4, 4)
+        assert batch[0, 0, 0, 0] == items[0]
+        assert profiles == [None]
+        received.append(items[0])
+    assert received == list(range(6))
+
+
+def test_prefetch_close_stops_producer() -> None:
+    source_closed = threading.Event()
+
+    def endless_batches():
+        try:
+            for i in itertools.count():
+                yield [np.zeros((3, 4, 4), dtype=np.float32)], [None], [i]
+        finally:
+            source_closed.set()
+
+    threads_before = threading.active_count()
+    prefetched = _prefetch(endless_batches(), torch.device("cpu"), depth=1)
+    next(prefetched)
+    prefetched.close()
+
+    assert source_closed.is_set()
+    assert threading.active_count() == threads_before
+
+
+def test_prefetch_producer_error_propagates() -> None:
+    def failing_batches():
+        yield [np.zeros((3, 4, 4), dtype=np.float32)], [None], [0]
+        raise RuntimeError("load failed")
+
+    prefetched = _prefetch(failing_batches(), torch.device("cpu"))
+    next(prefetched)
+    with pytest.raises(RuntimeError, match="load failed"):
+        next(prefetched)

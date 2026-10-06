@@ -1,9 +1,11 @@
 import os
 import warnings
 from collections import deque
+from contextlib import closing
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
-from queue import Empty, Queue
+from queue import Empty, Full, Queue
+from threading import Event, Thread
 from typing import Any, Callable, Generator, Iterable, Iterator, Optional, Union
 
 import numpy as np
@@ -280,9 +282,9 @@ def postprocess_preds(
     export_confidence: bool,
     softmax_output: bool,
     class_dim: int = 0,
-) -> np.ndarray:
-    """Convert raw model predictions into a numpy array of confidence values or
-    class indices (uint8) along class_dim."""
+) -> torch.Tensor:
+    """Convert raw model predictions into float32 confidence values or uint8 class
+    indices along class_dim, on the same device as preds."""
     if export_confidence:
         if softmax_output:
             preds = torch.clip(
@@ -292,14 +294,10 @@ def postprocess_preds(
             )
             # replace nan with 0, for areas with no predictions
             preds = torch.nan_to_num(preds, nan=0.0)
-        return preds.float().numpy(force=True)
+        return preds.float()
 
     # Use optimized argmax (pairwise for CPU/MPS, standard for CUDA)
-    return (
-        optimized_argmax(preds, dim=class_dim, keepdim=True)
-        .to(dtype=torch.uint8)
-        .numpy(force=True)
-    )
+    return optimized_argmax(preds, dim=class_dim, keepdim=True).to(dtype=torch.uint8)
 
 
 def build_export_profile(profile: Optional[Profile], pred: np.ndarray) -> Profile:
@@ -402,7 +400,7 @@ def coordinator(
         export_confidence=export_confidence,
         softmax_output=softmax_output,
         class_dim=0,
-    )
+    ).numpy(force=True)
 
     if apply_no_data_mask:
         pred_tracker_np, nodata_mask = mask_prediction(
@@ -828,14 +826,60 @@ def _iter_batches(
         executor.shutdown(wait=True, cancel_futures=True)
 
 
-def _images_to_tensor(images: list, device: torch.device) -> torch.Tensor:
-    """Stack float32 images into a (B, C, H, W) tensor on device."""
+def _collate(images: list, device: torch.device) -> torch.Tensor:
+    """Stack float32 images into a (B, C, H, W) tensor, pinned when numpy images
+    will be copied to a CUDA device. Tensor images are stacked on their device."""
     if all(isinstance(image, np.ndarray) for image in images):
         tensor = torch.from_numpy(np.stack(images))
-        if device.type == "cuda":
-            return tensor.pin_memory().to(device=device, non_blocking=True)
-        return tensor.to(device=device)
+        return tensor.pin_memory() if device.type == "cuda" else tensor
     return torch.stack([torch.as_tensor(image).to(device=device) for image in images])
+
+
+def _prefetch(
+    batches: Generator[tuple[list, list[Optional[Profile]], list[Any]], None, None],
+    device: torch.device,
+    depth: int = 2,
+) -> Generator[tuple[torch.Tensor, list[Optional[Profile]], list[Any]], None, None]:
+    """Collate batches in a background thread so the next batch is ready while the
+    current one runs on the device. Errors are re-raised in the caller, and closing
+    this generator stops the thread."""
+    result_queue: Queue = Queue(maxsize=depth)
+    stop = Event()
+
+    def put(item: Any) -> bool:
+        # time out regularly so the producer can't block forever on a full queue
+        while not stop.is_set():
+            try:
+                result_queue.put(item, timeout=0.1)
+                return True
+            except Full:
+                continue
+        return False
+
+    def producer() -> None:
+        try:
+            for images, profiles, items in batches:
+                if not put((_collate(images, device), profiles, items)):
+                    return
+            put(_SENTINEL)
+        except BaseException as e:
+            put(e)
+        finally:
+            batches.close()
+
+    thread = Thread(target=producer, daemon=True)
+    thread.start()
+    try:
+        while True:
+            result = result_queue.get()
+            if result is _SENTINEL:
+                return
+            if isinstance(result, BaseException):
+                raise result
+            yield result
+    finally:
+        stop.set()
+        thread.join()
 
 
 def predict_from_batch(
@@ -962,62 +1006,70 @@ def predict_from_batch(
     written = 0
 
     try:
-        for images, profiles, batch_items in _iter_batches(
+        batches = _iter_batches(
             first=first,
             first_item=first_item,
             items=items,
             load_func=load_func,
             batch_size=batch_size,
             expected_shape=image_shape,
-        ):
-            raw_batch = _images_to_tensor(images, inference_device)
-            valid_mask = batch_nodata_mask(raw_batch, no_data_value)
-            norm_batch = channel_norm_torch(raw_batch, no_data_value).to(
-                dtype=inference_dtype
-            )
-
-            batch_preds = postprocess_preds(
-                infer_batch(models, norm_batch),
-                export_confidence=export_confidence,
-                softmax_output=softmax_output,
-                class_dim=1,
-            )
-
-            # match the tiled path, which skips patches that are entirely no data
-            valid_mask_np = valid_mask.numpy(force=True)
-            empty = ~valid_mask_np.any(axis=(1, 2, 3))
-            if empty.any():
-                batch_preds[empty] = (
-                    np.nan if export_confidence and not softmax_output else 0
+        )
+        # closing() stops the background threads if an error is raised mid-loop
+        with closing(_prefetch(batches, inference_device)) as prefetched:
+            for batch, profiles, batch_items in prefetched:
+                raw_batch = batch.to(device=inference_device, non_blocking=True)
+                valid_mask = batch_nodata_mask(raw_batch, no_data_value)
+                norm_batch = channel_norm_torch(raw_batch, no_data_value).to(
+                    dtype=inference_dtype
                 )
 
-            if apply_no_data_mask:
-                batch_preds *= valid_mask_np
+                preds = postprocess_preds(
+                    infer_batch(models, norm_batch),
+                    export_confidence=export_confidence,
+                    softmax_output=softmax_output,
+                    class_dim=1,
+                )
 
-            if save_executor is not None:
-                for pred, profile, item, mask in zip(
-                    batch_preds, profiles, batch_items, valid_mask_np
-                ):
-                    save_futures.append(
-                        save_executor.submit(
-                            save_prediction,
-                            make_output_path(item, output_dir),
-                            build_export_profile(profile, pred),
-                            pred,
-                            mask[0].astype(np.uint8) if apply_no_data_mask else None,
+                # match the tiled path, which skips patches that are entirely no data
+                empty = ~valid_mask.flatten(start_dim=1).any(dim=1)
+                preds = preds.masked_fill(
+                    empty[:, None, None, None],
+                    np.nan if export_confidence and not softmax_output else 0,
+                )
+                if apply_no_data_mask:
+                    preds = preds * valid_mask
+
+                batch_preds = preds.numpy(force=True)
+
+                if save_executor is not None:
+                    nodata_masks = (
+                        valid_mask[:, 0].to(dtype=torch.uint8).numpy(force=True)
+                        if apply_no_data_mask
+                        else [None] * len(batch_preds)
+                    )
+                    for pred, profile, item, nodata_mask in zip(
+                        batch_preds, profiles, batch_items, nodata_masks
+                    ):
+                        save_futures.append(
+                            save_executor.submit(
+                                save_prediction,
+                                make_output_path(item, output_dir),
+                                build_export_profile(profile, pred),
+                                pred,
+                                nodata_mask,
+                            )
                         )
-                    )
-            elif total is not None:
-                if output is None:
-                    output = np.empty(
-                        (total, *batch_preds.shape[1:]), dtype=batch_preds.dtype
-                    )
-                output[written : written + len(batch_preds)] = batch_preds
-                written += len(batch_preds)
-            else:
-                results.append(batch_preds)
+                elif total is not None:
+                    if output is None:
+                        output = np.empty(
+                            (total, *batch_preds.shape[1:]), dtype=batch_preds.dtype
+                        )
+                    output[written : written + len(batch_preds)] = batch_preds
+                    written += len(batch_preds)
+                else:
+                    results.append(batch_preds)
 
-            pbar.update(len(batch_preds))
+                pbar.update(len(batch_preds))
     finally:
         if save_executor is not None:
             save_executor.shutdown(wait=True)

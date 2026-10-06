@@ -12,6 +12,7 @@ import torch
 
 from omnicloudmask.cloud_mask import (
     check_patch_size,
+    make_output_path,
     predict_from_array,
     predict_from_load_func,
 )
@@ -291,6 +292,28 @@ def _write_test_scene(path: Path) -> Path:
 def _load_test_scene(input_path: Path) -> tuple[np.ndarray, dict]:
     with rio.open(input_path) as src:
         return src.read(), src.profile
+
+
+def test_predict_from_load_func_skip_existing(tmp_path):
+    scene_paths = [_write_test_scene(tmp_path / f"scene_{i}.tif") for i in range(2)]
+    output_dir = tmp_path / "out"
+    existing = make_output_path(scene_paths[0], output_dir)
+    existing.write_bytes(b"placeholder")
+
+    paths = predict_from_load_func(
+        scene_paths,
+        _load_test_scene,
+        patch_size=100,
+        patch_overlap=0,
+        inference_device="cpu",
+        custom_models=torch.nn.Conv2d(3, 4, kernel_size=1),
+        output_dir=output_dir,
+        overwrite=False,
+    )
+
+    assert paths == [make_output_path(p, output_dir) for p in scene_paths]
+    assert existing.read_bytes() == b"placeholder"
+    assert paths[1].exists()
 
 
 def test_predict_from_load_func_model_error_propagates(tmp_path):
