@@ -6,7 +6,17 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from queue import Empty, Full, Queue
 from threading import Event, Thread
-from typing import Any, Callable, Generator, Iterable, Iterator, Optional, Union
+from typing import (
+    Any,
+    Callable,
+    Generator,
+    Iterable,
+    Iterator,
+    Literal,
+    Optional,
+    Union,
+    overload,
+)
 
 import numpy as np
 import torch
@@ -880,6 +890,78 @@ def _prefetch(
     finally:
         stop.set()
         thread.join()
+
+
+# The return type depends on export_to_disk: an array of predictions, or the
+# paths of the exported files. Overloads let type checkers infer which.
+@overload
+def predict_from_batch(
+    data: Iterable[Any],
+    batch_size: int = 1,
+    load_func: Optional[Callable] = None,
+    inference_device: Optional[Union[str, torch.device]] = None,
+    inference_dtype: Union[torch.dtype, str] = torch.float32,
+    export_confidence: bool = False,
+    softmax_output: bool = True,
+    no_data_value: int | float = 0,
+    apply_no_data_mask: bool = True,
+    export_to_disk: Literal[False] = False,
+    output_dir: Optional[Union[Path, str]] = None,
+    overwrite: bool = True,
+    custom_models: Optional[Union[list[torch.nn.Module], torch.nn.Module]] = None,
+    destination_model_dir: Union[str, Path, None] = None,
+    model_download_source: str = "hugging_face",
+    compile_models: bool = False,
+    compile_mode: str = "default",
+    model_version: float | None = None,
+) -> np.ndarray: ...
+
+
+@overload
+def predict_from_batch(
+    data: Iterable[Any],
+    batch_size: int = 1,
+    load_func: Optional[Callable] = None,
+    inference_device: Optional[Union[str, torch.device]] = None,
+    inference_dtype: Union[torch.dtype, str] = torch.float32,
+    export_confidence: bool = False,
+    softmax_output: bool = True,
+    no_data_value: int | float = 0,
+    apply_no_data_mask: bool = True,
+    *,
+    export_to_disk: Literal[True],
+    output_dir: Optional[Union[Path, str]] = None,
+    overwrite: bool = True,
+    custom_models: Optional[Union[list[torch.nn.Module], torch.nn.Module]] = None,
+    destination_model_dir: Union[str, Path, None] = None,
+    model_download_source: str = "hugging_face",
+    compile_models: bool = False,
+    compile_mode: str = "default",
+    model_version: float | None = None,
+) -> list[Path]: ...
+
+
+@overload
+def predict_from_batch(
+    data: Iterable[Any],
+    batch_size: int = 1,
+    load_func: Optional[Callable] = None,
+    inference_device: Optional[Union[str, torch.device]] = None,
+    inference_dtype: Union[torch.dtype, str] = torch.float32,
+    export_confidence: bool = False,
+    softmax_output: bool = True,
+    no_data_value: int | float = 0,
+    apply_no_data_mask: bool = True,
+    export_to_disk: bool = False,
+    output_dir: Optional[Union[Path, str]] = None,
+    overwrite: bool = True,
+    custom_models: Optional[Union[list[torch.nn.Module], torch.nn.Module]] = None,
+    destination_model_dir: Union[str, Path, None] = None,
+    model_download_source: str = "hugging_face",
+    compile_models: bool = False,
+    compile_mode: str = "default",
+    model_version: float | None = None,
+) -> Union[np.ndarray, list[Path]]: ...
 
 
 def predict_from_batch(
