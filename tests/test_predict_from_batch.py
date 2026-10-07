@@ -532,3 +532,398 @@ def test_prefetch_producer_error_propagates() -> None:
     next(prefetched)
     with pytest.raises(RuntimeError, match="load failed"):
         next(prefetched)
+
+
+# Contract tests: behaviour that refactors of the batch pipeline (zero-copy
+# slicing, native dtypes, pinned buffers, async copies) must preserve.
+
+ALL_DEVICES = [pytest.param("cpu"), *DEVICES]
+
+
+class SeededConv(torch.nn.Module):
+    """Small deterministic stand-in for the real models."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        generator = torch.Generator().manual_seed(0)
+        self.conv = torch.nn.Conv2d(3, 4, kernel_size=3, padding=1)
+        with torch.no_grad():
+            self.conv.weight.copy_(
+                torch.randn(self.conv.weight.shape, generator=generator)
+            )
+            self.conv.bias.zero_()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.conv(x)
+
+
+def striped_images(count: int, stripe: int = 4) -> np.ndarray:
+    """Random images where image i has a no-data stripe at rows i*stripe, so each
+    masked output identifies which input it came from."""
+    rng = np.random.default_rng(3)
+    data = rng.random((count, 3, IMAGE_SIZE, IMAGE_SIZE)).astype(np.float32) + 0.1
+    for i in range(count):
+        data[i, :, i * stripe : (i + 1) * stripe, :] = 0
+    return data
+
+
+@pytest.mark.parametrize("device", ALL_DEVICES)
+def test_predict_from_batch_outputs_align_with_inputs(device: str) -> None:
+    # more batches than any planned ring of reusable buffers
+    count, stripe = 12, 4
+    result = predict_from_batch(
+        striped_images(count, stripe),
+        batch_size=2,
+        inference_device=device,
+        export_confidence=True,
+    )
+    for i in range(count):
+        rows = np.zeros(IMAGE_SIZE, dtype=bool)
+        rows[i * stripe : (i + 1) * stripe] = True
+        assert np.all(result[i][:, rows] == 0), f"image {i} stripe not masked"
+        # softmax confidence is clipped to at least 0.001 on valid pixels
+        assert np.all(result[i][:, ~rows] > 0), f"image {i} has another's mask"
+
+
+@pytest.mark.parametrize(
+    "make_data, device",
+    [
+        pytest.param(lambda x: x, "cpu", id="numpy"),
+        pytest.param(torch.from_numpy, "cpu", id="cpu_tensor"),
+        pytest.param(
+            lambda x: torch.from_numpy(x).cuda(),
+            "cuda",
+            id="cuda_tensor",
+            marks=pytest.mark.skipif(
+                not torch.cuda.is_available(), reason="CUDA not available"
+            ),
+        ),
+    ],
+)
+def test_predict_from_batch_does_not_modify_input(make_data, device: str) -> None:
+    data = make_data(striped_images(5))
+    before = data.clone() if isinstance(data, torch.Tensor) else data.copy()
+
+    predict_from_batch(
+        data, batch_size=2, inference_device=device, export_confidence=True
+    )
+
+    if isinstance(data, torch.Tensor):
+        assert torch.equal(data, before)
+    else:
+        np.testing.assert_array_equal(data, before)
+
+
+@pytest.mark.parametrize(
+    "dtype, low, high, no_data_value",
+    [
+        pytest.param(np.uint8, 1, 255, 0, id="uint8"),
+        # values above 32767 catch sign errors if uint16 is reinterpreted as int16
+        pytest.param(np.uint16, 30000, 65535, 65535, id="uint16_high"),
+        pytest.param(np.int16, -5000, 5000, -9999, id="int16_negative"),
+        pytest.param(np.float32, 0, 1, 0, id="float32"),
+        pytest.param(np.float64, 0, 1, 0, id="float64"),
+    ],
+)
+def test_predict_from_batch_input_dtypes_match_float32(
+    dtype, low, high, no_data_value
+) -> None:
+    rng = np.random.default_rng(1)
+    shape = (3, 3, IMAGE_SIZE, IMAGE_SIZE)
+    if np.issubdtype(dtype, np.integer):
+        data = rng.integers(low, high, size=shape).astype(dtype)
+    else:
+        data = rng.uniform(low, high, size=shape).astype(dtype) + 0.01
+    data[0, :, :8, :] = no_data_value
+
+    kwargs = {
+        "batch_size": 2,
+        "inference_device": "cpu",
+        "export_confidence": True,
+        "no_data_value": no_data_value,
+    }
+    result = predict_from_batch(data, **kwargs)
+    expected = predict_from_batch(data.astype(np.float32), **kwargs)
+
+    np.testing.assert_array_equal(result, expected)
+    assert np.all(result[0, :, :8, :] == 0), "no-data value not detected"
+
+
+def _non_contiguous_cases() -> dict:
+    rng = np.random.default_rng(2)
+    big = rng.random((5, 3, 2 * IMAGE_SIZE, 2 * IMAGE_SIZE)).astype(np.float32)
+    small = big[:, :, :IMAGE_SIZE, :IMAGE_SIZE].copy()
+    return {
+        "strided": big[:, :, ::2, ::2],
+        "slice_of_larger": big[1:4, :, 10 : 10 + IMAGE_SIZE, 20 : 20 + IMAGE_SIZE],
+        "negative_stride": small[:, :, ::-1, :],
+        "fortran_order": np.asfortranarray(small),
+        "transposed_tensor": torch.from_numpy(small).transpose(2, 3),
+    }
+
+
+@pytest.mark.parametrize("case", list(_non_contiguous_cases()))
+def test_predict_from_batch_non_contiguous_inputs(case: str) -> None:
+    data = _non_contiguous_cases()[case]
+    contiguous = (
+        data.contiguous()
+        if isinstance(data, torch.Tensor)
+        else np.ascontiguousarray(data)
+    )
+
+    for export_confidence in [False, True]:
+        kwargs = {
+            "batch_size": 2,
+            "inference_device": "cpu",
+            "export_confidence": export_confidence,
+        }
+        result = predict_from_batch(data, **kwargs)
+        expected = predict_from_batch(contiguous, **kwargs)
+        if export_confidence:
+            # memory layout can change which conv kernel runs, so allow float noise
+            np.testing.assert_allclose(result, expected, rtol=0, atol=1e-6)
+        else:
+            np.testing.assert_array_equal(result, expected)
+
+
+@pytest.mark.parametrize("softmax_output", [True, False])
+def test_predict_from_batch_confidence_matches_predict_from_array(
+    images: np.ndarray, softmax_output: bool
+) -> None:
+    data = images[:3].copy()
+    data[1, :, :8, :] = 0
+    kwargs = {
+        "inference_device": "cpu",
+        "export_confidence": True,
+        "softmax_output": softmax_output,
+    }
+
+    result = predict_from_batch(data, batch_size=2, **kwargs)
+    for i, image in enumerate(data):
+        expected = predict_from_array(
+            image, patch_size=IMAGE_SIZE, patch_overlap=0, **kwargs
+        )
+        np.testing.assert_allclose(result[i], expected, rtol=1e-4, atol=1e-4)
+
+
+@pytest.mark.parametrize("device", ALL_DEVICES)
+@pytest.mark.parametrize("export_confidence", [False, True])
+@pytest.mark.parametrize("use_generator", [False, True])
+def test_predict_from_batch_results_own_their_memory(
+    images: np.ndarray, device: str, export_confidence: bool, use_generator: bool
+) -> None:
+    def run(data: np.ndarray) -> np.ndarray:
+        source = (image for image in data) if use_generator else data
+        return predict_from_batch(
+            source,
+            batch_size=2,
+            inference_device=device,
+            export_confidence=export_confidence,
+        )
+
+    first = run(images)
+    snapshot = first.copy()
+    run(images[::-1].copy())  # a second run must not overwrite the first result
+
+    np.testing.assert_array_equal(first, snapshot)
+    assert first.flags.owndata and first.flags.writeable
+
+
+def test_predict_from_batch_generator_lookahead_is_bounded() -> None:
+    batch_size, count = 2, 40
+    state = {"pulled": 0, "processed": 0, "max_lookahead": 0}
+
+    def counting_generator():
+        for image in striped_images(count, stripe=1):
+            state["pulled"] += 1
+            yield image
+
+    class SlowCountingModel(SeededConv):
+        def forward(self, x: torch.Tensor) -> torch.Tensor:
+            lookahead = state["pulled"] - state["processed"]
+            state["max_lookahead"] = max(state["max_lookahead"], lookahead)
+            time.sleep(0.05)  # slower than loading, so loading runs ahead
+            state["processed"] += x.shape[0]
+            return super().forward(x)
+
+    predict_from_batch(
+        counting_generator(),
+        batch_size=batch_size,
+        inference_device="cpu",
+        custom_models=SlowCountingModel(),
+    )
+
+    assert state["processed"] == count
+    # a fixed number of batches may be loaded ahead, never the whole input
+    assert state["max_lookahead"] <= 8 * batch_size + 1, state["max_lookahead"]
+
+
+def _wait_for_new_threads(baseline: set, timeout: float = 5) -> list:
+    deadline = time.monotonic() + timeout
+    while True:
+        new = [t for t in threading.enumerate() if t not in baseline and t.is_alive()]
+        if not new or time.monotonic() > deadline:
+            return new
+        time.sleep(0.05)
+
+
+class FailOnSecondBatch(SeededConv):
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls = 0
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        self.calls += 1
+        if self.calls == 2:
+            raise RuntimeError("model failed")
+        return super().forward(x)
+
+
+@pytest.mark.parametrize("scenario", ["success", "model_error", "loader_error"])
+def test_predict_from_batch_does_not_leak_threads(
+    tif_paths: list[Path], scenario: str
+) -> None:
+    def loader(input_path: Path) -> np.ndarray:
+        if scenario == "loader_error" and input_path == tif_paths[3]:
+            raise RuntimeError("loader failed")
+        return load_tif_array_only(input_path)
+
+    def run() -> np.ndarray:
+        model = FailOnSecondBatch() if scenario == "model_error" else SeededConv()
+        return predict_from_batch(
+            tif_paths,
+            batch_size=1,
+            load_func=loader,
+            inference_device="cpu",
+            custom_models=model,
+        )
+
+    # warm up once so long-lived threads (e.g. tqdm's monitor) exist beforehand
+    predict_from_batch(tif_paths[:1], load_func=loader, inference_device="cpu")
+    baseline = set(threading.enumerate())
+
+    if scenario == "success":
+        run_with_timeout(run)
+    else:
+        with pytest.raises(RuntimeError, match="failed"):
+            run_with_timeout(run)
+
+    assert _wait_for_new_threads(baseline) == []
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+@pytest.mark.parametrize("scenario", ["success", "model_error"])
+def test_predict_from_batch_releases_cuda_memory(scenario: str) -> None:
+    data = striped_images(8)
+    model = SeededConv()
+    # warm up so the model and CUDA context are already allocated
+    predict_from_batch(data, batch_size=2, inference_device="cuda", custom_models=model)
+    torch.cuda.synchronize()
+    baseline = torch.cuda.memory_allocated()
+
+    if scenario == "success":
+        predict_from_batch(
+            data, batch_size=2, inference_device="cuda", custom_models=model
+        )
+    else:
+        with pytest.raises(RuntimeError, match="model failed"):
+            run_with_timeout(
+                lambda: predict_from_batch(
+                    data,
+                    batch_size=2,
+                    inference_device="cuda",
+                    custom_models=FailOnSecondBatch(),
+                )
+            )
+
+    torch.cuda.synchronize()
+    assert torch.cuda.memory_allocated() <= baseline
+
+
+@pytest.mark.parametrize("device", DEVICES)
+@pytest.mark.parametrize("dtype", ["fp16", "bf16"])
+def test_predict_from_batch_accelerator_confidence_dtype(
+    images: np.ndarray, device: str, dtype: str
+) -> None:
+    result = predict_from_batch(
+        images,
+        batch_size=2,
+        inference_device=device,
+        inference_dtype=dtype,
+        export_confidence=True,
+    )
+    assert result.dtype == np.float32
+    assert result.shape == (5, 4, IMAGE_SIZE, IMAGE_SIZE)
+    assert np.all((result >= 0) & (result <= 1))
+
+
+def test_predict_from_batch_mixed_numpy_and_tensor_list(
+    images: np.ndarray, reference_masks: np.ndarray
+) -> None:
+    mixed = [
+        torch.from_numpy(image) if i % 2 else image for i, image in enumerate(images)
+    ]
+    result = predict_from_batch(mixed, batch_size=2, inference_device="cpu")
+    agreement = (result == reference_masks).mean()
+    assert agreement >= 0.999, f"Only {agreement:.4f} of pixels agree"
+
+
+def test_predict_from_batch_load_func_uint16_files(tmp_path: Path) -> None:
+    rng = np.random.default_rng(4)
+    data = rng.integers(30000, 65535, size=(3, 3, IMAGE_SIZE, IMAGE_SIZE)).astype(
+        np.uint16
+    )
+    paths = [
+        write_tif(tmp_path / f"chip_{i}.tif", image) for i, image in enumerate(data)
+    ]
+    kwargs = {"batch_size": 2, "inference_device": "cpu", "export_confidence": True}
+
+    result = predict_from_batch(paths, load_func=load_tif, **kwargs)
+    expected = predict_from_batch(data.astype(np.float32), **kwargs)
+    np.testing.assert_array_equal(result, expected)
+
+
+def test_predict_from_batch_compile_warm_up_uses_image_shape(monkeypatch) -> None:
+    height, width, batch_size = 56, 80, 3
+    warm_up_shapes = []
+
+    class RecordingModel(SeededConv):
+        def forward(self, x: torch.Tensor) -> torch.Tensor:
+            warm_up_shapes.append(tuple(x.shape))
+            return super().forward(x)
+
+    monkeypatch.setattr(
+        "omnicloudmask.model_utils.torch.compile", lambda model, **kwargs: model
+    )
+    data = np.random.default_rng(5).random((4, 3, height, width)).astype(np.float32)
+    predict_from_batch(
+        data,
+        batch_size=batch_size,
+        inference_device="cpu",
+        custom_models=RecordingModel(),
+        compile_models=True,
+    )
+
+    # warm-up runs every batch size from 1 to batch_size at the image's (H, W)
+    expected = [(i, 3, height, width) for i in range(1, batch_size + 1)]
+    assert warm_up_shapes[:batch_size] == expected
+
+
+@pytest.mark.parametrize("device", ALL_DEVICES)
+def test_predict_from_batch_export_many_batches_matches_memory(
+    tmp_path: Path, device: str
+) -> None:
+    data = striped_images(12)
+    paths = [
+        write_tif(tmp_path / f"chip_{i}.tif", image) for i, image in enumerate(data)
+    ]
+    kwargs = {"batch_size": 2, "inference_device": device, "load_func": load_tif}
+
+    in_memory = predict_from_batch(paths, **kwargs)
+    exported = predict_from_batch(
+        paths, export_to_disk=True, output_dir=tmp_path / "out", **kwargs
+    )
+
+    for path, expected in zip(exported, in_memory):
+        with rio.open(path) as src:
+            np.testing.assert_array_equal(src.read(), expected)
