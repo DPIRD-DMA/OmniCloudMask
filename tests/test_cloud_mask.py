@@ -7,9 +7,11 @@ import numpy as np
 import pytest
 import rasterio as rio
 import torch
+from rasterio.profiles import Profile
 
 from omnicloudmask.cloud_mask import (
     check_patch_size,
+    coordinator,
     predict_from_array,
     predict_from_load_func,
 )
@@ -422,6 +424,91 @@ def test_predict_from_load_func_ls():
     # make sure we dont have values outside of 0,1,2,3s
     assert np.all(np.isin(np.unique(pred_array), [0, 1, 2, 3])), (
         "Unexpected values in result"
+    )
+
+
+class PixelwiseModel(torch.nn.Module):
+    """Small stand-in model whose 4 class logits depend on the input pixels."""
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return torch.stack([x[:, 0], x[:, 1], x[:, 2], -x[:, 0]], dim=1)
+
+
+def _run_coordinator(output_path, **kwargs):
+    rng = np.random.default_rng(0)
+    data = rng.random((3, 100, 100)).astype(np.float32) + 0.1
+    data[:, :20, :] = 0  # nodata strip
+    return coordinator(
+        input_array=data,
+        models=[PixelwiseModel()],
+        inference_dtype=torch.float32,
+        softmax_output=True,
+        inference_device=torch.device("cpu"),
+        mosaic_device=torch.device("cpu"),
+        patch_size=50,
+        patch_overlap=10,
+        batch_size=1,
+        profile=Profile(height=100, width=100),
+        output_path=output_path,
+        apply_no_data_mask=True,
+        **kwargs,
+    )
+
+
+def test_coordinator_confidence_stats_match_classified(tmp_path):
+    classified_path = tmp_path / "classified.tif"
+    confidence_path = tmp_path / "confidence.tif"
+
+    classified = _run_coordinator(classified_path, export_confidence=False)
+    _run_coordinator(
+        confidence_path, export_confidence=True, export_confidence_stats=True
+    )
+
+    with rio.open(classified_path) as src:
+        classified_tags = src.tags()
+    with rio.open(confidence_path) as src:
+        confidence_tags = src.tags()
+        assert src.count == 4, "Confidence output should still have 4 bands"
+
+    stat_keys = [k for k in classified_tags if k.startswith("OCM_")]
+    assert stat_keys, "Classified output should have class stats tags"
+    for key in stat_keys:
+        assert confidence_tags[key] == classified_tags[key], (
+            f"{key} differs: {confidence_tags[key]} vs {classified_tags[key]}"
+        )
+    assert classified_tags["OCM_VALID_PIXELS"] == str(80 * 100)
+    assert len(np.unique(classified[:, 20:, :])) > 1, (
+        "Test should cover more than one class"
+    )
+
+
+def test_coordinator_confidence_stats_off_by_default(tmp_path):
+    output_path = tmp_path / "confidence.tif"
+
+    _run_coordinator(output_path, export_confidence=True)
+
+    with rio.open(output_path) as src:
+        tags = src.tags()
+    assert not any(key.startswith("OCM_") for key in tags), (
+        "Confidence output should not have class stats tags unless requested"
+    )
+
+
+@pytest.mark.parametrize("export_confidence", [False, True])
+def test_coordinator_write_class_stats_false(tmp_path, export_confidence):
+    output_path = tmp_path / "mask.tif"
+
+    _run_coordinator(
+        output_path,
+        export_confidence=export_confidence,
+        export_confidence_stats=True,
+        write_class_stats=False,
+    )
+
+    with rio.open(output_path) as src:
+        tags = src.tags()
+    assert not any(key.startswith("OCM_") for key in tags), (
+        "No class stats tags should be written when write_class_stats is False"
     )
 
 
