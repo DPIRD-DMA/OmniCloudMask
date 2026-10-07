@@ -11,6 +11,7 @@ from rasterio.profiles import Profile
 from tqdm.auto import tqdm
 
 from .__version__ import __version__
+from .constants import CLASS_NAMES
 from .download_models import get_models
 from .model_utils import (
     create_gradient_mask,
@@ -268,6 +269,8 @@ def coordinator(
     export_to_disk: bool = True,
     save_executor: Optional[ThreadPoolExecutor] = None,
     pred_classes: int = 4,
+    export_confidence_stats: bool = False,
+    write_class_stats: bool = True,
 ) -> np.ndarray:
     """Used to coordinate the process of predicting from an input array."""
 
@@ -300,11 +303,20 @@ def coordinator(
         batch_size=batch_size,
     )
 
+    class_pred_np = None
     if export_confidence:
         if grad_tracker is None:
             raise ValueError(
                 "Gradient tracker is required for confidence maps, "
                 "but was not provided."
+            )
+        if export_confidence_stats and write_class_stats and export_to_disk:
+            # argmax of the raw predictions matches the classified output,
+            # as normalising and softmax don't change the highest class
+            class_pred_np = (
+                optimized_argmax(pred_tracker, dim=0, keepdim=True)
+                .to(dtype=torch.uint8)
+                .numpy(force=True)
             )
         pred_tracker_norm = pred_tracker / grad_tracker
         if softmax_output:
@@ -355,6 +367,8 @@ def coordinator(
                 export_profile,
                 pred_tracker_np,
                 nodata_mask,
+                class_pred_np,
+                write_class_stats,
             )
         # otherwise save the prediction directly
 
@@ -364,6 +378,8 @@ def coordinator(
                 export_profile=export_profile,
                 pred_tracker_np=pred_tracker_np,
                 nodata_mask=nodata_mask,
+                class_pred=class_pred_np,
+                write_class_stats=write_class_stats,
             )
 
     if pbar:
@@ -551,6 +567,7 @@ def predict_from_load_func(
     compile_models: bool = False,
     compile_mode: str = "default",
     model_version: float | None = None,
+    export_confidence_stats: bool = False,
 ) -> list[Path]:
     """
     Predicts cloud and cloud shadow masks for a list of scenes using a specified loading function.
@@ -577,6 +594,7 @@ def predict_from_load_func(
         compile_models (bool, optional): If True, compiles the models for faster inference. Defaults to False.
         compile_mode (str, optional): Compilation mode for the models. Defaults to "default".
         model_version (float, optional): Version of the model to use. Defaults to the latest available version. Can also be set to 4.0, 3.0, 2.0, or 1.0 for older models.
+        export_confidence_stats (bool, optional): If True and export_confidence = True, also writes the class percentage metadata tags to the confidence output, calculated from the most likely class at each pixel. Classified outputs always include these tags. Tags are not written when custom_models are used or pred_classes is not 4, as they assume the standard OmniCloudMask classes. Defaults to False.
     Returns:
         list[Path]: A list of paths to the output prediction files.
 
@@ -610,6 +628,9 @@ def predict_from_load_func(
         batch_size=batch_size,
         compile_mode=compile_mode,
     )
+
+    # class stats assume the standard OmniCloudMask classes
+    write_class_stats = custom_models is None and pred_classes == len(CLASS_NAMES)
 
     pbar = tqdm(
         total=len(scene_paths),
@@ -659,6 +680,8 @@ def predict_from_load_func(
                 "apply_no_data_mask": apply_no_data_mask,
                 "save_executor": save_executor,
                 "pred_classes": pred_classes,
+                "export_confidence_stats": export_confidence_stats,
+                "write_class_stats": write_class_stats,
             },
         )
         inf_thread.start()

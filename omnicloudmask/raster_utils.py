@@ -5,6 +5,7 @@ import numpy as np
 import rasterio as rio
 from rasterio.profiles import Profile
 
+from .constants import CLASS_NAMES, CLOUD_CLASSES
 from .model_utils import channel_norm
 
 
@@ -126,15 +127,47 @@ def make_patch_indexes(
     return patch_indexes
 
 
+def compute_class_stats(
+    pred: np.ndarray, nodata_mask: Optional[np.ndarray] = None
+) -> dict[str, str]:
+    """Calculate the percentage of valid pixels in each class."""
+    values = pred[0] if nodata_mask is None else pred[0][nodata_mask.astype(bool)]
+    counts = np.bincount(values.ravel(), minlength=len(CLASS_NAMES))
+    total = counts.sum()
+    pct = counts / total * 100 if total else np.zeros(len(counts))
+
+    pct_by_name = {name: pct[i] for i, name in CLASS_NAMES.items()}
+
+    tags = {f"OCM_{name}_PCT": f"{p:.2f}" for name, p in pct_by_name.items()}
+    tags["OCM_CLOUD_PCT"] = f"{sum(pct_by_name[n] for n in CLOUD_CLASSES):.2f}"
+    tags["OCM_VALID_PIXELS"] = str(int(total))
+    tags["OCM_CLASSES"] = ",".join(
+        f"{i}={name.replace('_', ' ').title()}" for i, name in CLASS_NAMES.items()
+    )
+    return tags
+
+
 def save_prediction(
     output_path: Path,
     export_profile: Profile,
     pred_tracker_np: np.ndarray,
     nodata_mask: Optional[np.ndarray],
+    class_pred: Optional[np.ndarray] = None,
+    write_class_stats: bool = True,
 ) -> None:
     """Save the prediction tracker to a raster file,
-    optionally also saves the nodata mask if not None."""
+    optionally also saves the nodata mask if not None.
+    If write_class_stats, class statistics tags are written for classified outputs,
+    or for confidence outputs when class_pred (the argmax of the confidence maps)
+    is provided."""
+    if not write_class_stats:
+        class_pred = None
+    elif class_pred is None and pred_tracker_np.shape[0] == 1:
+        class_pred = pred_tracker_np
     with rio.open(output_path, "w", **export_profile) as dst:
         dst.write(pred_tracker_np)
         if nodata_mask is not None:
             dst.write_mask((nodata_mask * 255).astype("uint8"))
+        if class_pred is not None:
+            tags = compute_class_stats(class_pred, nodata_mask)
+            dst.update_tags(**tags)
