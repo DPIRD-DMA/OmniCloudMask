@@ -1153,32 +1153,14 @@ def predict_from_batch(
                 f"{str(inference_dtype).split('.')[-1]}",
             )
 
-            for batch, is_uint16, profiles, batch_items in chain([first], prefetched):
-                raw_batch = _to_float32(
-                    batch.to(device=inference_device, non_blocking=True), is_uint16
-                )
-                band_valid = band_valid_mask(raw_batch, no_data_value)
-                # a pixel is no data only if every band is no data
-                valid_mask = band_valid.any(dim=1, keepdim=True)
-                norm_batch = channel_norm_torch(raw_batch, valid=band_valid).to(
-                    dtype=inference_dtype
-                )
-
-                preds = postprocess_preds(
-                    infer_batch(models, norm_batch),
-                    export_confidence=export_confidence,
-                    softmax_output=softmax_output,
-                    class_dim=1,
-                )
-                if apply_no_data_mask:
-                    preds.masked_fill_(~valid_mask, 0)
-                # match the tiled path, which skips patches that are entirely no data
-                empty = ~valid_mask.flatten(start_dim=1).any(dim=1)
-                preds.masked_fill_(
-                    empty[:, None, None, None],
-                    np.nan if export_confidence and not softmax_output else 0,
-                )
-
+            def write_out(
+                preds: torch.Tensor,
+                valid_mask: torch.Tensor,
+                profiles: list[Optional[Profile]],
+                batch_items: list[Any],
+            ) -> None:
+                """Copy a batch of predictions to the host and store or save them."""
+                nonlocal output, written
                 if save_executor is not None:
                     batch_preds = preds.numpy(force=True)
                     nodata_masks = (
@@ -1214,8 +1196,66 @@ def predict_from_batch(
                     written += len(preds)
                 else:
                     results.append(preds.numpy(force=True))
-
+                assert pbar is not None
                 pbar.update(len(preds))
+
+            # On CUDA, each batch's predictions are copied back on a separate
+            # stream once the next batch has been queued, so the GPU keeps working
+            # during the copy and while the host stores the results
+            copy_stream = (
+                torch.cuda.Stream(device=inference_device)
+                if inference_device.type == "cuda"
+                else None
+            )
+            pending: Optional[tuple] = None
+
+            def finish_pending() -> None:
+                if pending is None:
+                    return
+                *batch_outputs, done = pending
+                if copy_stream is None:
+                    write_out(*batch_outputs)
+                    return
+                with torch.cuda.stream(copy_stream):
+                    copy_stream.wait_event(done)
+                    write_out(*batch_outputs)
+
+            for batch, is_uint16, profiles, batch_items in chain([first], prefetched):
+                raw_batch = _to_float32(
+                    batch.to(device=inference_device, non_blocking=True), is_uint16
+                )
+                band_valid = band_valid_mask(raw_batch, no_data_value)
+                # a pixel is no data only if every band is no data
+                valid_mask = band_valid.any(dim=1, keepdim=True)
+                norm_batch = channel_norm_torch(raw_batch, valid=band_valid).to(
+                    dtype=inference_dtype
+                )
+
+                preds = postprocess_preds(
+                    infer_batch(models, norm_batch),
+                    export_confidence=export_confidence,
+                    softmax_output=softmax_output,
+                    class_dim=1,
+                )
+                if apply_no_data_mask:
+                    preds.masked_fill_(~valid_mask, 0)
+                # match the tiled path, which skips patches that are entirely no data
+                empty = ~valid_mask.flatten(start_dim=1).any(dim=1)
+                preds.masked_fill_(
+                    empty[:, None, None, None],
+                    np.nan if export_confidence and not softmax_output else 0,
+                )
+
+                done = None
+                if copy_stream is not None:
+                    done = torch.cuda.Event()
+                    done.record()
+
+                # this batch is queued on the device, so finish the previous one
+                finish_pending()
+                pending = (preds, valid_mask, profiles, batch_items, done)
+
+            finish_pending()
     finally:
         if save_executor is not None:
             save_executor.shutdown(wait=True)
