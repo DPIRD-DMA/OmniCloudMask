@@ -492,7 +492,7 @@ def _single_image_batches(count: int):
 
 def test_prefetch_slow_consumer_keeps_order() -> None:
     received = []
-    for batch, profiles, items in _prefetch(
+    for batch, is_uint16, profiles, items in _prefetch(
         _single_image_batches(6), torch.device("cpu"), depth=1
     ):
         # slower than the producer, so it retries puts on a full queue
@@ -500,6 +500,7 @@ def test_prefetch_slow_consumer_keeps_order() -> None:
         assert batch.shape == (1, 3, 4, 4)
         assert batch[0, 0, 0, 0] == items[0]
         assert profiles == [None]
+        assert not is_uint16
         received.append(items[0])
     assert received == list(range(6))
 
@@ -679,11 +680,8 @@ def test_predict_from_batch_non_contiguous_inputs(case: str) -> None:
         }
         result = predict_from_batch(data, **kwargs)
         expected = predict_from_batch(contiguous, **kwargs)
-        if export_confidence:
-            # memory layout can change which conv kernel runs, so allow float noise
-            np.testing.assert_allclose(result, expected, rtol=0, atol=1e-6)
-        else:
-            np.testing.assert_array_equal(result, expected)
+        # batches are copied into contiguous memory, so layout can't change results
+        np.testing.assert_array_equal(result, expected)
 
 
 @pytest.mark.parametrize("softmax_output", [True, False])

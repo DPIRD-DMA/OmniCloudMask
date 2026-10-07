@@ -768,8 +768,8 @@ _MAX_SAVES_IN_FLIGHT = 32
 def _prepare_item(
     item: Any, load_func: Optional[Callable]
 ) -> tuple[Union[np.ndarray, torch.Tensor], Optional[Profile]]:
-    """Load an item with load_func if provided and cast it to float32. Returns the
-    image and the export profile, if load_func returned one."""
+    """Load an item with load_func if provided. Returns the image in its own dtype
+    and the export profile, if load_func returned one."""
     profile = None
     if load_func is not None:
         item = load_func(input_path=item)
@@ -777,8 +777,8 @@ def _prepare_item(
             item, profile = item[0], item[1]
 
     if isinstance(item, torch.Tensor):
-        return item.to(dtype=torch.float32), profile
-    return np.asarray(item, dtype=np.float32), profile
+        return item, profile
+    return np.asarray(item), profile
 
 
 def _chunks(items: Iterable[Any], size: int) -> Iterator[list[Any]]:
@@ -816,20 +816,93 @@ def _iter_batches(
             yield images, [profile for _, profile in loaded], chunk
 
 
-def _collate(images: list, device: torch.device) -> torch.Tensor:
-    """Stack float32 images into a (B, C, H, W) tensor, pinned when numpy images
-    will be copied to a CUDA device. Tensor images are stacked on their device."""
-    if all(isinstance(image, np.ndarray) for image in images):
-        tensor = torch.from_numpy(np.stack(images))
-        return tensor.pin_memory() if device.type == "cuda" else tensor
-    return torch.stack([torch.as_tensor(image).to(device=device) for image in images])
+def _iter_array_batches(
+    data: Union[np.ndarray, torch.Tensor], batch_size: int
+) -> Generator[tuple[Any, list[Optional[Profile]], list[Any]], None, None]:
+    """Yield batches of a 4D array or tensor as slices, without copying."""
+    validate_input_shape(tuple(data.shape[1:]))
+    for start in range(0, len(data), batch_size):
+        batch = data[start : start + batch_size]
+        yield batch, [None] * len(batch), list(range(start, start + len(batch)))
+
+
+# dtypes sent to the device as they are and cast to float32 there, as they are
+# smaller than float32. Others are cast to float32 on the host.
+_TRANSFER_DTYPES = {
+    np.dtype(dtype)
+    for dtype in (np.uint8, np.int8, np.int16, np.uint16, np.float16, np.float32)
+}
+
+
+def _collate(
+    images: Union[list, np.ndarray, torch.Tensor], device: torch.device
+) -> tuple[torch.Tensor, bool]:
+    """Collect a batch of images into one contiguous (B, C, H, W) tensor, ready to
+    copy to device. Returns the tensor and whether it holds uint16 data viewed as
+    int16, which torch does not fully support, to be restored by _to_float32.
+
+    Host images are copied once, keeping small dtypes such as uint16, into a
+    buffer that is pinned for fast copies to CUDA. Device tensors are left on the
+    device."""
+    if isinstance(images, torch.Tensor):
+        if images.device.type != "cpu":
+            return images, False
+        # numpy has no bfloat16
+        images = (images.float() if images.dtype == torch.bfloat16 else images).numpy()
+
+    if isinstance(images, list):
+        if any(isinstance(i, torch.Tensor) and i.device.type != "cpu" for i in images):
+            return torch.stack(
+                [torch.as_tensor(i).to(device=device) for i in images]
+            ), False
+        images = [
+            i.numpy()
+            if isinstance(i, torch.Tensor) and i.dtype != torch.bfloat16
+            else i.float().numpy()
+            if isinstance(i, torch.Tensor)
+            else i
+            for i in images
+        ]
+        dtypes = {image.dtype for image in images}
+        shape = (len(images), *images[0].shape)
+    else:
+        dtypes = {images.dtype}
+        shape = images.shape
+
+    dtype = dtypes.pop() if len(dtypes) == 1 else np.dtype(np.float32)
+    if dtype not in _TRANSFER_DTYPES:
+        dtype = np.dtype(np.float32)
+    is_uint16 = dtype == np.uint16
+    buffer_dtype = np.dtype(np.int16) if is_uint16 else dtype
+
+    buffer = torch.from_numpy(np.empty(shape, dtype=buffer_dtype))
+    if device.type == "cuda":
+        buffer = buffer.pin_memory()
+    # numpy assignment handles any strides and casts other dtypes to float32
+    target = buffer.numpy()
+    if isinstance(images, list):
+        for i, image in enumerate(images):
+            target[i] = image.view(np.int16) if is_uint16 else image
+    else:
+        target[...] = images.view(np.int16) if is_uint16 else images
+    return buffer, is_uint16
+
+
+def _to_float32(batch: torch.Tensor, is_uint16: bool) -> torch.Tensor:
+    """Cast a batch from _collate to float32, restoring uint16 values that were
+    sent as int16."""
+    if is_uint16:
+        return batch.to(torch.int32).bitwise_and_(0xFFFF).to(torch.float32)
+    return batch.to(torch.float32)
 
 
 def _prefetch(
-    batches: Generator[tuple[list, list[Optional[Profile]], list[Any]], None, None],
+    batches: Generator[tuple[Any, list[Optional[Profile]], list[Any]], None, None],
     device: torch.device,
     depth: int = 2,
-) -> Generator[tuple[torch.Tensor, list[Optional[Profile]], list[Any]], None, None]:
+) -> Generator[
+    tuple[torch.Tensor, bool, list[Optional[Profile]], list[Any]], None, None
+]:
     """Collate batches in a background thread so the next batch is ready while the
     current one runs on the device. Errors are re-raised in the caller, and closing
     this generator stops the thread."""
@@ -849,7 +922,7 @@ def _prefetch(
     def producer() -> None:
         try:
             for images, profiles, items in batches:
-                if not put((_collate(images, device), profiles, items)):
+                if not put((*_collate(images, device), profiles, items)):
                     return
             put(_SENTINEL)
         except BaseException as e:
@@ -1035,9 +1108,15 @@ def predict_from_batch(
     pbar: Optional[tqdm] = None
 
     try:
-        batches = _prefetch(
-            _iter_batches(data, load_func, batch_size), inference_device
-        )
+        if (
+            isinstance(data, (np.ndarray, torch.Tensor))
+            and data.ndim == 4
+            and load_func is None
+        ):
+            loaded = _iter_array_batches(data, batch_size)
+        else:
+            loaded = _iter_batches(data, load_func, batch_size)
+        batches = _prefetch(loaded, inference_device)
         # closing() stops the background threads if an error is raised mid-loop
         with closing(batches) as prefetched:
             # Load the first batch before the models, so its shape can be checked
@@ -1074,8 +1153,10 @@ def predict_from_batch(
                 f"{str(inference_dtype).split('.')[-1]}",
             )
 
-            for batch, profiles, batch_items in chain([first], prefetched):
-                raw_batch = batch.to(device=inference_device, non_blocking=True)
+            for batch, is_uint16, profiles, batch_items in chain([first], prefetched):
+                raw_batch = _to_float32(
+                    batch.to(device=inference_device, non_blocking=True), is_uint16
+                )
                 band_valid = band_valid_mask(raw_batch, no_data_value)
                 # a pixel is no data only if every band is no data
                 valid_mask = band_valid.any(dim=1, keepdim=True)
