@@ -102,19 +102,29 @@ def channel_norm(
     return out_array
 
 
-def channel_norm_torch(
+def band_valid_mask(
     batch: torch.Tensor, nodata_value: Optional[int | float] = 0
+) -> torch.Tensor:
+    """Boolean mask of values in batch that are not nodata_value (NaN-aware)."""
+    if nodata_value is None:
+        return torch.ones_like(batch, dtype=torch.bool)
+    if isinstance(nodata_value, float) and np.isnan(nodata_value):
+        return ~torch.isnan(batch)
+    return batch != nodata_value
+
+
+def channel_norm_torch(
+    batch: torch.Tensor,
+    nodata_value: Optional[int | float] = 0,
+    valid: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     """Batched torch version of channel_norm. Normalize each band of each image in
     a (B, C, H, W) batch by subtracting the nonzero mean and dividing by the nonzero
-    standard deviation then fill nodata values with 0."""
+    standard deviation then fill nodata values with 0. A precomputed valid mask from
+    band_valid_mask can be passed to avoid recomputing it."""
     batch = batch.to(torch.float32)
-    if nodata_value is None:
-        valid = torch.ones_like(batch, dtype=torch.bool)
-    elif isinstance(nodata_value, float) and np.isnan(nodata_value):
-        valid = ~torch.isnan(batch)
-    else:
-        valid = batch != nodata_value
+    if valid is None:
+        valid = band_valid_mask(batch, nodata_value)
 
     count = valid.sum(dim=(2, 3), keepdim=True).clamp(min=1)
     mean = torch.where(valid, batch, 0).sum(dim=(2, 3), keepdim=True) / count

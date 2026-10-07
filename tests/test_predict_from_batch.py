@@ -927,3 +927,50 @@ def test_predict_from_batch_export_many_batches_matches_memory(
     for path, expected in zip(exported, in_memory):
         with rio.open(path) as src:
             np.testing.assert_array_equal(src.read(), expected)
+
+
+def test_predict_from_batch_export_bounds_pending_saves(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from omnicloudmask import cloud_mask
+
+    cap = 2
+    state = {"submitted": 0, "saved": 0, "max_pending": 0}
+    real_build_profile = cloud_mask.build_export_profile
+    real_save = cloud_mask.save_prediction
+
+    def counting_build_profile(*args, **kwargs):
+        # called once per prediction, just before its save is submitted
+        state["submitted"] += 1
+        state["max_pending"] = max(
+            state["max_pending"], state["submitted"] - state["saved"]
+        )
+        return real_build_profile(*args, **kwargs)
+
+    def slow_save(*args, **kwargs):
+        time.sleep(0.05)
+        real_save(*args, **kwargs)
+        state["saved"] += 1
+
+    monkeypatch.setattr(cloud_mask, "_MAX_SAVES_IN_FLIGHT", cap)
+    monkeypatch.setattr(cloud_mask, "build_export_profile", counting_build_profile)
+    monkeypatch.setattr(cloud_mask, "save_prediction", slow_save)
+
+    data = striped_images(10)
+    paths = [
+        write_tif(tmp_path / f"chip_{i}.tif", image) for i, image in enumerate(data)
+    ]
+    outputs = predict_from_batch(
+        paths,
+        batch_size=4,
+        load_func=load_tif,
+        inference_device="cpu",
+        custom_models=SeededConv(),
+        export_to_disk=True,
+        output_dir=tmp_path / "out",
+    )
+
+    assert all(path.exists() for path in outputs)
+    assert state["saved"] == len(paths)
+    # the one being submitted, plus at most cap already waiting
+    assert state["max_pending"] <= cap + 1, state["max_pending"]

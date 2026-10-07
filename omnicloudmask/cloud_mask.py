@@ -2,6 +2,7 @@ import os
 import warnings
 from collections import deque
 from contextlib import closing
+from itertools import chain, islice, repeat
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from queue import Empty, Full, Queue
@@ -26,6 +27,7 @@ from tqdm.auto import tqdm
 from .__version__ import __version__
 from .download_models import get_models
 from .model_utils import (
+    band_valid_mask,
     channel_norm_torch,
     create_gradient_mask,
     default_device,
@@ -38,7 +40,6 @@ from .model_utils import (
 from .mps_patch import _get_model_in_channels, patch_models_for_mps
 from .optimizations import optimized_argmax
 from .raster_utils import (
-    batch_nodata_mask,
     get_patch,
     make_patch_indexes,
     mask_prediction,
@@ -755,8 +756,13 @@ def predict_from_load_func(
     return pred_paths
 
 
-# marks the end of an iterator
+# marks the end of a queue of batches
 _SENTINEL = object()
+
+# most predictions waiting to be written, so a slow disk can't make queued
+# predictions pile up in memory. One writer thread is fastest, as more contend
+# with the loader threads.
+_MAX_SAVES_IN_FLIGHT = 32
 
 
 def _prepare_item(
@@ -775,65 +781,39 @@ def _prepare_item(
     return np.asarray(item, dtype=np.float32), profile
 
 
-def _check_item_shape(
-    image: Union[np.ndarray, torch.Tensor], index: int, expected_shape: tuple
-) -> None:
-    """Check an image matches the shape of the first image."""
-    if tuple(image.shape) != expected_shape:
-        raise ValueError(
-            f"All images must have the same shape. Image at index {index} has shape "
-            f"{tuple(image.shape)}, expected {expected_shape} (shape of the first "
-            f"image). Call predict_from_batch separately for each image size."
-        )
+def _chunks(items: Iterable[Any], size: int) -> Iterator[list[Any]]:
+    """Split an iterable into lists of up to size items."""
+    iterator = iter(items)
+    while chunk := list(islice(iterator, size)):
+        yield chunk
 
 
 def _iter_batches(
-    first: tuple[Union[np.ndarray, torch.Tensor], Optional[Profile]],
-    first_item: Any,
-    items: Iterator[Any],
-    load_func: Optional[Callable],
-    batch_size: int,
-    expected_shape: tuple,
+    data: Iterable[Any], load_func: Optional[Callable], batch_size: int
 ) -> Generator[tuple[list, list[Optional[Profile]], list[Any]], None, None]:
-    """Yield batches of (images, profiles, original items) in input order.
-    Items are loaded ahead in a thread pool so loading overlaps with inference."""
-    num_workers = max(1, min(batch_size, os.cpu_count() or 1))
-    max_pending = batch_size * 2
-
-    images, profiles, batch_items = [first[0]], [first[1]], [first_item]
-    index = 1
-
-    executor = ThreadPoolExecutor(max_workers=num_workers)
-    pending: deque[tuple[Any, Future]] = deque()
-
-    def submit_next() -> None:
-        item = next(items, _SENTINEL)
-        if item is not _SENTINEL:
-            pending.append((item, executor.submit(_prepare_item, item, load_func)))
-
-    try:
-        for _ in range(max_pending):
-            submit_next()
-
-        while pending:
-            if len(images) == batch_size:
-                yield images, profiles, batch_items
-                images, profiles, batch_items = [], [], []
-
-            item, future = pending.popleft()
-            image, profile = future.result()
-            submit_next()
-
-            _check_item_shape(image, index, expected_shape)
-            index += 1
-
-            images.append(image)
-            profiles.append(profile)
-            batch_items.append(item)
-
-        yield images, profiles, batch_items
-    finally:
-        executor.shutdown(wait=True, cancel_futures=True)
+    """Load data one batch at a time, items in parallel, and yield (images,
+    profiles, original items) in input order. Every image must match the shape of
+    the first, which is also checked for size."""
+    expected_shape: Optional[tuple] = None
+    index = 0
+    workers = max(1, min(batch_size, os.cpu_count() or 1))
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        for chunk in _chunks(data, batch_size):
+            loaded = list(executor.map(_prepare_item, chunk, repeat(load_func)))
+            images = [image for image, _ in loaded]
+            for image in images:
+                if expected_shape is None:
+                    expected_shape = tuple(image.shape)
+                    validate_input_shape(expected_shape)
+                if tuple(image.shape) != expected_shape:
+                    raise ValueError(
+                        f"All images must have the same shape. Image at index "
+                        f"{index} has shape {tuple(image.shape)}, expected "
+                        f"{expected_shape} (shape of the first image). Call "
+                        f"predict_from_batch separately for each image size."
+                    )
+                index += 1
+            yield images, [profile for _, profile in loaded], chunk
 
 
 def _collate(images: list, device: torch.device) -> torch.Tensor:
@@ -1039,15 +1019,6 @@ def predict_from_batch(
     except TypeError:
         total = None
 
-    items = iter(data)
-    first_item = next(items, _SENTINEL)
-    if first_item is _SENTINEL:
-        raise ValueError("data is empty, at least one image is required.")
-
-    first = _prepare_item(first_item, load_func)
-    image_shape = tuple(first[0].shape)
-    validate_input_shape(image_shape)
-
     if inference_device is None:
         inference_device = default_device()
     inference_device = torch.device(inference_device)
@@ -1056,52 +1027,59 @@ def predict_from_batch(
     # Warn if using CPU with reduced precision
     warn_cpu_reduced_precision(inference_device, inference_dtype)
 
-    models = collect_models(
-        custom_models=custom_models,
-        inference_device=inference_device,
-        inference_dtype=inference_dtype,
-        source=model_download_source,
-        destination_model_dir=destination_model_dir,
-        model_version=model_version,
-        compile_models=compile_models,
-        patch_size=(image_shape[1], image_shape[2]),
-        batch_size=batch_size,
-        compile_mode=compile_mode,
-    )
-
-    model_channels = _get_model_in_channels(models[0])
-    if image_shape[0] != model_channels:
-        raise ValueError(
-            f"Images must have {model_channels} bands (Red, Green, NIR), found "
-            f"shape {image_shape}. If a band is unavailable, fill it with zeros."
-        )
-
-    pbar = tqdm(
-        total=total,
-        desc=f"Running inference using {inference_device.type} "
-        f"{str(inference_dtype).split('.')[-1]}",
-    )
     save_executor = ThreadPoolExecutor(max_workers=1) if export_to_disk else None
-    save_futures: list[Future] = []
+    pending_saves: deque[Future] = deque()
     results: list[np.ndarray] = []
     output: Optional[np.ndarray] = None
     written = 0
+    pbar: Optional[tqdm] = None
 
     try:
-        batches = _iter_batches(
-            first=first,
-            first_item=first_item,
-            items=items,
-            load_func=load_func,
-            batch_size=batch_size,
-            expected_shape=image_shape,
+        batches = _prefetch(
+            _iter_batches(data, load_func, batch_size), inference_device
         )
         # closing() stops the background threads if an error is raised mid-loop
-        with closing(_prefetch(batches, inference_device)) as prefetched:
-            for batch, profiles, batch_items in prefetched:
+        with closing(batches) as prefetched:
+            # Load the first batch before the models, so its shape can be checked
+            # and used to warm up compiled models; later batches load meanwhile
+            first = next(prefetched, None)
+            if first is None:
+                raise ValueError("data is empty, at least one image is required.")
+            image_shape = tuple(first[0].shape[1:])
+
+            models = collect_models(
+                custom_models=custom_models,
+                inference_device=inference_device,
+                inference_dtype=inference_dtype,
+                source=model_download_source,
+                destination_model_dir=destination_model_dir,
+                model_version=model_version,
+                compile_models=compile_models,
+                patch_size=(image_shape[1], image_shape[2]),
+                batch_size=batch_size,
+                compile_mode=compile_mode,
+            )
+
+            model_channels = _get_model_in_channels(models[0])
+            if image_shape[0] != model_channels:
+                raise ValueError(
+                    f"Images must have {model_channels} bands (Red, Green, NIR), "
+                    f"found shape {image_shape}. If a band is unavailable, fill it "
+                    f"with zeros."
+                )
+
+            pbar = tqdm(
+                total=total,
+                desc=f"Running inference using {inference_device.type} "
+                f"{str(inference_dtype).split('.')[-1]}",
+            )
+
+            for batch, profiles, batch_items in chain([first], prefetched):
                 raw_batch = batch.to(device=inference_device, non_blocking=True)
-                valid_mask = batch_nodata_mask(raw_batch, no_data_value)
-                norm_batch = channel_norm_torch(raw_batch, no_data_value).to(
+                band_valid = band_valid_mask(raw_batch, no_data_value)
+                # a pixel is no data only if every band is no data
+                valid_mask = band_valid.any(dim=1, keepdim=True)
+                norm_batch = channel_norm_torch(raw_batch, valid=band_valid).to(
                     dtype=inference_dtype
                 )
 
@@ -1111,19 +1089,17 @@ def predict_from_batch(
                     softmax_output=softmax_output,
                     class_dim=1,
                 )
-
+                if apply_no_data_mask:
+                    preds.masked_fill_(~valid_mask, 0)
                 # match the tiled path, which skips patches that are entirely no data
                 empty = ~valid_mask.flatten(start_dim=1).any(dim=1)
-                preds = preds.masked_fill(
+                preds.masked_fill_(
                     empty[:, None, None, None],
                     np.nan if export_confidence and not softmax_output else 0,
                 )
-                if apply_no_data_mask:
-                    preds = preds * valid_mask
-
-                batch_preds = preds.numpy(force=True)
 
                 if save_executor is not None:
+                    batch_preds = preds.numpy(force=True)
                     nodata_masks = (
                         valid_mask[:, 0].to(dtype=torch.uint8).numpy(force=True)
                         if apply_no_data_mask
@@ -1132,7 +1108,9 @@ def predict_from_batch(
                     for pred, profile, item, nodata_mask in zip(
                         batch_preds, profiles, batch_items, nodata_masks
                     ):
-                        save_futures.append(
+                        while len(pending_saves) >= _MAX_SAVES_IN_FLIGHT:
+                            pending_saves.popleft().result()
+                        pending_saves.append(
                             save_executor.submit(
                                 save_prediction,
                                 make_output_path(item, output_dir),
@@ -1143,24 +1121,30 @@ def predict_from_batch(
                         )
                 elif total is not None:
                     if output is None:
-                        output = np.empty(
-                            (total, *batch_preds.shape[1:]), dtype=batch_preds.dtype
+                        # postprocess_preds returns uint8 classes or float32 confidence
+                        output_dtype = (
+                            np.uint8 if preds.dtype == torch.uint8 else np.float32
                         )
-                    output[written : written + len(batch_preds)] = batch_preds
-                    written += len(batch_preds)
+                        output = np.empty((total, *preds.shape[1:]), dtype=output_dtype)
+                    # copy straight into the output, without an intermediate array
+                    torch.from_numpy(output[written : written + len(preds)]).copy_(
+                        preds
+                    )
+                    written += len(preds)
                 else:
-                    results.append(batch_preds)
+                    results.append(preds.numpy(force=True))
 
-                pbar.update(len(batch_preds))
+                pbar.update(len(preds))
     finally:
         if save_executor is not None:
             save_executor.shutdown(wait=True)
-        pbar.close()
+        if pbar is not None:
+            pbar.close()
         if inference_device.type.startswith("cuda"):
             torch.cuda.empty_cache()
 
     # surface any errors raised while saving
-    for future in save_futures:
+    for future in pending_saves:
         future.result()
 
     if export_to_disk:
