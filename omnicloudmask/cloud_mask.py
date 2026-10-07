@@ -904,10 +904,12 @@ def _prefetch(
     tuple[torch.Tensor, bool, list[Optional[Profile]], list[Any]], None, None
 ]:
     """Collate batches in a background thread so the next batch is ready while the
-    current one runs on the device. Errors are re-raised in the caller, and closing
-    this generator stops the thread."""
+    current one runs on the device. On CUDA the thread also copies each batch to
+    the device on its own stream, overlapping the copy with compute. Errors are
+    re-raised in the caller, and closing this generator stops the thread."""
     result_queue: Queue = Queue(maxsize=depth)
     stop = Event()
+    copy_stream = torch.cuda.Stream(device=device) if device.type == "cuda" else None
 
     def put(item: Any) -> bool:
         # time out regularly so the producer can't block forever on a full queue
@@ -922,7 +924,14 @@ def _prefetch(
     def producer() -> None:
         try:
             for images, profiles, items in batches:
-                if not put((*_collate(images, device), profiles, items)):
+                batch, is_uint16 = _collate(images, device)
+                ready = None
+                if copy_stream is not None and batch.device.type == "cpu":
+                    with torch.cuda.stream(copy_stream):
+                        batch = batch.to(device=device, non_blocking=True)
+                        ready = torch.cuda.Event()
+                        ready.record(copy_stream)
+                if not put((batch, is_uint16, profiles, items, ready)):
                     return
             put(_SENTINEL)
         except BaseException as e:
@@ -939,7 +948,14 @@ def _prefetch(
                 return
             if isinstance(result, BaseException):
                 raise result
-            yield result
+            batch, is_uint16, profiles, items, ready = result
+            if ready is not None:
+                # wait for the copy, and tell the allocator the batch is used on
+                # this stream so its memory isn't reused while still in use
+                compute_stream = torch.cuda.current_stream(device)
+                compute_stream.wait_event(ready)
+                batch.record_stream(compute_stream)
+            yield batch, is_uint16, profiles, items
     finally:
         stop.set()
         thread.join()
