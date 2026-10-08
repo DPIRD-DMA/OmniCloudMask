@@ -866,6 +866,13 @@ def _collate(images: list, device: torch.device) -> torch.Tensor:
     return torch.stack([torch.as_tensor(image).to(device=device) for image in images])
 
 
+def _collate_in_background(images: list, device: torch.device) -> bool:
+    """Whether images can be collated on the prefetch thread. Tensors bound for MPS
+    are left to the caller, which holds the device lock, since moving them is MPS
+    work and PyTorch's MPS backend isn't thread-safe."""
+    return device.type != "mps" or all(isinstance(i, np.ndarray) for i in images)
+
+
 def _prefetch(
     batches: Generator[tuple[list, list[Optional[Profile]], list[Any]], None, None],
     device: torch.device,
@@ -890,7 +897,9 @@ def _prefetch(
     def producer() -> None:
         try:
             for images, profiles, items in batches:
-                if not put((_collate(images, device), profiles, items)):
+                if _collate_in_background(images, device):
+                    images = _collate(images, device)
+                if not put((images, profiles, items)):
                     return
             put(_SENTINEL)
         except BaseException as e:
@@ -907,7 +916,10 @@ def _prefetch(
                 return
             if isinstance(result, BaseException):
                 raise result
-            yield result
+            batch, profiles, items = result
+            if not isinstance(batch, torch.Tensor):
+                batch = _collate(batch, device)
+            yield batch, profiles, items
     finally:
         stop.set()
         thread.join()
@@ -1077,108 +1089,109 @@ def predict_from_batch(
     # Warn if using CPU with reduced precision
     warn_cpu_reduced_precision(inference_device, inference_dtype)
 
-    models = collect_models(
-        custom_models=custom_models,
-        inference_device=inference_device,
-        inference_dtype=inference_dtype,
-        source=model_download_source,
-        destination_model_dir=destination_model_dir,
-        model_version=model_version,
-        compile_models=compile_models,
-        patch_size=(image_shape[1], image_shape[2]),
-        batch_size=batch_size,
-        compile_mode=compile_mode,
-    )
-
-    model_channels = _get_model_in_channels(models[0])
-    if image_shape[0] != model_channels:
-        raise ValueError(
-            f"Images must have {model_channels} bands (Red, Green, NIR), found "
-            f"shape {image_shape}. If a band is unavailable, fill it with zeros."
-        )
-
-    pbar = tqdm(
-        total=total,
-        desc=f"Running inference using {inference_device.type} "
-        f"{str(inference_dtype).split('.')[-1]}",
-    )
-    save_executor = ThreadPoolExecutor(max_workers=1) if export_to_disk else None
-    save_futures: list[Future] = []
-    results: list[np.ndarray] = []
-    output: Optional[np.ndarray] = None
-    written = 0
-
-    try:
-        batches = _iter_batches(
-            first=first,
-            first_item=first_item,
-            items=items,
-            load_func=load_func,
+    with device_lock(inference_device):
+        models = collect_models(
+            custom_models=custom_models,
+            inference_device=inference_device,
+            inference_dtype=inference_dtype,
+            source=model_download_source,
+            destination_model_dir=destination_model_dir,
+            model_version=model_version,
+            compile_models=compile_models,
+            patch_size=(image_shape[1], image_shape[2]),
             batch_size=batch_size,
-            expected_shape=image_shape,
+            compile_mode=compile_mode,
         )
-        # closing() stops the background threads if an error is raised mid-loop
-        with closing(_prefetch(batches, inference_device)) as prefetched:
-            for batch, profiles, batch_items in prefetched:
-                raw_batch = batch.to(device=inference_device, non_blocking=True)
-                valid_mask = batch_nodata_mask(raw_batch, no_data_value)
-                norm_batch = channel_norm_torch(raw_batch, no_data_value).to(
-                    dtype=inference_dtype
-                )
 
-                preds = postprocess_preds(
-                    infer_batch(models, norm_batch),
-                    export_confidence=export_confidence,
-                    softmax_output=softmax_output,
-                    class_dim=1,
-                )
+        model_channels = _get_model_in_channels(models[0])
+        if image_shape[0] != model_channels:
+            raise ValueError(
+                f"Images must have {model_channels} bands (Red, Green, NIR), found "
+                f"shape {image_shape}. If a band is unavailable, fill it with zeros."
+            )
 
-                # match the tiled path, which skips patches that are entirely no data
-                empty = ~valid_mask.flatten(start_dim=1).any(dim=1)
-                preds = preds.masked_fill(
-                    empty[:, None, None, None],
-                    np.nan if export_confidence and not softmax_output else 0,
-                )
-                if apply_no_data_mask:
-                    preds = preds * valid_mask
+        pbar = tqdm(
+            total=total,
+            desc=f"Running inference using {inference_device.type} "
+            f"{str(inference_dtype).split('.')[-1]}",
+        )
+        save_executor = ThreadPoolExecutor(max_workers=1) if export_to_disk else None
+        save_futures: list[Future] = []
+        results: list[np.ndarray] = []
+        output: Optional[np.ndarray] = None
+        written = 0
 
-                batch_preds = preds.numpy(force=True)
-
-                if save_executor is not None:
-                    nodata_masks = (
-                        valid_mask[:, 0].to(dtype=torch.uint8).numpy(force=True)
-                        if apply_no_data_mask
-                        else [None] * len(batch_preds)
+        try:
+            batches = _iter_batches(
+                first=first,
+                first_item=first_item,
+                items=items,
+                load_func=load_func,
+                batch_size=batch_size,
+                expected_shape=image_shape,
+            )
+            # closing() stops the background threads if an error is raised mid-loop
+            with closing(_prefetch(batches, inference_device)) as prefetched:
+                for batch, profiles, batch_items in prefetched:
+                    raw_batch = batch.to(device=inference_device, non_blocking=True)
+                    valid_mask = batch_nodata_mask(raw_batch, no_data_value)
+                    norm_batch = channel_norm_torch(raw_batch, no_data_value).to(
+                        dtype=inference_dtype
                     )
-                    for pred, profile, item, nodata_mask in zip(
-                        batch_preds, profiles, batch_items, nodata_masks
-                    ):
-                        save_futures.append(
-                            save_executor.submit(
-                                save_prediction,
-                                make_output_path(item, output_dir),
-                                build_export_profile(profile, pred),
-                                pred,
-                                nodata_mask,
-                            )
-                        )
-                elif total is not None:
-                    if output is None:
-                        output = np.empty(
-                            (total, *batch_preds.shape[1:]), dtype=batch_preds.dtype
-                        )
-                    output[written : written + len(batch_preds)] = batch_preds
-                    written += len(batch_preds)
-                else:
-                    results.append(batch_preds)
 
-                pbar.update(len(batch_preds))
-    finally:
-        if save_executor is not None:
-            save_executor.shutdown(wait=True)
-        pbar.close()
-        if inference_device.type.startswith("cuda"):
-            torch.cuda.empty_cache()
+                    preds = postprocess_preds(
+                        infer_batch(models, norm_batch),
+                        export_confidence=export_confidence,
+                        softmax_output=softmax_output,
+                        class_dim=1,
+                    )
+
+                    # match the tiled path, which skips patches that are all no data
+                    empty = ~valid_mask.flatten(start_dim=1).any(dim=1)
+                    preds = preds.masked_fill(
+                        empty[:, None, None, None],
+                        np.nan if export_confidence and not softmax_output else 0,
+                    )
+                    if apply_no_data_mask:
+                        preds = preds * valid_mask
+
+                    batch_preds = preds.numpy(force=True)
+
+                    if save_executor is not None:
+                        nodata_masks = (
+                            valid_mask[:, 0].to(dtype=torch.uint8).numpy(force=True)
+                            if apply_no_data_mask
+                            else [None] * len(batch_preds)
+                        )
+                        for pred, profile, item, nodata_mask in zip(
+                            batch_preds, profiles, batch_items, nodata_masks
+                        ):
+                            save_futures.append(
+                                save_executor.submit(
+                                    save_prediction,
+                                    make_output_path(item, output_dir),
+                                    build_export_profile(profile, pred),
+                                    pred,
+                                    nodata_mask,
+                                )
+                            )
+                    elif total is not None:
+                        if output is None:
+                            output = np.empty(
+                                (total, *batch_preds.shape[1:]), dtype=batch_preds.dtype
+                            )
+                        output[written : written + len(batch_preds)] = batch_preds
+                        written += len(batch_preds)
+                    else:
+                        results.append(batch_preds)
+
+                    pbar.update(len(batch_preds))
+        finally:
+            if save_executor is not None:
+                save_executor.shutdown(wait=True)
+            pbar.close()
+            if inference_device.type.startswith("cuda"):
+                torch.cuda.empty_cache()
 
     # surface any errors raised while saving
     for future in save_futures:

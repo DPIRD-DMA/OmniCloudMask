@@ -2,6 +2,7 @@ import itertools
 import threading
 import time
 import traceback
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -400,6 +401,30 @@ def test_predict_from_batch_accelerator_tensor_input(
         torch.from_numpy(images).to(device), batch_size=2, inference_device=device
     )
     np.testing.assert_array_equal(result, expected)
+
+
+@pytest.mark.parametrize("device", [pytest.param("cpu"), *DEVICES])
+@pytest.mark.parametrize("input_type", ["numpy", "cpu_tensor", "device_tensor"])
+def test_predict_from_batch_from_threads(
+    images: np.ndarray, device: str, input_type: str
+) -> None:
+    """Calling predict_from_batch from several threads at once must not crash, which
+    it did on MPS, and must match a single-threaded call."""
+    data = {
+        "numpy": images,
+        "cpu_tensor": torch.from_numpy(images),
+        "device_tensor": torch.from_numpy(images).to(device),
+    }[input_type]
+    expected = predict_from_batch(data, batch_size=2, inference_device=device)
+
+    def run(_: int) -> np.ndarray:
+        return predict_from_batch(data, batch_size=2, inference_device=device)
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        results = run_with_timeout(lambda: list(executor.map(run, range(8))))
+
+    for result in results:
+        np.testing.assert_array_equal(result, expected)
 
 
 def test_predict_from_batch_default_device(
