@@ -1,11 +1,11 @@
 import os
 import warnings
 from collections import deque
-from contextlib import closing
+from contextlib import AbstractContextManager, closing, nullcontext
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from queue import Empty, Full, Queue
-from threading import Event, Thread
+from threading import Event, RLock, Thread
 from typing import (
     Any,
     Callable,
@@ -44,6 +44,25 @@ from .raster_utils import (
     mask_prediction,
     save_prediction,
 )
+
+
+# PyTorch's MPS backend shares one command buffer per process, so GPU work encoded
+# from two threads at once fails a Metal assertion and aborts the process.
+_MPS_LOCK = RLock()
+
+
+def device_lock(*devices: torch.device) -> AbstractContextManager:
+    """Serialise work across threads when any of the devices is MPS. Other devices
+    don't need it."""
+    if any(device.type == "mps" for device in devices):
+        return _MPS_LOCK
+    return nullcontext()
+
+
+def locked_coordinator(**kwargs) -> Optional[np.ndarray]:
+    """Run coordinator while holding the device lock for its devices."""
+    with device_lock(kwargs["inference_device"], kwargs["mosaic_device"]):
+        return coordinator(**kwargs)
 
 
 def warn_cpu_reduced_precision(device: torch.device, dtype: torch.dtype) -> None:
@@ -572,36 +591,37 @@ def predict_from_array(
     # Warn if using CPU with reduced precision
     warn_cpu_reduced_precision(inference_device, inference_dtype)
 
-    # if no custom model paths are provided, use the default models
-    models = collect_models(
-        custom_models=custom_models,
-        inference_device=inference_device,
-        inference_dtype=inference_dtype,
-        source=model_download_source,
-        destination_model_dir=destination_model_dir,
-        model_version=model_version,
-        compile_models=compile_models,
-        patch_size=patch_size,
-        batch_size=batch_size,
-        compile_mode=compile_mode,
-    )
+    with device_lock(inference_device, mosaic_device):
+        # if no custom model paths are provided, use the default models
+        models = collect_models(
+            custom_models=custom_models,
+            inference_device=inference_device,
+            inference_dtype=inference_dtype,
+            source=model_download_source,
+            destination_model_dir=destination_model_dir,
+            model_version=model_version,
+            compile_models=compile_models,
+            patch_size=patch_size,
+            batch_size=batch_size,
+            compile_mode=compile_mode,
+        )
 
-    pred_tracker = coordinator(
-        input_array=input_array,
-        models=models,
-        inference_device=inference_device,
-        mosaic_device=mosaic_device,
-        inference_dtype=inference_dtype,
-        export_confidence=export_confidence,
-        softmax_output=softmax_output,
-        patch_size=patch_size,
-        patch_overlap=patch_overlap,
-        batch_size=batch_size,
-        no_data_value=no_data_value,
-        export_to_disk=False,
-        apply_no_data_mask=apply_no_data_mask,
-        pred_classes=pred_classes,
-    )
+        pred_tracker = coordinator(
+            input_array=input_array,
+            models=models,
+            inference_device=inference_device,
+            mosaic_device=mosaic_device,
+            inference_dtype=inference_dtype,
+            export_confidence=export_confidence,
+            softmax_output=softmax_output,
+            patch_size=patch_size,
+            patch_overlap=patch_overlap,
+            batch_size=batch_size,
+            no_data_value=no_data_value,
+            export_to_disk=False,
+            apply_no_data_mask=apply_no_data_mask,
+            pred_classes=pred_classes,
+        )
 
     return pred_tracker
 
@@ -673,18 +693,19 @@ def predict_from_load_func(
     # Warn if using CPU with reduced precision
     warn_cpu_reduced_precision(inference_device, inference_dtype)
 
-    models = collect_models(
-        custom_models=custom_models,
-        inference_device=inference_device,
-        inference_dtype=inference_dtype,
-        destination_model_dir=destination_model_dir,
-        source=model_download_source,
-        model_version=model_version,
-        compile_models=compile_models,
-        patch_size=patch_size,
-        batch_size=batch_size,
-        compile_mode=compile_mode,
-    )
+    with device_lock(inference_device, mosaic_device):
+        models = collect_models(
+            custom_models=custom_models,
+            inference_device=inference_device,
+            inference_dtype=inference_dtype,
+            destination_model_dir=destination_model_dir,
+            source=model_download_source,
+            model_version=model_version,
+            compile_models=compile_models,
+            patch_size=patch_size,
+            batch_size=batch_size,
+            compile_mode=compile_mode,
+        )
 
     pbar = tqdm(
         total=len(scene_paths),
@@ -718,7 +739,7 @@ def predict_from_load_func(
                 inf_future.result()
 
             inf_future = inf_executor.submit(
-                coordinator,
+                locked_coordinator,
                 input_array=input_array,
                 profile=profile,
                 output_path=output_path,
