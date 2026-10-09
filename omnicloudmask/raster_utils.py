@@ -3,6 +3,7 @@ from typing import Optional
 
 import numpy as np
 import rasterio as rio
+import torch
 from rasterio.profiles import Profile
 
 from .model_utils import channel_norm
@@ -85,9 +86,26 @@ def mask_prediction(
     )
     # if all bands at a single pixel are no_data_value,
     # then it is considered no data
-    mask = (~np.all(scene == no_data_value, axis=0)).astype(np.uint8)
+    if isinstance(no_data_value, float) and np.isnan(no_data_value):
+        is_no_data = np.isnan(scene)
+    else:
+        is_no_data = scene == no_data_value
+    mask = (~np.all(is_no_data, axis=0)).astype(np.uint8)
     pred_tracker_np *= mask
     return pred_tracker_np, mask
+
+
+def batch_nodata_mask(
+    batch: torch.Tensor, no_data_value: int | float = 0
+) -> torch.Tensor:
+    """Create a (B, 1, H, W) boolean valid-data mask for a (B, C, H, W) batch,
+    a pixel is no data if all bands at that location are equal to no_data_value."""
+    assert batch.ndim == 4, "Batch must have 4 dimensions"
+    if isinstance(no_data_value, float) and np.isnan(no_data_value):
+        is_no_data = torch.isnan(batch)
+    else:
+        is_no_data = batch == no_data_value
+    return ~torch.all(is_no_data, dim=1, keepdim=True)
 
 
 def make_patch_indexes(

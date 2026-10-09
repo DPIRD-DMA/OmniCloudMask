@@ -8,9 +8,12 @@ import torch
 from omnicloudmask.download_models import get_models
 from omnicloudmask.model_utils import (
     channel_norm,
+    channel_norm_torch,
+    compile_torch_model,
     create_gradient_mask,
     default_device,
     get_torch_dtype,
+    infer_batch,
     load_model_from_weights,
     store_results,
 )
@@ -539,6 +542,16 @@ def test_store_results_wrong_shapes():
         store_results(pred_batch, index_batch, pred_tracker, gradient)
 
 
+def test_store_results_class_mismatch():
+    pred_batch = torch.ones((1, 2, 2, 2))
+    index_batch = [(0, 2, 0, 2)]
+    pred_tracker = torch.zeros((4, 2, 2))
+    gradient = torch.ones((2, 2))
+
+    with pytest.raises(ValueError, match="predicted 2 classes, but pred_classes is 4"):
+        store_results(pred_batch, index_batch, pred_tracker, gradient)
+
+
 def test_load_model_from_weights():
     models = []
     for model_details in get_models():
@@ -558,3 +571,66 @@ def test_load_model_from_weights():
 
 if __name__ == "__main__":
     pytest.main()
+
+
+def _channel_norm_batch(batch: np.ndarray, nodata_value) -> np.ndarray:
+    return np.stack([channel_norm(image, nodata_value) for image in batch])
+
+
+@pytest.mark.parametrize("nodata_value", [0, -9999, None])
+def test_channel_norm_torch_matches_channel_norm(nodata_value) -> None:
+    rng = np.random.default_rng(0)
+    batch = rng.random((4, 3, 32, 32)).astype(np.float32) * 1000
+    fill = 0 if nodata_value is None else nodata_value
+    batch[0, :, :8, :] = fill  # partial no data on all bands
+    batch[1, 1] = fill  # one band entirely no data
+    batch[2, 0] = 5.0  # constant band
+
+    expected = _channel_norm_batch(batch, nodata_value)
+    result = channel_norm_torch(torch.from_numpy(batch), nodata_value).numpy()
+    np.testing.assert_allclose(result, expected, atol=1e-5)
+
+
+def test_channel_norm_torch_nan_nodata() -> None:
+    rng = np.random.default_rng(0)
+    batch = rng.random((2, 3, 32, 32)).astype(np.float32)
+    batch[0, :, :8, :] = np.nan
+
+    expected = _channel_norm_batch(batch, np.nan)
+    result = channel_norm_torch(torch.from_numpy(batch), np.nan).numpy()
+    np.testing.assert_allclose(result, expected, atol=1e-5)
+    assert not np.isnan(result).any()
+
+
+def test_channel_norm_torch_all_nodata() -> None:
+    batch = torch.zeros((2, 3, 16, 16))
+    result = channel_norm_torch(batch, 0)
+    assert torch.equal(result, torch.zeros_like(batch))
+
+
+def test_infer_batch_averages_models() -> None:
+    class Constant(torch.nn.Module):
+        def __init__(self, value: float) -> None:
+            super().__init__()
+            self.value = value
+
+        def forward(self, x: torch.Tensor) -> torch.Tensor:
+            return torch.full((x.shape[0], 4, *x.shape[2:]), self.value)
+
+    result = infer_batch([Constant(1.0), Constant(3.0)], torch.zeros((2, 3, 8, 8)))
+    assert result.shape == (2, 4, 8, 8)
+    assert torch.all(result == 2.0)
+
+
+def test_compile_torch_model_rectangular_patch_size() -> None:
+    model = torch.nn.Conv2d(3, 4, kernel_size=3, padding=1)
+    with patch("omnicloudmask.model_utils.torch.compile", side_effect=lambda m, **_: m):
+        compiled = compile_torch_model(
+            model,
+            patch_size=(32, 48),
+            batch_size=2,
+            dtype=torch.float32,
+            device=torch.device("cpu"),
+            compile_mode="default",
+        )
+    assert compiled(torch.zeros((1, 3, 32, 48))).shape == (1, 4, 32, 48)

@@ -137,6 +137,69 @@ mask = predict_from_array(
 # Output shape: (4, height, width) - one channel per class
 ```
 
+(batch-prediction)=
+## Batch Prediction for Image Datasets
+
+`predict_from_array` and `predict_from_load_func` tile one large scene into patches. If you have many small images instead, such as the chips of an existing training dataset you want to filter for clouds, use `predict_from_batch` to run several images through the model at once:
+
+```python
+import numpy as np
+from omnicloudmask import predict_from_batch
+
+# chips: (N, 3, 512, 512) array of Red, Green, NIR images
+masks = predict_from_batch(chips, batch_size=16)
+# Output shape: (N, 1, 512, 512)
+```
+
+`data` can be any iterable of `(3, height, width)` arrays or tensors: a 4D numpy array or torch tensor, a list, or a generator. Every image in one call must have the same shape. If your dataset has several chip sizes, call `predict_from_batch` once per size.
+
+Each image is predicted as a single patch, so there is no overlap between images and predictions near chip edges have less spatial context than in a tiled scene. Very small chips may not give the model enough context. See [Spatial Context](spatial-context.md).
+
+### Loading from files
+
+Pass a `load_func` and `data` becomes a list of file paths (or anything else your loader accepts). Files are loaded in background threads while the GPU runs inference:
+
+```python
+from functools import partial
+from omnicloudmask import predict_from_batch, load_multiband
+
+loader = partial(load_multiband, band_order=[1, 2, 4])
+masks = predict_from_batch(chip_paths, batch_size=16, load_func=loader)
+```
+
+Set `export_to_disk=True` to save each prediction as a GeoTIFF next to its input (or in `output_dir`) and get the file paths back instead of an array. `overwrite=False` skips chips that already have a prediction, so an interrupted run can be resumed:
+
+```python
+pred_paths = predict_from_batch(
+    chip_paths,
+    batch_size=16,
+    load_func=loader,
+    export_to_disk=True,
+    output_dir="/path/to/masks",
+    overwrite=False,
+)
+```
+
+### Filtering a dataset by cloud cover
+
+No-data pixels are set to `0` in the output, which is also the Clear class. Compute cloud fractions over valid pixels only, and drop chips that are mostly no data, otherwise an empty chip counts as 0% cloud:
+
+```python
+masks = predict_from_batch(chips, batch_size=16)
+
+valid = ~np.all(chips == 0, axis=1, keepdims=True)  # use your no_data_value
+valid_pixels = valid.sum(axis=(1, 2, 3))
+cloudy = np.isin(masks, [1, 2, 3]) & valid  # thick cloud, thin cloud, shadow
+cloud_fraction = cloudy.sum(axis=(1, 2, 3)) / np.maximum(valid_pixels, 1)
+valid_fraction = valid_pixels / valid[0].size
+
+clear_chips = chips[(cloud_fraction < 0.05) & (valid_fraction >= 0.9)]
+```
+
+See the [batch prediction notebook](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/batch_prediction.ipynb) for a full example of each input and output option.
+
+The returned array holds every prediction in memory. For very large datasets, especially with `export_confidence=True`, call `predict_from_batch` on chunks of the dataset or use `export_to_disk=True`.
+
 ## Output Directory
 
 Save predictions to a specific directory:

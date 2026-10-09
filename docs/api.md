@@ -105,6 +105,62 @@ All parameters from `predict_from_array` plus:
 
 ---
 
+### predict_from_batch
+
+```python
+omnicloudmask.predict_from_batch(
+    data,
+    batch_size=1,
+    load_func=None,
+    inference_device=None,
+    inference_dtype=torch.float32,
+    export_confidence=False,
+    softmax_output=True,
+    no_data_value=0,
+    apply_no_data_mask=True,
+    export_to_disk=False,
+    output_dir=None,
+    overwrite=True,
+    custom_models=None,
+    destination_model_dir=None,
+    model_download_source="hugging_face",
+    compile_models=False,
+    compile_mode="default",
+    model_version=None,
+)
+```
+
+Predict cloud masks for many same-sized images, such as the chips of an existing dataset, running several images per batch. Each image is predicted as a single patch, so there is no patch overlap or mosaicking. All images in one call must have the same shape.
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `data` | `Iterable` | *required* | Iterable of `(3, height, width)` Red, Green, NIR arrays or tensors, e.g. a 4D array or tensor, a list of arrays or a generator. With `load_func`, an iterable of items (usually file paths) passed to `load_func` |
+| `batch_size` | `int` | `1` | Number of images per batch |
+| `load_func` | `Callable` | `None` | Called as `load_func(input_path=item)`. Returns a `(3, height, width)` array, or an `(array, profile)` tuple like the built-in loaders |
+| `inference_device` | `str` or `torch.device` | `None` | Device for inference (`"cpu"`, `"cuda"`, `"mps"`). Auto-detected if `None` |
+| `inference_dtype` | `torch.dtype` or `str` | `"fp32"` | Data type. Accepts `torch.float32`, `torch.float16`, `torch.bfloat16` or strings `"fp32"`, `"fp16"`, `"bf16"` |
+| `export_confidence` | `bool` | `False` | Return confidence maps instead of class predictions |
+| `softmax_output` | `bool` | `True` | Apply softmax to confidence output |
+| `no_data_value` | `int` or `float` | `0` | Value indicating no-data pixels in input |
+| `apply_no_data_mask` | `bool` | `True` | Mask no-data regions in output |
+| `export_to_disk` | `bool` | `False` | Save each prediction as a GeoTIFF and return file paths. Requires `load_func` and file path items |
+| `output_dir` | `str` or `Path` | `None` | Output directory when exporting. Defaults to same directory as input |
+| `overwrite` | `bool` | `True` | Overwrite existing prediction files when exporting |
+| `custom_models` | `torch.nn.Module` or `list` | `None` | Custom model(s) instead of default |
+| `destination_model_dir` | `str` or `Path` | `None` | Directory to cache downloaded models |
+| `model_download_source` | `str` | `"hugging_face"` | Model source: `"hugging_face"` or `"google_drive"` |
+| `compile_models` | `bool` | `False` | Compile models with torch.compile for faster inference |
+| `compile_mode` | `str` | `"default"` | torch.compile mode |
+| `model_version` | `float` | `None` | Model version (`1.0`, `2.0`, `3.0`, `4.0`). Latest if `None` |
+
+**Returns:**
+
+`np.ndarray` with shape `(N, 1, height, width)` for class predictions, or `(N, classes, height, width)` (4 classes for the default models) if `export_confidence=True`. If `export_to_disk=True`, a `list[Path]` of N output file paths instead.
+
+---
+
 ## Data Loaders
 
 ### load_s2

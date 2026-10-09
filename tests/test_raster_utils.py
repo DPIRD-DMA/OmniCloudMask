@@ -1,8 +1,10 @@
 import numpy as np
 import pytest
+import torch
 
 from omnicloudmask.model_utils import channel_norm
 from omnicloudmask.raster_utils import (
+    batch_nodata_mask,
     get_patch,
     make_patch_indexes,
     mask_prediction,
@@ -308,6 +310,46 @@ def test_mask_prediction_float_values():
 
     expected_mask = np.array([[1, 1, 1], [1, 1, 0]], dtype=np.uint8)
     np.testing.assert_array_equal(mask, expected_mask)
+
+
+def test_mask_prediction_nan_no_data_value():
+    nan = np.nan
+    scene = np.array(
+        [[[1.1, nan, 3.3], [4.4, 5.5, nan]], [[7.7, 8.8, nan], [10.0, 11.1, nan]]]
+    )
+    pred_tracker = np.ones((1, 2, 3))
+    no_data_value = np.nan
+
+    masked_pred_tracker, mask = mask_prediction(scene, pred_tracker, no_data_value)
+
+    # only pixels where all bands are NaN are masked
+    expected = np.array([[[1, 1, 1], [1, 1, 0]]])
+
+    np.testing.assert_array_equal(masked_pred_tracker, expected)
+
+    expected_mask = np.array([[1, 1, 1], [1, 1, 0]], dtype=np.uint8)
+    np.testing.assert_array_equal(mask, expected_mask)
+
+
+def test_batch_nodata_mask_matches_mask_prediction():
+    rng = np.random.default_rng(0)
+    batch = rng.integers(0, 3, size=(3, 3, 8, 8)).astype(np.float32)
+    batch[1] = 0
+
+    result = batch_nodata_mask(torch.from_numpy(batch), 0).numpy()
+    assert result.shape == (3, 1, 8, 8)
+    for image, mask in zip(batch, result):
+        _, expected = mask_prediction(image, np.ones((1, 8, 8)), 0)
+        np.testing.assert_array_equal(mask[0], expected.astype(bool))
+
+
+def test_batch_nodata_mask_nan():
+    batch = np.ones((1, 2, 2, 2), dtype=np.float32)
+    batch[0, :, 0, 0] = np.nan
+    batch[0, 0, 1, 1] = np.nan  # only one band is NaN, so still valid
+
+    result = batch_nodata_mask(torch.from_numpy(batch), np.nan).numpy()
+    np.testing.assert_array_equal(result[0, 0], [[False, True], [True, True]])
 
 
 def test_mask_prediction_wrong_shapes():
