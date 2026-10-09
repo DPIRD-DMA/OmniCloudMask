@@ -19,6 +19,7 @@
 - `predict_from_load_func` now raises errors from inference and from saving predictions; previously they were printed from a background thread and the function returned paths to files that were never written
 - No-data masking now works when `no_data_value` is NaN; previously no pixels were masked because NaN never compares equal
 - Calling `predict_from_array`, `predict_from_load_func` or `predict_from_batch` from several threads on MPS no longer aborts the process; work on MPS is now serialised across threads, since PyTorch's MPS backend isn't thread-safe
+- `predict_from_batch` now also serialises casting and copying MPS tensor inputs, including when inference runs on the CPU, and holds the MPS lock per batch so a `load_func` can run its own MPS prediction without deadlocking
 
 ## [1.7.1] - Mar 5, 2026
 
