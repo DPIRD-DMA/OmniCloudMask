@@ -12,7 +12,7 @@ import torch
 from rasterio.transform import from_origin
 
 from omnicloudmask import predict_from_array, predict_from_batch, predict_from_load_func
-from omnicloudmask.cloud_mask import _prefetch, make_output_path
+from omnicloudmask.cloud_mask import _collate, _prefetch, make_output_path
 
 IMAGE_SIZE = 64
 
@@ -439,6 +439,19 @@ def test_predict_from_batch_from_threads(
 
     for result in results:
         np.testing.assert_array_equal(result, expected)
+
+
+@pytest.mark.skipif(not torch.backends.mps.is_available(), reason="MPS not available")
+def test_collate_fp16_mps_views_to_cpu(images: np.ndarray) -> None:
+    """Moving and casting fp16 MPS views to the CPU in one .to() call returns the
+    first row's values for every row in PyTorch 2.11, so collation must keep the two
+    steps separate."""
+    rows = list(torch.from_numpy(images).to("mps", torch.float16))
+    result = _collate(rows, torch.device("cpu"))
+    assert result.dtype == torch.float32
+    np.testing.assert_array_equal(
+        result.numpy(), images.astype(np.float16).astype(np.float32)
+    )
 
 
 @pytest.mark.skipif(not torch.backends.mps.is_available(), reason="MPS not available")

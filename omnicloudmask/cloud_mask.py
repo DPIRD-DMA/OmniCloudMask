@@ -865,12 +865,12 @@ def _collate(images: list, device: torch.device) -> torch.Tensor:
     if all(isinstance(image, np.ndarray) for image in images):
         tensor = torch.from_numpy(np.stack(images))
         return tensor.pin_memory() if device.type == "cuda" else tensor
-    return torch.stack(
-        [
-            torch.as_tensor(image).to(device=device, dtype=torch.float32)
-            for image in images
-        ]
+    # Move, then cast. Doing both in one .to() call returns wrong values for fp16
+    # MPS views copied to the CPU (PyTorch 2.11)
+    stacked = torch.stack(
+        [torch.as_tensor(image).to(device=device) for image in images]
     )
+    return stacked.to(dtype=torch.float32)
 
 
 def _batch_devices(batch: Union[list, torch.Tensor]) -> list[torch.device]:
