@@ -2,7 +2,7 @@ import warnings
 from contextlib import AbstractContextManager, nullcontext
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from queue import Queue
+from queue import Empty, Queue
 from threading import RLock, Thread
 from typing import Callable, Generator, Optional, Union
 
@@ -86,14 +86,17 @@ def compile_batches(
 
     def worker(idx: tuple[int, int, int, int]) -> None:
         """Extract patch and put result in queue. May put (None, None) for invalid patches."""  # noqa: E501
-        patch, new_index = get_patch(input_array, idx, no_data_value)
-        result_queue.put((patch, new_index))
+        try:
+            result_queue.put(get_patch(input_array, idx, no_data_value))
+        except Exception as e:
+            # pass errors to the consumer, otherwise it waits forever for a result
+            result_queue.put(e)
 
-    with ThreadPoolExecutor(max_workers=batch_size) as executor:
-        # Submit all work upfront - queue maxsize provides limiting
-        for idx in patch_indexes:
-            executor.submit(worker, idx)
+    executor = ThreadPoolExecutor(max_workers=batch_size)
+    # Submit all work upfront - queue maxsize provides limiting
+    futures = [executor.submit(worker, idx) for idx in patch_indexes]
 
+    try:
         # Collect valid results into full batches
         all_indexes = set()
         index_batch = []
@@ -102,7 +105,10 @@ def compile_batches(
         )
 
         for i in range(len(patch_indexes)):
-            patch, new_index = result_queue.get()
+            result = result_queue.get()
+            if isinstance(result, Exception):
+                raise result
+            patch, new_index = result
 
             # Skip invalid patches (get_patch returned None)
             if patch is not None and new_index not in all_indexes:
@@ -131,6 +137,17 @@ def compile_batches(
 
                 yield input_tensor, index_batch
                 index_batch = []
+    finally:
+        # If stopped early (e.g. inference raised an error), cancel queued work and
+        # drain the queue so workers blocked on a full queue can finish
+        for future in futures:
+            future.cancel()
+        while not all(future.done() for future in futures):
+            try:
+                result_queue.get(timeout=0.01)
+            except Empty:
+                pass
+        executor.shutdown(wait=True)
 
 
 def run_models_on_array(

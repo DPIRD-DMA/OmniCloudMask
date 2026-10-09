@@ -2,6 +2,8 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
+import traceback
+from threading import Thread
 
 import numpy as np
 import pytest
@@ -216,6 +218,69 @@ def test_predict_from_array_custom_model():
     assert np.all(np.isin(np.unique(result), [0, 1, 2, 3])), (
         "Unexpected values in result"
     )
+
+
+class FailingModel(torch.nn.Module):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        raise RuntimeError("model failed")
+
+
+def run_with_timeout(func, timeout: float = 120):
+    """Run func in a daemon thread, failing the test if it hangs, otherwise
+    returning its result or re-raising its error."""
+    outcome = {}
+
+    def target():
+        try:
+            outcome["result"] = func()
+        except BaseException as e:
+            # Release the frames' locals as a real caller would, so open
+            # generators are closed here and any hang during cleanup is caught
+            traceback.clear_frames(e.__traceback__)
+            outcome["error"] = e
+
+    thread = Thread(target=target, daemon=True)
+    thread.start()
+    thread.join(timeout)
+    if thread.is_alive():
+        pytest.fail(f"Call did not finish within {timeout}s, it may have deadlocked")
+    if "error" in outcome:
+        raise outcome["error"]
+    return outcome["result"]
+
+
+def test_predict_from_array_model_error_propagates():
+    # many patches with a small batch fills the patch queue; this used to deadlock
+    data = np.random.rand(3, 400, 400)
+    with pytest.raises(RuntimeError, match="model failed"):
+        run_with_timeout(
+            lambda: predict_from_array(
+                data,
+                patch_size=100,
+                patch_overlap=0,
+                batch_size=1,
+                inference_device="cpu",
+                custom_models=FailingModel(),
+            )
+        )
+
+
+def test_predict_from_array_patch_error_propagates(monkeypatch):
+    def failing_get_patch(*args, **kwargs):
+        raise RuntimeError("patch failed")
+
+    monkeypatch.setattr("omnicloudmask.cloud_mask.get_patch", failing_get_patch)
+    data = np.random.rand(3, 400, 400)
+    with pytest.raises(RuntimeError, match="patch failed"):
+        run_with_timeout(
+            lambda: predict_from_array(
+                data,
+                patch_size=100,
+                patch_overlap=0,
+                inference_device="cpu",
+                custom_models=torch.nn.Conv2d(3, 4, kernel_size=1),
+            )
+        )
 
 
 def test_predict_from_array_with_confidence():
