@@ -1,8 +1,9 @@
 import warnings
+from contextlib import AbstractContextManager, nullcontext
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from queue import Queue
-from threading import Thread
+from queue import Empty, Queue
+from threading import RLock, Thread
 from typing import Callable, Generator, Optional, Union
 
 import numpy as np
@@ -28,6 +29,25 @@ from .raster_utils import (
     mask_prediction,
     save_prediction,
 )
+
+
+# PyTorch's MPS backend shares one command buffer per process, so GPU work encoded
+# from two threads at once fails a Metal assertion and aborts the process.
+_MPS_LOCK = RLock()
+
+
+def device_lock(*devices: torch.device) -> AbstractContextManager:
+    """Serialise work across threads when any of the devices is MPS. Other devices
+    don't need it."""
+    if any(device.type == "mps" for device in devices):
+        return _MPS_LOCK
+    return nullcontext()
+
+
+def locked_coordinator(**kwargs) -> Optional[np.ndarray]:
+    """Run coordinator while holding the device lock for its devices."""
+    with device_lock(kwargs["inference_device"], kwargs["mosaic_device"]):
+        return coordinator(**kwargs)
 
 
 def warn_cpu_reduced_precision(device: torch.device, dtype: torch.dtype) -> None:
@@ -66,14 +86,17 @@ def compile_batches(
 
     def worker(idx: tuple[int, int, int, int]) -> None:
         """Extract patch and put result in queue. May put (None, None) for invalid patches."""  # noqa: E501
-        patch, new_index = get_patch(input_array, idx, no_data_value)
-        result_queue.put((patch, new_index))
+        try:
+            result_queue.put(get_patch(input_array, idx, no_data_value))
+        except Exception as e:
+            # pass errors to the consumer, otherwise it waits forever for a result
+            result_queue.put(e)
 
-    with ThreadPoolExecutor(max_workers=batch_size) as executor:
-        # Submit all work upfront - queue maxsize provides limiting
-        for idx in patch_indexes:
-            executor.submit(worker, idx)
+    executor = ThreadPoolExecutor(max_workers=batch_size)
+    # Submit all work upfront - queue maxsize provides limiting
+    futures = [executor.submit(worker, idx) for idx in patch_indexes]
 
+    try:
         # Collect valid results into full batches
         all_indexes = set()
         index_batch = []
@@ -82,7 +105,10 @@ def compile_batches(
         )
 
         for i in range(len(patch_indexes)):
-            patch, new_index = result_queue.get()
+            result = result_queue.get()
+            if isinstance(result, Exception):
+                raise result
+            patch, new_index = result
 
             # Skip invalid patches (get_patch returned None)
             if patch is not None and new_index not in all_indexes:
@@ -111,6 +137,17 @@ def compile_batches(
 
                 yield input_tensor, index_batch
                 index_batch = []
+    finally:
+        # If stopped early (e.g. inference raised an error), cancel queued work and
+        # drain the queue so workers blocked on a full queue can finish
+        for future in futures:
+            future.cancel()
+        while not all(future.done() for future in futures):
+            try:
+                result_queue.get(timeout=0.01)
+            except Empty:
+                pass
+        executor.shutdown(wait=True)
 
 
 def run_models_on_array(
@@ -495,36 +532,37 @@ def predict_from_array(
     # Warn if using CPU with reduced precision
     warn_cpu_reduced_precision(inference_device, inference_dtype)
 
-    # if no custom model paths are provided, use the default models
-    models = collect_models(
-        custom_models=custom_models,
-        inference_device=inference_device,
-        inference_dtype=inference_dtype,
-        source=model_download_source,
-        destination_model_dir=destination_model_dir,
-        model_version=model_version,
-        compile_models=compile_models,
-        patch_size=patch_size,
-        batch_size=batch_size,
-        compile_mode=compile_mode,
-    )
+    with device_lock(inference_device, mosaic_device):
+        # if no custom model paths are provided, use the default models
+        models = collect_models(
+            custom_models=custom_models,
+            inference_device=inference_device,
+            inference_dtype=inference_dtype,
+            source=model_download_source,
+            destination_model_dir=destination_model_dir,
+            model_version=model_version,
+            compile_models=compile_models,
+            patch_size=patch_size,
+            batch_size=batch_size,
+            compile_mode=compile_mode,
+        )
 
-    pred_tracker = coordinator(
-        input_array=input_array,
-        models=models,
-        inference_device=inference_device,
-        mosaic_device=mosaic_device,
-        inference_dtype=inference_dtype,
-        export_confidence=export_confidence,
-        softmax_output=softmax_output,
-        patch_size=patch_size,
-        patch_overlap=patch_overlap,
-        batch_size=batch_size,
-        no_data_value=no_data_value,
-        export_to_disk=False,
-        apply_no_data_mask=apply_no_data_mask,
-        pred_classes=pred_classes,
-    )
+        pred_tracker = coordinator(
+            input_array=input_array,
+            models=models,
+            inference_device=inference_device,
+            mosaic_device=mosaic_device,
+            inference_dtype=inference_dtype,
+            export_confidence=export_confidence,
+            softmax_output=softmax_output,
+            patch_size=patch_size,
+            patch_overlap=patch_overlap,
+            batch_size=batch_size,
+            no_data_value=no_data_value,
+            export_to_disk=False,
+            apply_no_data_mask=apply_no_data_mask,
+            pred_classes=pred_classes,
+        )
 
     return pred_tracker
 
@@ -598,18 +636,19 @@ def predict_from_load_func(
     # Warn if using CPU with reduced precision
     warn_cpu_reduced_precision(inference_device, inference_dtype)
 
-    models = collect_models(
-        custom_models=custom_models,
-        inference_device=inference_device,
-        inference_dtype=inference_dtype,
-        destination_model_dir=destination_model_dir,
-        source=model_download_source,
-        model_version=model_version,
-        compile_models=compile_models,
-        patch_size=patch_size,
-        batch_size=batch_size,
-        compile_mode=compile_mode,
-    )
+    with device_lock(inference_device, mosaic_device):
+        models = collect_models(
+            custom_models=custom_models,
+            inference_device=inference_device,
+            inference_dtype=inference_dtype,
+            destination_model_dir=destination_model_dir,
+            source=model_download_source,
+            model_version=model_version,
+            compile_models=compile_models,
+            patch_size=patch_size,
+            batch_size=batch_size,
+            compile_mode=compile_mode,
+        )
 
     pbar = tqdm(
         total=len(scene_paths),
@@ -640,7 +679,7 @@ def predict_from_load_func(
             inf_thread.join()
 
         inf_thread = Thread(
-            target=coordinator,
+            target=locked_coordinator,
             kwargs={
                 "input_array": input_array,
                 "profile": profile,

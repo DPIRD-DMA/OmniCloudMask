@@ -2,6 +2,8 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
+import traceback
+from threading import Thread
 
 import numpy as np
 import pytest
@@ -138,6 +140,42 @@ def test_threaded_predict_from_array_basic():
         )
 
 
+def _load_synthetic(input_path: Path) -> tuple[np.ndarray, rio.profiles.Profile]:
+    """Load func returning a fixed random scene per file name, with a minimal
+    export profile."""
+    seed = sum(Path(input_path).name.encode())
+    array = np.random.default_rng(seed).random((3, 1000, 1000), dtype=np.float32)
+    profile = rio.profiles.Profile(
+        width=1000,
+        height=1000,
+        crs="EPSG:32750",
+        transform=rio.transform.from_origin(0, 0, 10, 10),
+    )
+    return array, profile
+
+
+def test_threaded_predict_from_load_func(tmp_path):
+    """Calling predict_from_load_func from several threads at once must not crash,
+    which it did on MPS, and must match single-threaded predictions."""
+    scene_paths = [tmp_path / f"scene_{i}.tif" for i in range(2)]
+
+    def run(worker: int) -> list[Path]:
+        return predict_from_load_func(
+            scene_paths=scene_paths,
+            load_func=_load_synthetic,
+            output_dir=tmp_path / f"worker_{worker}",
+        )
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        results = list(executor.map(run, range(4)))
+
+    for scene_index, scene_path in enumerate(scene_paths):
+        expected = predict_from_array(_load_synthetic(scene_path)[0])
+        for paths in results:
+            with rio.open(paths[scene_index]) as src:
+                np.testing.assert_array_equal(src.read(), expected)
+
+
 def test_predict_from_array_cpu_mosaic():
     # Create some sample data
     data = np.random.rand(3, 200, 200)
@@ -180,6 +218,69 @@ def test_predict_from_array_custom_model():
     assert np.all(np.isin(np.unique(result), [0, 1, 2, 3])), (
         "Unexpected values in result"
     )
+
+
+class FailingModel(torch.nn.Module):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        raise RuntimeError("model failed")
+
+
+def run_with_timeout(func, timeout: float = 120):
+    """Run func in a daemon thread, failing the test if it hangs, otherwise
+    returning its result or re-raising its error."""
+    outcome = {}
+
+    def target():
+        try:
+            outcome["result"] = func()
+        except BaseException as e:
+            # Release the frames' locals as a real caller would, so open
+            # generators are closed here and any hang during cleanup is caught
+            traceback.clear_frames(e.__traceback__)
+            outcome["error"] = e
+
+    thread = Thread(target=target, daemon=True)
+    thread.start()
+    thread.join(timeout)
+    if thread.is_alive():
+        pytest.fail(f"Call did not finish within {timeout}s, it may have deadlocked")
+    if "error" in outcome:
+        raise outcome["error"]
+    return outcome["result"]
+
+
+def test_predict_from_array_model_error_propagates():
+    # many patches with a small batch fills the patch queue; this used to deadlock
+    data = np.random.rand(3, 400, 400)
+    with pytest.raises(RuntimeError, match="model failed"):
+        run_with_timeout(
+            lambda: predict_from_array(
+                data,
+                patch_size=100,
+                patch_overlap=0,
+                batch_size=1,
+                inference_device="cpu",
+                custom_models=FailingModel(),
+            )
+        )
+
+
+def test_predict_from_array_patch_error_propagates(monkeypatch):
+    def failing_get_patch(*args, **kwargs):
+        raise RuntimeError("patch failed")
+
+    monkeypatch.setattr("omnicloudmask.cloud_mask.get_patch", failing_get_patch)
+    data = np.random.rand(3, 400, 400)
+    with pytest.raises(RuntimeError, match="patch failed"):
+        run_with_timeout(
+            lambda: predict_from_array(
+                data,
+                patch_size=100,
+                patch_overlap=0,
+                inference_device="cpu",
+                custom_models=torch.nn.Conv2d(3, 4, kernel_size=1),
+            )
+        )
 
 
 def test_predict_from_array_with_confidence():

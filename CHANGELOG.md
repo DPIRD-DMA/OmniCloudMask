@@ -1,6 +1,15 @@
 # Changelog
 
 
+## [Unreleased]
+
+### Fixed
+- Calling `predict_from_array` or `predict_from_load_func` from several threads on MPS no longer aborts the process; work on MPS is now serialised across threads, since PyTorch's MPS backend isn't thread-safe
+- `predict_from_array` no longer hangs forever when patch extraction raises an error; the error is now raised to the caller
+
+### Added
+- Test for calling `predict_from_load_func` from several threads
+
 ## [1.7.1] - Mar 5, 2026
 
 ### Fixed
