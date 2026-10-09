@@ -141,6 +141,42 @@ def test_threaded_predict_from_array_basic():
         )
 
 
+def _load_synthetic(input_path: Path) -> tuple[np.ndarray, rio.profiles.Profile]:
+    """Load func returning a fixed random scene per file name, with a minimal
+    export profile."""
+    seed = sum(Path(input_path).name.encode())
+    array = np.random.default_rng(seed).random((3, 1000, 1000), dtype=np.float32)
+    profile = rio.profiles.Profile(
+        width=1000,
+        height=1000,
+        crs="EPSG:32750",
+        transform=rio.transform.from_origin(0, 0, 10, 10),
+    )
+    return array, profile
+
+
+def test_threaded_predict_from_load_func(tmp_path):
+    """Calling predict_from_load_func from several threads at once must not crash,
+    which it did on MPS, and must match single-threaded predictions."""
+    scene_paths = [tmp_path / f"scene_{i}.tif" for i in range(2)]
+
+    def run(worker: int) -> list[Path]:
+        return predict_from_load_func(
+            scene_paths=scene_paths,
+            load_func=_load_synthetic,
+            output_dir=tmp_path / f"worker_{worker}",
+        )
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        results = list(executor.map(run, range(4)))
+
+    for scene_index, scene_path in enumerate(scene_paths):
+        expected = predict_from_array(_load_synthetic(scene_path)[0])
+        for paths in results:
+            with rio.open(paths[scene_index]) as src:
+                np.testing.assert_array_equal(src.read(), expected)
+
+
 def test_predict_from_array_cpu_mosaic():
     # Create some sample data
     data = np.random.rand(3, 200, 200)

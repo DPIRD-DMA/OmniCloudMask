@@ -2,6 +2,7 @@ import itertools
 import threading
 import time
 import traceback
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -11,7 +12,7 @@ import torch
 from rasterio.transform import from_origin
 
 from omnicloudmask import predict_from_array, predict_from_batch, predict_from_load_func
-from omnicloudmask.cloud_mask import _prefetch, make_output_path
+from omnicloudmask.cloud_mask import _collate, _prefetch, make_output_path
 
 IMAGE_SIZE = 64
 
@@ -399,6 +400,100 @@ def test_predict_from_batch_accelerator_tensor_input(
     result = predict_from_batch(
         torch.from_numpy(images).to(device), batch_size=2, inference_device=device
     )
+    np.testing.assert_array_equal(result, expected)
+
+
+def run_in_threads(func, calls: int = 8, workers: int = 4) -> list:
+    """Call func(i) for each call index from several threads at once, failing the
+    test if they hang. The executor lives inside the timed call, so a hang can't
+    block its shutdown."""
+
+    def run_all() -> list:
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            return list(executor.map(func, range(calls)))
+
+    return run_with_timeout(run_all)
+
+
+@pytest.mark.parametrize("device", [pytest.param("cpu"), *DEVICES])
+@pytest.mark.parametrize(
+    "input_type", ["numpy", "cpu_tensor", "device_tensor", "device_tensor_fp16"]
+)
+def test_predict_from_batch_from_threads(
+    images: np.ndarray, device: str, input_type: str
+) -> None:
+    """Calling predict_from_batch from several threads at once must not crash, which
+    it did on MPS, and must match a single-threaded call. fp16 device tensors are
+    cast to float32 during collation, which is device work too."""
+    data = {
+        "numpy": images,
+        "cpu_tensor": torch.from_numpy(images),
+        "device_tensor": torch.from_numpy(images).to(device),
+        "device_tensor_fp16": torch.from_numpy(images).to(device, torch.float16),
+    }[input_type]
+    expected = predict_from_batch(data, batch_size=2, inference_device=device)
+
+    results = run_in_threads(
+        lambda _: predict_from_batch(data, batch_size=2, inference_device=device)
+    )
+
+    for result in results:
+        np.testing.assert_array_equal(result, expected)
+
+
+@pytest.mark.skipif(not torch.backends.mps.is_available(), reason="MPS not available")
+def test_collate_fp16_mps_views_to_cpu(images: np.ndarray) -> None:
+    """Moving and casting fp16 MPS views to the CPU in one .to() call returns the
+    first row's values for every row in PyTorch 2.11, so collation must keep the two
+    steps separate."""
+    rows = list(torch.from_numpy(images).to("mps", torch.float16))
+    result = _collate(rows, torch.device("cpu"))
+    assert result.dtype == torch.float32
+    np.testing.assert_array_equal(
+        result.numpy(), images.astype(np.float16).astype(np.float32)
+    )
+
+
+@pytest.mark.skipif(not torch.backends.mps.is_available(), reason="MPS not available")
+def test_predict_from_batch_mps_tensors_with_cpu_inference_from_threads(
+    images: np.ndarray, reference_masks: np.ndarray
+) -> None:
+    """MPS tensors copied to the CPU for inference still do MPS work, so they must be
+    serialised with MPS inference running on other threads."""
+    data = torch.from_numpy(images).to("mps", torch.float16)
+
+    # alternate CPU and MPS inference so the CPU calls' copies overlap MPS work
+    results = run_in_threads(
+        lambda i: predict_from_batch(
+            data, batch_size=2, inference_device="mps" if i % 2 else "cpu"
+        )
+    )
+
+    for result in results:
+        agreement = (result == reference_masks).mean()
+        assert agreement >= 0.99, f"Only {agreement:.4f} of pixels agree"
+
+
+@pytest.mark.parametrize("device", [pytest.param("cpu"), *DEVICES])
+def test_predict_from_batch_load_func_can_predict(
+    images: np.ndarray, device: str
+) -> None:
+    """A load_func may itself run a prediction on the same device, which deadlocked
+    on MPS when the device lock was held for the whole call."""
+
+    def loader(input_path: int) -> np.ndarray:
+        image = images[input_path]
+        predict_from_array(
+            image, patch_size=IMAGE_SIZE, patch_overlap=0, inference_device=device
+        )
+        return image
+
+    result = run_with_timeout(
+        lambda: predict_from_batch(
+            range(len(images)), batch_size=2, load_func=loader, inference_device=device
+        )
+    )
+    expected = predict_from_batch(images, batch_size=2, inference_device=device)
     np.testing.assert_array_equal(result, expected)
 
 
