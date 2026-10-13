@@ -13,6 +13,7 @@ import torch
 from conftest import requires_fastai
 from omnicloudmask.cloud_mask import (
     check_patch_size,
+    make_output_path,
     predict_from_array,
     predict_from_load_func,
 )
@@ -223,6 +224,31 @@ def test_predict_from_array_custom_model():
     )
 
 
+def test_predict_from_array_custom_model_pred_classes_mismatch():
+    data = np.random.rand(3, 100, 100)
+    model = torch.nn.Conv2d(3, 2, kernel_size=3, padding=1)
+
+    with pytest.raises(ValueError, match="pred_classes"):
+        predict_from_array(
+            data,
+            patch_size=100,
+            patch_overlap=0,
+            inference_device="cpu",
+            custom_models=model,
+        )
+
+    result = predict_from_array(
+        data,
+        patch_size=100,
+        patch_overlap=0,
+        inference_device="cpu",
+        custom_models=model,
+        pred_classes=2,
+        export_confidence=True,
+    )
+    assert result.shape == (2, 100, 100)
+
+
 class FailingModel(torch.nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         raise RuntimeError("model failed")
@@ -283,6 +309,83 @@ def test_predict_from_array_patch_error_propagates(monkeypatch):
                 inference_device="cpu",
                 custom_models=torch.nn.Conv2d(3, 4, kernel_size=1),
             )
+        )
+
+
+def _write_test_scene(path: Path) -> Path:
+    with rio.open(
+        path,
+        "w",
+        driver="GTiff",
+        height=200,
+        width=200,
+        count=3,
+        dtype="float32",
+        crs="EPSG:32750",
+        transform=rio.transform.from_origin(400000, 6500000, 10, 10),
+    ) as dst:
+        dst.write(np.random.rand(3, 200, 200).astype(np.float32))
+    return path
+
+
+def _load_test_scene(input_path: Path) -> tuple[np.ndarray, dict]:
+    with rio.open(input_path) as src:
+        return src.read(), src.profile
+
+
+def test_predict_from_load_func_skip_existing(tmp_path):
+    scene_paths = [_write_test_scene(tmp_path / f"scene_{i}.tif") for i in range(2)]
+    output_dir = tmp_path / "out"
+    existing = make_output_path(scene_paths[0], output_dir)
+    existing.write_bytes(b"placeholder")
+
+    paths = predict_from_load_func(
+        scene_paths,
+        _load_test_scene,
+        patch_size=100,
+        patch_overlap=0,
+        inference_device="cpu",
+        custom_models=torch.nn.Conv2d(3, 4, kernel_size=1),
+        output_dir=output_dir,
+        overwrite=False,
+    )
+
+    assert paths == [make_output_path(p, output_dir) for p in scene_paths]
+    assert existing.read_bytes() == b"placeholder"
+    assert paths[1].exists()
+
+
+def test_predict_from_load_func_model_error_propagates(tmp_path):
+    scene_paths = [_write_test_scene(tmp_path / f"scene_{i}.tif") for i in range(2)]
+    with pytest.raises(RuntimeError, match="model failed"):
+        run_with_timeout(
+            lambda: predict_from_load_func(
+                scene_paths,
+                _load_test_scene,
+                patch_size=100,
+                patch_overlap=0,
+                inference_device="cpu",
+                custom_models=FailingModel(),
+                output_dir=tmp_path / "out",
+            )
+        )
+
+
+def test_predict_from_load_func_save_error_propagates(tmp_path, monkeypatch):
+    def failing_save(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr("omnicloudmask.cloud_mask.save_prediction", failing_save)
+    scene_paths = [_write_test_scene(tmp_path / "scene.tif")]
+    with pytest.raises(OSError, match="disk full"):
+        predict_from_load_func(
+            scene_paths,
+            _load_test_scene,
+            patch_size=100,
+            patch_overlap=0,
+            inference_device="cpu",
+            custom_models=torch.nn.Conv2d(3, 4, kernel_size=1),
+            output_dir=tmp_path / "out",
         )
 
 

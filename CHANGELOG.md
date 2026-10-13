@@ -3,20 +3,27 @@
 
 ## [Unreleased]
 
-### Changed
-- Requires Python 3.10 or newer (the code already needed 3.10; the package metadata said 3.9)
-
-### Fixed
-- Calling `predict_from_array` or `predict_from_load_func` from several threads on MPS no longer aborts the process; work on MPS is now serialised across threads, since PyTorch's MPS backend isn't thread-safe
-- `predict_from_array` no longer hangs forever when patch extraction raises an error; the error is now raised to the caller
-- No-data masking now works when `no_data_value` is NaN; previously no pixels were masked because NaN never compares equal
-
 ### Added
+- `predict_from_batch` for predicting many same-sized images (e.g. dataset chips) several per batch, from arrays, tensors or file paths via a `load_func`, with optional GeoTIFF export
+- `channel_norm_torch`, a batched GPU version of `channel_norm`
 - GitHub Actions CI: lint and tests on Linux (Python 3.10, 3.14) and macOS (Python 3.14), plus a non-blocking Python 3.15 job
 - Releases from a version tag: GitHub Actions builds, publishes to PyPI with trusted publishing, and creates a GitHub release
 - `slow` pytest marker for tests that need the downloaded test scenes; CI runs `pytest -m "not slow"`
-- Test for calling `predict_from_load_func` from several threads
+- Tests for calling `predict_from_load_func` and `predict_from_batch` from several threads
 - Test for no-data masking with a NaN `no_data_value`
+
+### Changed
+- Requires Python 3.10 or newer (the code already needed 3.10; the package metadata said 3.9)
+- `pairwise_argmax` and `optimized_argmax` now support any class dimension
+- `compile_torch_model` accepts a `(height, width)` warm-up size
+- A custom model whose class count doesn't match `pred_classes` now raises a `ValueError` explaining the mismatch, instead of an `AssertionError`
+
+### Fixed
+- `predict_from_array` no longer hangs forever when a model or patch extraction raises an error; the error is now raised to the caller
+- `predict_from_load_func` now raises errors from inference and from saving predictions; previously they were printed from a background thread and the function returned paths to files that were never written
+- No-data masking now works when `no_data_value` is NaN; previously no pixels were masked because NaN never compares equal
+- Calling `predict_from_array`, `predict_from_load_func` or `predict_from_batch` from several threads on MPS no longer aborts the process; work on MPS is now serialised across threads, since PyTorch's MPS backend isn't thread-safe
+- `predict_from_batch` now also serialises casting and copying MPS tensor inputs, including when inference runs on the CPU, and holds the MPS lock per batch so a `load_func` can run its own MPS prediction without deadlocking
 
 ## [1.7.1] - Mar 5, 2026
 

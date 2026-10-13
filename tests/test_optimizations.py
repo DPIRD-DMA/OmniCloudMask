@@ -53,18 +53,25 @@ class TestPairwiseArgmax:
         expected = torch.argmax(tensor, dim=0, keepdim=True)
         assert torch.equal(result, expected), "dim=0 doesn't match torch.argmax"
 
-    def test_invalid_dim_raises_error(self, device):
-        """Test that non-zero dim raises ValueError."""
-        tensor = torch.randn(3, 100, 100, device=device)
+    @pytest.mark.parametrize("dim", [1, 2, -1])
+    @pytest.mark.parametrize("keepdim", [True, False])
+    def test_non_zero_dim(self, device, dim, keepdim):
+        """Test that non-zero dims match torch.argmax."""
+        tensor = torch.randn(4, 5, 6, 7, device=device)
+        result = pairwise_argmax(tensor, dim=dim, keepdim=keepdim)
+        expected = torch.argmax(tensor, dim=dim, keepdim=keepdim)
 
-        with pytest.raises(ValueError, match="only supports dim=0"):
-            pairwise_argmax(tensor, dim=1)
+        assert torch.equal(result, expected), f"dim={dim} doesn't match torch.argmax"
 
-        with pytest.raises(ValueError, match="only supports dim=0"):
-            pairwise_argmax(tensor, dim=2)
+    def test_batched_class_dim_with_ties(self, device):
+        """Test ties along dim=1 prefer the lower index, like torch.argmax."""
+        tensor = torch.zeros(2, 4, 3, 3, device=device)
+        tensor[:, 2] = 1.0
+        tensor[:, 3] = 1.0
+        result = pairwise_argmax(tensor, dim=1, keepdim=True)
 
-        with pytest.raises(ValueError, match="only supports dim=0"):
-            pairwise_argmax(tensor, dim=-1)
+        assert result.shape == (2, 1, 3, 3)
+        assert torch.all(result == 2)
 
     def test_keepdim_with_different_sizes(self, device):
         """Test keepdim parameter with various tensor sizes."""
@@ -197,10 +204,9 @@ class TestOptimizedArgmax:
         assert torch.equal(result, expected), "keepdim=False doesn't match"
 
     def test_dim_not_zero_cpu(self):
-        """Test that dim!=0 falls back to torch.argmax on CPU."""
+        """Test that dim!=0 matches torch.argmax on CPU."""
         tensor = torch.randn(100, 3, 100, device="cpu")
 
-        # dim=1 should fallback to torch.argmax
         result = optimized_argmax(tensor, dim=1, keepdim=True)
         expected = torch.argmax(tensor, dim=1, keepdim=True)
 
