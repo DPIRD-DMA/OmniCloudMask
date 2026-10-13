@@ -8,6 +8,9 @@ from omnicloudmask.data_loaders import (
     load_s2,
 )
 
+# every test here reads the downloaded test scenes
+pytestmark = pytest.mark.slow
+
 s2_l2_path = (
     Path(__file__).parent.resolve()
     / "test data/S2A_MSIL2A_20170725T142751_N9999_R053_T19GBQ_20240410T040247.SAFE"

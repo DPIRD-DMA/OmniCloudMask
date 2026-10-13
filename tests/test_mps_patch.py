@@ -5,6 +5,7 @@ import pytest
 import segmentation_models_pytorch as smp
 import torch
 
+from conftest import requires_fastai
 from omnicloudmask.model_utils import build_fastai_model
 from omnicloudmask.mps_patch import (
     _get_model_in_channels,
@@ -138,6 +139,7 @@ class TestSmpModels:
 # --- fastai models with various backbones and channel counts ---
 
 
+@requires_fastai
 class TestFastaiModels:
     @pytest.mark.parametrize(
         "model_name,in_chans",
@@ -216,6 +218,7 @@ class TestMpsDevice:
             ("mobilenetv2_100", 2),
         ],
     )
+    @requires_fastai
     def test_fastai_patch_on_mps(self, model_name: str, in_chans: int) -> None:
         assert MPS is not None
         model = build_fastai_model(model_name=model_name, in_chans=in_chans, n_out=4)
@@ -240,7 +243,7 @@ class TestMpsDevice:
         for m in models:
             m.eval().to(MPS)
         patched = patch_models_for_mps(models, MPS, DTYPE)  # type: ignore
-        for m, ch in zip(patched, [3, 4]):
+        for m, ch in zip(patched, [3, 4], strict=True):
             test_input = torch.randn(1, ch, 65, 65, device=MPS, dtype=DTYPE)
             with torch.no_grad():
                 output = m(test_input)

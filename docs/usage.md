@@ -29,6 +29,7 @@ import numpy as np
 import rasterio as rio
 from omnicloudmask import predict_from_load_func
 
+
 def load_rgb_only(input_path):
     with rio.open(input_path) as src:
         red = src.read(1)
@@ -36,6 +37,7 @@ def load_rgb_only(input_path):
         profile = src.profile
     nir_placeholder = np.zeros_like(red)
     return np.stack([red, green, nir_placeholder], axis=0), profile
+
 
 pred_paths = predict_from_load_func(scene_paths, load_rgb_only)
 ```
@@ -68,8 +70,8 @@ pred_paths = predict_from_load_func(
     scene_paths=scene_paths,
     load_func=load_s2,
     inference_dtype="bf16",
-    batch_size=4,            # increase for GPUs with more VRAM
-    compile_models=True,     # faster inference for 10+ scenes
+    batch_size=4,  # increase for GPUs with more VRAM
+    compile_models=True,  # faster inference for 10+ scenes
 )
 ```
 
@@ -117,7 +119,7 @@ torch.set_num_threads(4)
 pred_paths = predict_from_load_func(
     scene_paths=scene_paths,
     load_func=load_s2,
-    inference_dtype="fp32",   # important: avoid fp16/bf16 on CPU
+    inference_dtype="fp32",  # important: avoid fp16/bf16 on CPU
     batch_size=1,
     inference_device="cpu",
     mosaic_device="cpu",
@@ -171,12 +173,14 @@ import numpy as np
 import rasterio as rio
 from omnicloudmask import predict_from_load_func
 
+
 def my_loader(input_path):
     with rio.open(input_path) as src:
         # Read bands in order: Red, Green, NIR
         data = src.read([4, 3, 5])  # adjust band indices for your sensor
         profile = src.profile
     return data, profile
+
 
 pred_paths = predict_from_load_func(scene_paths, my_loader)
 ```

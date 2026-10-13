@@ -25,6 +25,7 @@ pred_paths = predict_from_load_func(
 
 ```python
 import torch
+
 torch.set_num_threads(4)  # adjust to your CPU core count
 ```
 
