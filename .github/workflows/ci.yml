@@ -64,10 +64,12 @@ jobs:
         # is expected to fail until torch supports that Python.
         env:
           ATTEMPTS: ${{ matrix.experimental && 1 || 8 }}
+        # macOS has no GNU `timeout`, so a perl alarm limits each attempt
         run: |
           uv venv
           for attempt in $(seq 1 "$ATTEMPTS"); do
-            timeout 120 uv pip install --torch-backend cpu -e . --group test && exit 0
+            perl -e 'alarm shift; exec @ARGV' 120 \
+              uv pip install --torch-backend cpu -e . --group test && exit 0
             echo "::warning::install attempt $attempt failed or stalled; retrying"
           done
           exit 1
