@@ -864,13 +864,20 @@ def _collate(
     int16, which torch does not fully support, to be restored by _to_float32.
 
     Host images are copied once, keeping small dtypes such as uint16, into a
-    buffer that is pinned for fast copies to CUDA. Device tensors are left on the
-    device."""
+    buffer that is pinned for fast copies to CUDA. Device tensors already on the
+    target device are used as they are."""
     if isinstance(images, torch.Tensor):
-        if images.device.type != "cpu":
+        if images.device.type != "cpu" and images.device == device:
             return images, False
-        # numpy has no bfloat16
-        images = (images.float() if images.dtype == torch.bfloat16 else images).numpy()
+        if images.device.type != "cpu":
+            # Another device: move each image, then stack. Moving a sliced MPS
+            # batch to the CPU in one call can return the wrong rows (PyTorch 2.11)
+            images = list(images)
+        else:
+            # numpy has no bfloat16
+            images = (
+                images.float() if images.dtype == torch.bfloat16 else images
+            ).numpy()
 
     if isinstance(images, list):
         if any(isinstance(i, torch.Tensor) and i.device.type != "cpu" for i in images):
@@ -1027,8 +1034,12 @@ def _predict_batch(
     """Predict a collated batch on the device. Returns the masked predictions and
     the (B, 1, H, W) valid data mask, both on the device; intermediate tensors are
     freed on return."""
+    # Non-blocking copies are only safe from host memory to CUDA, where stream
+    # ordering makes later work wait for the copy. A non-blocking copy from MPS to
+    # the CPU can be read before it completes.
+    non_blocking = batch.device.type == "cpu" and inference_device.type == "cuda"
     raw_batch = _to_float32(
-        batch.to(device=inference_device, non_blocking=True), is_uint16
+        batch.to(device=inference_device, non_blocking=non_blocking), is_uint16
     )
     band_valid = band_valid_mask(raw_batch, no_data_value)
     # a pixel is no data only if every band is no data
