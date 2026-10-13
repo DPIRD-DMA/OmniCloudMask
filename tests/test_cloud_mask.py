@@ -15,6 +15,7 @@ from rasterio.profiles import Profile
 
 from omnicloudmask import __version__
 from omnicloudmask.cloud_mask import (
+    build_export_profile,
     coordinator,
     check_patch_size,
     make_output_path,
@@ -953,3 +954,17 @@ def test_predict_from_load_func_custom_model_has_no_class_stats(tmp_path):
         "OCM_VERSION": __version__,
         "OCM_MODEL_VERSION": "custom",
     }
+
+
+@pytest.mark.parametrize(
+    "dtype, compress, predictor",
+    [(np.uint8, "lzw", None), (np.float32, "deflate", 3)],
+)
+def test_build_export_profile_compression(dtype, compress, predictor):
+    pred = np.zeros((1, 4, 4), dtype=dtype)
+    # a loader profile with its own predictor must not leak into the output
+    profile = build_export_profile(Profile(predictor=2, zlevel=9), pred)
+
+    assert profile["compress"] == compress
+    assert profile.get("predictor") == predictor
+    assert profile.get("zlevel") == (1 if compress == "deflate" else None)

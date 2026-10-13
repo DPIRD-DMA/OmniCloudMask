@@ -11,11 +11,13 @@
 - `slow` pytest marker for tests that need the downloaded test scenes; CI runs `pytest -m "not slow"`
 - Tests for calling `predict_from_load_func` and `predict_from_batch` from several threads
 - Test for no-data masking with a NaN `no_data_value`
-- Exported masks carry GDAL metadata tags: the OmniCloudMask and model versions, the percentage of valid pixels in each class and total cloud, and the class legend, so scenes can be filtered without reading the rasters (thanks @becryan, #39)
+- Exported masks carry GDAL metadata tags: the OmniCloudMask and model versions, the percentage of valid pixels in each class and total cloud, the percentage of no-data pixels, and the class legend, so scenes can be filtered without reading the rasters (thanks @becryan, #39)
 - `CLASS_NAMES`, the model's output classes
+- Exported masks have a colour table and confidence maps have a band description per class, so both display without styling in GIS software
 - Depends on `classcounter` for counting classes
 
 ### Changed
+- Confidence maps are written with DEFLATE (level 1) and a floating-point predictor instead of LZW: 36% smaller and 19% faster to write for a full Sentinel-2 tile
 - Requires Python 3.10 or newer (the code already needed 3.10; the package metadata said 3.9)
 - `pairwise_argmax` and `optimized_argmax` now support any class dimension
 - `compile_torch_model` accepts a `(height, width)` warm-up size

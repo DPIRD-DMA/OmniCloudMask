@@ -387,6 +387,7 @@ def test_class_stats_tags_basic(as_tensor: bool) -> None:
     assert tags["OCM_CLOUD_SHADOW_PCT"] == "10.00"
     assert tags["OCM_CLOUD_PCT"] == "50.00", "Cloud should be thick + thin"
     assert tags["OCM_VALID_PIXELS"] == "10"
+    assert tags["OCM_NODATA_PCT"] == "0.00"
     assert tags["OCM_CLASSES"] == "0=Clear,1=Thick Cloud,2=Thin Cloud,3=Cloud Shadow"
     assert all(isinstance(v, str) for v in tags.values())
 
@@ -405,6 +406,7 @@ def test_class_stats_tags_excludes_invalid_pixels(as_tensor: bool) -> None:
     assert tags["OCM_VALID_PIXELS"] == "4"
     assert tags["OCM_CLEAR_PCT"] == "50.00"
     assert tags["OCM_THICK_CLOUD_PCT"] == "50.00"
+    assert tags["OCM_NODATA_PCT"] == "33.33", "2 of 6 pixels are no data"
 
 
 def test_class_stats_tags_missing_classes_are_zero() -> None:
@@ -423,6 +425,7 @@ def test_class_stats_tags_all_invalid() -> None:
     tags = class_stats_tags(pred, np.zeros(pred.shape, dtype=bool))
 
     assert tags["OCM_VALID_PIXELS"] == "0"
+    assert tags["OCM_NODATA_PCT"] == "100.00"
     assert tags["OCM_CLEAR_PCT"] == "0.00"
     assert tags["OCM_CLOUD_PCT"] == "0.00"
 
@@ -478,6 +481,48 @@ def test_save_prediction_writes_tags(tmp_path) -> None:
 
     with rio.open(output_path) as src:
         assert src.tags()["OCM_VERSION"] == "9"
+
+
+@pytest.mark.parametrize("standard_classes", [True, False])
+def test_save_prediction_mask_styling(tmp_path, standard_classes: bool) -> None:
+    output_path = tmp_path / "mask.tif"
+    profile = Profile(
+        driver="GTiff", dtype="uint8", count=1, height=2, width=5, nodata=None
+    )
+
+    save_prediction(
+        output_path, profile, STATS_PRED, None, standard_classes=standard_classes
+    )
+
+    with rio.open(output_path) as src:
+        if standard_classes:
+            colormap = src.colormap(1)
+            assert colormap[0] == (0, 0, 0, 255)
+            assert colormap[1] == (255, 128, 13, 255)
+            assert colormap[3] == (214, 39, 40, 255)
+            assert src.descriptions[0].startswith("OCM class: 0=Clear")
+        else:
+            with pytest.raises(ValueError):
+                src.colormap(1)
+            assert src.descriptions == (None,)
+
+
+def test_save_prediction_confidence_band_descriptions(tmp_path) -> None:
+    output_path = tmp_path / "confidence.tif"
+    pred = np.random.default_rng(0).random((4, 2, 5)).astype(np.float32)
+    profile = Profile(
+        driver="GTiff", dtype="float32", count=4, height=2, width=5, nodata=None
+    )
+
+    save_prediction(output_path, profile, pred, None, standard_classes=True)
+
+    with rio.open(output_path) as src:
+        assert src.descriptions == (
+            "P(Clear)",
+            "P(Thick Cloud)",
+            "P(Thin Cloud)",
+            "P(Cloud Shadow)",
+        )
 
 
 if __name__ == "__main__":

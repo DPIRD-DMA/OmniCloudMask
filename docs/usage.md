@@ -229,6 +229,7 @@ Every GeoTIFF written by `predict_from_load_func` or `predict_from_batch(export_
 | `OCM_CLOUD_SHADOW_PCT` | Percentage cloud shadow |
 | `OCM_CLOUD_PCT` | Total cloud (thick + thin) |
 | `OCM_VALID_PIXELS` | Number of valid pixels the percentages are based on |
+| `OCM_NODATA_PCT` | Percentage of all pixels that are no data, e.g. outside the satellite's swath |
 | `OCM_CLASSES` | Class legend, `0=Clear,1=Thick Cloud,2=Thin Cloud,3=Cloud Shadow` |
 
 ```python
@@ -239,9 +240,17 @@ with rio.open(pred_paths[0]) as src:
 print(tags["OCM_CLOUD_PCT"], tags["OCM_MODEL_VERSION"])
 ```
 
-- Percentages are of valid pixels: pixels where every input band equals `no_data_value` are excluded, whether or not `apply_no_data_mask` is set.
+- Class percentages are of valid pixels: pixels where every input band equals `no_data_value` are excluded, whether or not `apply_no_data_mask` is set. `OCM_NODATA_PCT` is the share of all pixels that were excluded, so you can also drop scenes that are mostly empty.
 - Confidence outputs (`export_confidence=True`) get the same statistics, using the most likely class at each pixel.
 - Class statistics assume the standard OmniCloudMask classes, so with `custom_models` only the version tags are written.
+
+Exported files also open ready to view in a GIS:
+
+- **Masks** have a colour table: clear is black, thick cloud orange, thin cloud green and cloud shadow red. GeoTIFF colour tables can't be transparent, so to overlay a mask on imagery, set value 0 as transparent (in QGIS, Layer Properties → Transparency).
+- **Confidence maps** name each band, e.g. `P(Thick Cloud)`. GIS software may show the first three bands as an RGB image by default; to view one class, choose a single band with a 0–1 colour ramp.
+- Confidence maps are compressed with DEFLATE (level 1) and a floating-point predictor. For a full Sentinel-2 tile that's about a third smaller and a fifth faster to write than LZW.
+
+These apply to the standard OmniCloudMask classes, so they're skipped for `custom_models`.
 
 ## Skip Existing Predictions
 

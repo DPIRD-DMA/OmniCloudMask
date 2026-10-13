@@ -7,7 +7,7 @@ import torch
 from classcounter import count_classes
 from rasterio.profiles import Profile
 
-from .constants import CLASS_NAMES, CLOUD_CLASSES
+from .constants import CLASS_COLOURS, CLASS_NAMES, CLOUD_CLASSES, class_label
 from .model_utils import channel_norm
 
 
@@ -120,8 +120,11 @@ def class_stats_tags(
     tags = {f"OCM_{name}_PCT": pct(counts[name]) for name in CLASS_NAMES.values()}
     tags["OCM_CLOUD_PCT"] = pct(sum(counts[name] for name in CLOUD_CLASSES))
     tags["OCM_VALID_PIXELS"] = str(int(total))
+    # unlike the class percentages, this is a percentage of all pixels
+    pixels = valid.numel() if isinstance(valid, torch.Tensor) else valid.size
+    tags["OCM_NODATA_PCT"] = f"{(pixels - total) / pixels * 100 if pixels else 0:.2f}"
     tags["OCM_CLASSES"] = ",".join(
-        f"{i}={name.replace('_', ' ').title()}" for i, name in CLASS_NAMES.items()
+        f"{i}={class_label(name)}" for i, name in CLASS_NAMES.items()
     )
     return tags
 
@@ -181,12 +184,26 @@ def save_prediction(
     pred_tracker_np: np.ndarray,
     nodata_mask: Optional[np.ndarray],
     tags: Optional[dict[str, str]] = None,
+    standard_classes: bool = False,
 ) -> None:
     """Save the prediction tracker to a raster file, optionally also saving the
-    nodata mask if not None and GDAL metadata tags if given."""
+    nodata mask if not None and GDAL metadata tags if given. If standard_classes,
+    the predictions use the OmniCloudMask classes, so masks get a colour table and
+    confidence maps get a band description per class."""
     with rio.open(output_path, "w", **export_profile) as dst:
         dst.write(pred_tracker_np)
         if nodata_mask is not None:
             dst.write_mask((nodata_mask * 255).astype("uint8"))
         if tags:
             dst.update_tags(**tags)
+        if standard_classes:
+            if pred_tracker_np.shape[0] == 1 and pred_tracker_np.dtype == np.uint8:
+                dst.write_colormap(1, CLASS_COLOURS)
+                dst.set_band_description(
+                    1,
+                    "OCM class: "
+                    + ",".join(f"{i}={class_label(n)}" for i, n in CLASS_NAMES.items()),
+                )
+            elif pred_tracker_np.shape[0] == len(CLASS_NAMES):
+                for i, name in CLASS_NAMES.items():
+                    dst.set_band_description(i + 1, f"P({class_label(name)})")

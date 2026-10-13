@@ -1113,6 +1113,7 @@ def test_predict_from_batch_export_stats(tmp_path: Path, device: str) -> None:
     for tags in classified:
         # each image has a no-data stripe of 8 rows
         assert tags["OCM_VALID_PIXELS"] == str((IMAGE_SIZE - 8) * IMAGE_SIZE)
+        assert tags["OCM_NODATA_PCT"] == f"{8 / IMAGE_SIZE * 100:.2f}"
         assert tags["OCM_VERSION"]
     # confidence output is classified by its highest class, and the statistics
     # are over valid input pixels whether or not the nodata mask is applied
@@ -1134,3 +1135,27 @@ def test_predict_from_batch_export_custom_model_has_no_class_stats(
     )
 
     assert tags == [{"OCM_VERSION": __version__, "OCM_MODEL_VERSION": "custom"}] * 2
+
+
+def test_predict_from_batch_export_styling(tmp_path: Path) -> None:
+    data = striped_images(2)
+    paths = [write_tif(tmp_path / f"in_{i}.tif", image) for i, image in enumerate(data)]
+    kwargs = {"batch_size": 2, "load_func": load_tif, "export_to_disk": True}
+
+    [mask, _] = predict_from_batch(paths, output_dir=tmp_path / "mask", **kwargs)
+    [confidence, _] = predict_from_batch(
+        paths, output_dir=tmp_path / "conf", export_confidence=True, **kwargs
+    )
+    [custom, _] = predict_from_batch(
+        paths, output_dir=tmp_path / "custom", custom_models=SeededConv(), **kwargs
+    )
+
+    with rio.open(mask) as src:
+        assert src.colormap(1)[1] == (255, 128, 13, 255)
+    with rio.open(confidence) as src:
+        assert src.descriptions[0] == "P(Clear)"
+        assert src.profile["compress"] == "deflate"
+    with rio.open(custom) as src:
+        # custom models' classes aren't the OmniCloudMask classes
+        with pytest.raises(ValueError):
+            src.colormap(1)
