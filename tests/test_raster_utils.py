@@ -338,7 +338,7 @@ def test_batch_nodata_mask_matches_mask_prediction():
 
     result = batch_nodata_mask(torch.from_numpy(batch), 0).numpy()
     assert result.shape == (3, 1, 8, 8)
-    for image, mask in zip(batch, result):
+    for image, mask in zip(batch, result, strict=True):
         _, expected = mask_prediction(image, np.ones((1, 8, 8)), 0)
         np.testing.assert_array_equal(mask[0], expected.astype(bool))
 

@@ -4,12 +4,16 @@
 ## [Unreleased]
 
 ### Added
-- Tests for calling `predict_from_load_func` and `predict_from_batch` from several threads
 - `predict_from_batch` for predicting many same-sized images (e.g. dataset chips) several per batch, from arrays, tensors or file paths via a `load_func`, with optional GeoTIFF export
 - `channel_norm_torch`, a batched GPU version of `channel_norm`
+- GitHub Actions CI: lint and tests on Linux (Python 3.10, 3.14) and macOS (Python 3.14), plus a non-blocking Python 3.15 job
+- Releases from a version tag: GitHub Actions builds, publishes to PyPI with trusted publishing, and creates a GitHub release
+- `slow` pytest marker for tests that need the downloaded test scenes; CI runs `pytest -m "not slow"`
+- Tests for calling `predict_from_load_func` and `predict_from_batch` from several threads
 - Test for no-data masking with a NaN `no_data_value`
 
 ### Changed
+- Requires Python 3.10 or newer (the code already needed 3.10; the package metadata said 3.9)
 - `pairwise_argmax` and `optimized_argmax` now support any class dimension
 - `compile_torch_model` accepts a `(height, width)` warm-up size
 - A custom model whose class count doesn't match `pred_classes` now raises a `ValueError` explaining the mismatch, instead of an `AssertionError`

@@ -1192,7 +1192,11 @@ def predict_from_batch(
                 )
         output_paths = [make_output_path(item, output_dir) for item in data]
         if not overwrite:
-            data = [item for item, path in zip(data, output_paths) if not path.exists()]
+            data = [
+                item
+                for item, path in zip(data, output_paths, strict=True)
+                if not path.exists()
+            ]
             if not data:
                 return output_paths
 
@@ -1279,7 +1283,7 @@ def predict_from_batch(
                         else [None] * len(batch_preds)
                     )
                     for pred, profile, item, nodata_mask in zip(
-                        batch_preds, profiles, batch_items, nodata_masks
+                        batch_preds, profiles, batch_items, nodata_masks, strict=True
                     ):
                         while len(pending_saves) >= _MAX_SAVES_IN_FLIGHT:
                             pending_saves.popleft().result()

@@ -209,7 +209,7 @@ def test_predict_from_batch_export(
     )
 
     assert paths == [make_output_path(p, output_dir) for p in tif_paths]
-    for path, expected, source in zip(paths, reference_masks, tif_paths):
+    for path, expected, source in zip(paths, reference_masks, tif_paths, strict=True):
         with rio.open(path) as dst, rio.open(source) as src:
             np.testing.assert_array_equal(dst.read(), expected)
             assert dst.crs == src.crs
@@ -1023,7 +1023,7 @@ def test_predict_from_batch_export_many_batches_matches_memory(
         paths, export_to_disk=True, output_dir=tmp_path / "out", **kwargs
     )
 
-    for path, expected in zip(exported, in_memory):
+    for path, expected in zip(exported, in_memory, strict=True):
         with rio.open(path) as src:
             np.testing.assert_array_equal(src.read(), expected)
 
