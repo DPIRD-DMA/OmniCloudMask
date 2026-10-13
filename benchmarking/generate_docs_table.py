@@ -22,8 +22,8 @@ def load_results() -> list[dict]:
 
 def _clean_cpu_name(name: str) -> str:
     """Clean CPU names, e.g. 'Intel(R) Core(TM) i5-8400 CPU @ 2.80GHz' -> 'Intel Core i5-8400'."""  # noqa: E501
-    name = re.sub(r"\s+\d+-Core Processor$", "", name)       # AMD suffix
-    name = re.sub(r"\s+CPU\s+@\s+[\d.]+GHz$", "", name)      # Intel clock speed
+    name = re.sub(r"\s+\d+-Core Processor$", "", name)  # AMD suffix
+    name = re.sub(r"\s+CPU\s+@\s+[\d.]+GHz$", "", name)  # Intel clock speed
     name = name.replace("(R)", "").replace("(TM)", "")
     return re.sub(r"\s+", " ", name).strip()
 
@@ -53,7 +53,8 @@ def _get_combos(rows: list[dict]) -> list[tuple[str, str]]:
 def _best_time(rows: list[dict], device: str, dtype: str | None = None) -> float:
     """Fastest mean_seconds at 1000×1000 for device/dtype, falling back to smallest."""
     filtered = [
-        r for r in rows
+        r
+        for r in rows
         if r["device"] == device and (dtype is None or r["dtype"] == dtype)
     ]
     candidates = [r for r in filtered if r["scene_size"] == 1000]
@@ -84,7 +85,7 @@ def _make_device_table(
     table_rows = []
     for i, size in enumerate(sizes):
         decimals = 3 if i == 0 else 2
-        mp = size ** 2 / 1e6
+        mp = size**2 / 1e6
         if mp >= 1:
             mp_str = f"{mp:.0f}"
         elif i == 0:
@@ -150,7 +151,7 @@ def _short_hw_name(name: str) -> str:
     """Strip common vendor prefixes, e.g. 'NVIDIA GeForce RTX 4090' → 'RTX 4090'."""
     for prefix in _VENDOR_PREFIXES:
         if name.startswith(prefix):
-            return name[len(prefix):]
+            return name[len(prefix) :]
     return name
 
 
@@ -161,7 +162,7 @@ def _wrap_hw_name(name: str, max_len: int = 12) -> str:
     pos = name.rfind(" ", 0, max_len)
     if pos == -1:
         pos = name.find(" ")
-    return f"{name[:pos]}<br>{name[pos + 1:]}" if pos != -1 else name
+    return f"{name[:pos]}<br>{name[pos + 1 :]}" if pos != -1 else name
 
 
 def make_summary_table(all_data: list[dict]) -> str:
@@ -197,7 +198,7 @@ def make_summary_table(all_data: list[dict]) -> str:
     table_rows = []
     for i, size in enumerate(all_sizes):
         decimals = 3 if i == 0 else 2
-        mp = size ** 2 / 1e6
+        mp = size**2 / 1e6
         if mp >= 1:
             mp_str = f"{mp:.0f}"
         elif i == 0:
@@ -238,14 +239,16 @@ def make_plot(all_data: list[dict]) -> None:
 
         for device in dict.fromkeys(d for d, _ in combos):
             dtypes_for_device = [dt for dev, dt in combos if dev == device]
-            dtype = "float16" if "float16" in dtypes_for_device else dtypes_for_device[0]
+            dtype = (
+                "float16" if "float16" in dtypes_for_device else dtypes_for_device[0]
+            )
             all_sizes_for_series = {
-                r["scene_size"] for r in rows
+                r["scene_size"]
+                for r in rows
                 if r["device"] == device and r["dtype"] == dtype
             }
-            plot_skip = (
-                ({2000} if 2236 in all_sizes_for_series else set()) |
-                ({3000} if 3162 in all_sizes_for_series else set())
+            plot_skip = ({2000} if 2236 in all_sizes_for_series else set()) | (
+                {3000} if 3162 in all_sizes_for_series else set()
             )
             sizes = sorted(all_sizes_for_series - plot_skip)
             megapixels = [s**2 / 1e6 for s in sizes]

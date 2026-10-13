@@ -10,6 +10,7 @@ import pytest
 import rasterio as rio
 import torch
 
+from conftest import requires_fastai
 from omnicloudmask.cloud_mask import (
     check_patch_size,
     predict_from_array,
@@ -80,6 +81,7 @@ def test_predict_from_array_basic():
     )
 
 
+@requires_fastai
 def test_predict_from_array_basic_v1():
     # Create some sample data
     data = np.random.rand(3, 200, 200)
@@ -95,6 +97,7 @@ def test_predict_from_array_basic_v1():
     )
 
 
+@requires_fastai
 def test_predict_from_array_basic_v2():
     # Create some sample data
     data = np.random.rand(3, 200, 200)
@@ -331,6 +334,7 @@ def test_predict_from_array_with_mask():
     assert result.shape == (1, 200, 200), "Unexpected shape for result"
 
 
+@pytest.mark.slow
 def test_predict_from_load_func_multiband():
     # Call the function
     load_multiband_maxar = partial(
@@ -391,6 +395,7 @@ def _save_comparison_plot(
     print(f"\nComparison plot saved to: {out_path}")
 
 
+@pytest.mark.slow
 def test_predict_from_load_func_s2_L2():
     # Call the function
     result_paths = predict_from_load_func(
@@ -426,6 +431,7 @@ def test_predict_from_load_func_s2_L2():
         raise
 
 
+@pytest.mark.slow
 def test_predict_from_load_func_s2_L2_with_cpu_mosaic():
     # Call the function
     result_paths = predict_from_load_func(
@@ -446,6 +452,7 @@ def test_predict_from_load_func_s2_L2_with_cpu_mosaic():
     )
 
 
+@pytest.mark.slow
 def test_predict_from_load_func_s2_L2_and_L1():
     # Call the function
     result_paths = predict_from_load_func(
@@ -467,6 +474,7 @@ def test_predict_from_load_func_s2_L2_and_L1():
         )
 
 
+@pytest.mark.slow
 def test_predict_from_load_func_s2_L1():
     # Call the function
     result_paths = predict_from_load_func(
@@ -486,6 +494,7 @@ def test_predict_from_load_func_s2_L1():
     )
 
 
+@pytest.mark.slow
 def test_predict_from_load_func_s2_L1_small_patch():
     # Call the function
     result_paths = predict_from_load_func(
@@ -505,6 +514,7 @@ def test_predict_from_load_func_s2_L1_small_patch():
     )
 
 
+@pytest.mark.slow
 def test_predict_from_load_func_ls():
     # Call the function
     result_paths = predict_from_load_func(
@@ -531,7 +541,8 @@ def test_check_patch_size():
     patch_overlap = 50
     no_data_value = 0
     channels = 3
-    test_array = np.random.rand(channels, 10000, 10000)
+    # larger than the patch size; the check doesn't depend on the exact size
+    test_array = np.random.rand(channels, 1000, 1000)
     check_patch_size(
         input_array=test_array,
         no_data_value=no_data_value,
@@ -593,7 +604,8 @@ def test_check_patch_size_wrong_dim_input():
     patch_overlap = 50
     no_data_value = 0
     channels = 3
-    test_array_size = 10000
+    # rejected for having 4 dimensions before its size matters
+    test_array_size = 100
     test_array = np.random.rand(1, channels, test_array_size, test_array_size)
     with pytest.raises(ValueError):
         check_patch_size(
