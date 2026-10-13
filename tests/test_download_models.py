@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 import torch
 
 from omnicloudmask.download_models import get_models
@@ -65,6 +66,8 @@ def test_load_model_from_weights_hugging_face():
         assert isinstance(model, torch.nn.Module)
 
 
+# Google Drive rate-limits shared CI IP addresses
+@pytest.mark.slow
 def test_load_model_from_weights_google_drive():
     # Test loading models from weights
     models = []

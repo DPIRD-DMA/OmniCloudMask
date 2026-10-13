@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Dependencies are declared without upper bounds (see pyproject.toml), so a
+  # new upstream release can break the build without any commit here. The
+  # install resolves fresh on every run, so this weekly job is what surfaces that.
+  schedule:
+    - cron: "0 18 * * 0"  # Sundays 18:00 UTC (Monday morning AWST)
+  workflow_dispatch:
+
+# A new push to a branch or PR cancels its run that is still in progress
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    # Without a limit a hung job runs for GitHub's 6-hour default
+    timeout-minutes: 45
+    # The newest Python runs ahead of its dependencies (torch has no wheels for
+    # it yet), so its job reports but never blocks a merge
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # oldest and newest supported Python on Linux
+          - { os: ubuntu-latest, python-version: "3.10", experimental: false }
+          - { os: ubuntu-latest, python-version: "3.14", experimental: false }
+          # Apple silicon. GitHub's macOS runners are VMs without the Metal GPU,
+          # so MPS tests skip; this checks the macOS CPU path and wheels.
+          - { os: macos-latest, python-version: "3.14", experimental: false }
+          - { os: ubuntu-latest, python-version: "3.15", experimental: true }
+    # uv builds the venv from .python-version unless told otherwise, so without
+    # this every matrix job would silently run the pinned dev Python
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
+      UV_NO_SYNC: "1"
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          allow-prereleases: true
+
+      - uses: astral-sh/setup-uv@v8.0.0
+        with:
+          cache-suffix: ${{ matrix.os }}-${{ matrix.python-version }}
+
+      # CPU-only torch: CI has no GPU, and the default CUDA build pulls ~3 GB of
+      # nvidia-* wheels on every run. --torch-backend is a uv pip option, so
+      # install with the pip interface; UV_NO_SYNC stops later `uv run`s
+      # re-syncing to the CUDA build. uv.lock is gitignored, so this resolves fresh.
+      - name: Install (CPU-only torch)
+        # A healthy install takes seconds, but on some runners individual PyPI
+        # downloads hang. Completed downloads stay in uv's cache, so each fresh
+        # attempt resumes. The experimental job gets one attempt, as its install
+        # is expected to fail until torch supports that Python.
+        env:
+          ATTEMPTS: ${{ matrix.experimental && 1 || 8 }}
+        run: |
+          uv venv
+          for attempt in $(seq 1 "$ATTEMPTS"); do
+            timeout 120 uv pip install --torch-backend cpu -e . --group test && exit 0
+            echo "::warning::install attempt $attempt failed or stalled; retrying"
+          done
+          exit 1
+        timeout-minutes: 18
+
+      # Model weights are downloaded from Hugging Face into the platformdirs user
+      # data directory, keyed by package version
+      - name: Cache model weights
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/omnicloudmask
+            ~/Library/Application Support/omnicloudmask
+          key: models-${{ runner.os }}-${{ hashFiles('omnicloudmask/model_download_links.csv', 'omnicloudmask/__version__.py') }}
+
+      - name: Show devices
+        run: uv run python -c "import torch; print('torch', torch.__version__, '| CUDA', torch.cuda.is_available(), '| MPS', torch.backends.mps.is_available())"
+
+      - name: Lint
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      # Tests marked slow need the large test scenes from Google Drive, which
+      # rate-limits shared CI IP addresses; run the full suite locally before a release
+      - name: Test
+        run: uv run pytest tests/ -m "not slow" -q

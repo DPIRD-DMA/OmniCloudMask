@@ -1,54 +1,50 @@
 # Python Package Publishing Process
 
-## 1. Install Required Tools
+Releases are built and published by GitHub Actions (`.github/workflows/publish.yml`)
+when a version tag is pushed. Publishing uses PyPI trusted publishing, so no API
+tokens are needed.
 
-Install the necessary tools for testing, building and uploading packages:
+## One-time setup
+
+1. On PyPI, at https://pypi.org/manage/project/omnicloudmask/settings/publishing/,
+   add a trusted publisher:
+   - Owner: `DPIRD-DMA`
+   - Repository name: `OmniCloudMask`
+   - Workflow name: `publish.yml`
+   - Environment: `pypi`
+2. On GitHub, under Settings → Environments, create an environment named `pypi`.
+   Optionally add required reviewers so each release needs approval.
+
+## Making a release
+
+1. Run the full test suite locally, including the tests CI skips. Some tests may be
+   skipped depending on the available devices (CUDA, MPS).
+
+   ```bash
+   uv run pytest tests/
+   ```
+
+2. Update `omnicloudmask/__version__.py` and move the `[Unreleased]` entries in
+   `CHANGELOG.md` under the new version.
+3. Merge to `main` and wait for CI to pass.
+4. Tag the release on `main` and push the tag. The tag must be `v` followed by the
+   version in `__version__.py`, or the workflow stops before publishing.
+
+   ```bash
+   git tag v1.8.0
+   git push origin v1.8.0
+   ```
+
+The workflow builds the sdist and wheel, publishes them to PyPI, and creates a
+GitHub release with the files attached and generated release notes.
+
+## Manual fallback
+
+To build and publish by hand, for example to test on Test PyPI:
 
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-uv sync
-```
-## 2. Run tests
-
-Run the tests and make sure they all pass, depending on available devices some tests may be skipped.
-
-```bash
-uv run pytest tests/
-```
-## 3. Remove old builds
-
-Remove any old builds from the "dist" folder, so we upload only the newest release.
-
-## 4. Build the Package
-
-Build the OmniCloudMask package:
-
-```bash
+rm -rf dist/
 uv build
-```
-
-## 5. Upload to Test PyPI
-
-Upload the package to Test PyPI for testing purposes. You will need to enter your user token:
-
-```bash
 uv publish --publish-url https://test.pypi.org/legacy/
-```
-
-## 6. Test Installation
-
-Install the package from Test PyPI in a new environment to ensure it works correctly:
-
-```bash
 pip install -i https://test.pypi.org/simple/ omnicloudmask --extra-index-url https://pypi.org/simple
 ```
-
-## 7. Upload to PyPI
-
-Once testing is complete and successful, upload the package to the main PyPI repository:
-
-```bash
-uv publish
-```
-
-> **Note:** Ensure you have the necessary credentials and permissions for both Test PyPI and PyPI before attempting to upload.

@@ -10,7 +10,8 @@ Python library for cloud masking optimized for CUDA MPS and CPU.
 
 # Commands
 
-- `uv run pytest tests/` - Run test suite
+- `uv run pytest tests/` - Run test suite (downloads the test scenes on first run)
+- `uv run pytest tests/ -m "not slow"` - Run the tests that don't need the test scenes, as CI does
 - `ruff format .` - Format code
 - `ruff check .` - Lint code
 
