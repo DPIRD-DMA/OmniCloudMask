@@ -46,6 +46,15 @@ scene_paths = [Path("path/to/scene.SAFE")]
 pred_paths = predict_from_load_func(scene_paths, load_s2)
 ```
 
+For a dataset of same-sized image chips, run several chips per batch:
+
+```python
+from omnicloudmask import predict_from_batch
+
+# chips: (N, 3, 512, 512) array, output: (N, 1, 512, 512) masks
+masks = predict_from_batch(chips, batch_size=16)
+```
+
 See the [quickstart guide](https://omnicloudmask.readthedocs.io/en/latest/quickstart.html) for more examples.
 
 ## Example Notebooks
@@ -56,6 +65,7 @@ See the [quickstart guide](https://omnicloudmask.readthedocs.io/en/latest/quicks
 - [PlanetScope](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/planetscope.ipynb)
 - [PlanetScope Hyperspectral](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/planetscope_hyperspectral.ipynb)
 - [Maxar](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/maxar.ipynb)
+- [Batch prediction for image datasets](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/batch_prediction.ipynb)
 
 ## Try in Colab
 

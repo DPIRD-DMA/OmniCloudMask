@@ -1,15 +1,18 @@
 import numpy as np
 import pytest
 import rasterio as rio
+import torch
 from rasterio.profiles import Profile
 
 from omnicloudmask.model_utils import channel_norm
 from omnicloudmask.raster_utils import (
-    compute_class_stats,
+    class_stats_tags,
+    save_prediction,
+    scene_valid_mask,
+    batch_nodata_mask,
     get_patch,
     make_patch_indexes,
     mask_prediction,
-    save_prediction,
 )
 
 
@@ -314,6 +317,46 @@ def test_mask_prediction_float_values():
     np.testing.assert_array_equal(mask, expected_mask)
 
 
+def test_mask_prediction_nan_no_data_value():
+    nan = np.nan
+    scene = np.array(
+        [[[1.1, nan, 3.3], [4.4, 5.5, nan]], [[7.7, 8.8, nan], [10.0, 11.1, nan]]]
+    )
+    pred_tracker = np.ones((1, 2, 3))
+    no_data_value = np.nan
+
+    masked_pred_tracker, mask = mask_prediction(scene, pred_tracker, no_data_value)
+
+    # only pixels where all bands are NaN are masked
+    expected = np.array([[[1, 1, 1], [1, 1, 0]]])
+
+    np.testing.assert_array_equal(masked_pred_tracker, expected)
+
+    expected_mask = np.array([[1, 1, 1], [1, 1, 0]], dtype=np.uint8)
+    np.testing.assert_array_equal(mask, expected_mask)
+
+
+def test_batch_nodata_mask_matches_mask_prediction():
+    rng = np.random.default_rng(0)
+    batch = rng.integers(0, 3, size=(3, 3, 8, 8)).astype(np.float32)
+    batch[1] = 0
+
+    result = batch_nodata_mask(torch.from_numpy(batch), 0).numpy()
+    assert result.shape == (3, 1, 8, 8)
+    for image, mask in zip(batch, result, strict=True):
+        _, expected = mask_prediction(image, np.ones((1, 8, 8)), 0)
+        np.testing.assert_array_equal(mask[0], expected.astype(bool))
+
+
+def test_batch_nodata_mask_nan():
+    batch = np.ones((1, 2, 2, 2), dtype=np.float32)
+    batch[0, :, 0, 0] = np.nan
+    batch[0, 0, 1, 1] = np.nan  # only one band is NaN, so still valid
+
+    result = batch_nodata_mask(torch.from_numpy(batch), np.nan).numpy()
+    np.testing.assert_array_equal(result[0, 0], [[False, True], [True, True]])
+
+
 def test_mask_prediction_wrong_shapes():
     scene = np.ones((3, 2, 2))
     pred_tracker = np.ones((1, 3, 3))  # Wrong shape
@@ -323,11 +366,20 @@ def test_mask_prediction_wrong_shapes():
         mask_prediction(scene, pred_tracker, no_data_value)
 
 
-def test_compute_class_stats_basic():
-    # 10 pixels: 4 clear, 3 thick cloud, 2 thin cloud, 1 cloud shadow
-    pred = np.array([[[0, 0, 0, 0, 1], [1, 1, 2, 2, 3]]], dtype=np.uint8)
+# 10 pixels: 4 clear, 3 thick cloud, 2 thin cloud, 1 cloud shadow
+STATS_PRED = np.array([[[0, 0, 0, 0, 1], [1, 1, 2, 2, 3]]], dtype=np.uint8)
 
-    tags = compute_class_stats(pred)
+
+@pytest.mark.parametrize("as_tensor", [False, True])
+def test_class_stats_tags_basic(as_tensor: bool) -> None:
+    pred = torch.from_numpy(STATS_PRED) if as_tensor else STATS_PRED
+    valid = (
+        torch.ones(pred.shape, dtype=torch.bool)
+        if as_tensor
+        else np.ones(pred.shape, dtype=bool)
+    )
+
+    tags = class_stats_tags(pred, valid)
 
     assert tags["OCM_CLEAR_PCT"] == "40.00"
     assert tags["OCM_THICK_CLOUD_PCT"] == "30.00"
@@ -335,192 +387,97 @@ def test_compute_class_stats_basic():
     assert tags["OCM_CLOUD_SHADOW_PCT"] == "10.00"
     assert tags["OCM_CLOUD_PCT"] == "50.00", "Cloud should be thick + thin"
     assert tags["OCM_VALID_PIXELS"] == "10"
+    assert tags["OCM_CLASSES"] == "0=Clear,1=Thick Cloud,2=Thin Cloud,3=Cloud Shadow"
+    assert all(isinstance(v, str) for v in tags.values())
 
 
-def test_compute_class_stats_all_values_are_strings():
-    pred = np.zeros((1, 2, 2), dtype=np.uint8)
-
-    tags = compute_class_stats(pred)
-
-    assert all(isinstance(v, str) for v in tags.values()), (
-        "All tag values must be strings to be written as GDAL metadata"
-    )
-
-
-def test_compute_class_stats_missing_classes_are_zero():
-    pred = np.ones((1, 3, 3), dtype=np.uint8)  # all thick cloud
-
-    tags = compute_class_stats(pred)
-
-    assert tags["OCM_CLEAR_PCT"] == "0.00"
-    assert tags["OCM_THICK_CLOUD_PCT"] == "100.00"
-    assert tags["OCM_THIN_CLOUD_PCT"] == "0.00"
-    assert tags["OCM_CLOUD_SHADOW_PCT"] == "0.00"
-    assert tags["OCM_CLOUD_PCT"] == "100.00"
-
-
-def test_compute_class_stats_excludes_nodata():
-    # nodata pixels are set to 0 by mask_prediction, which is also the clear class,
-    # so they must not be counted as clear
+@pytest.mark.parametrize("as_tensor", [False, True])
+def test_class_stats_tags_excludes_invalid_pixels(as_tensor: bool) -> None:
+    # nodata pixels are 0 in the prediction, which is also the clear class, so
+    # they must not be counted as clear
     pred = np.array([[[0, 0, 1], [1, 0, 0]]], dtype=np.uint8)
-    nodata_mask = np.array([[0, 0, 1], [1, 1, 1]], dtype=np.uint8)
+    valid = np.array([[[False, False, True], [True, True, True]]])
+    if as_tensor:
+        pred, valid = torch.from_numpy(pred), torch.from_numpy(valid)
 
-    tags = compute_class_stats(pred, nodata_mask)
+    tags = class_stats_tags(pred, valid)
 
     assert tags["OCM_VALID_PIXELS"] == "4"
     assert tags["OCM_CLEAR_PCT"] == "50.00"
     assert tags["OCM_THICK_CLOUD_PCT"] == "50.00"
 
 
-def test_compute_class_stats_after_mask_prediction():
-    scene = np.array([[[2, 0, 2], [2, 2, 0]], [[2, 0, 2], [2, 2, 0]]])
-    pred = np.array([[[1, 1, 3], [2, 1, 1]]], dtype=np.uint8)
+def test_class_stats_tags_missing_classes_are_zero() -> None:
+    pred = np.ones((1, 3, 3), dtype=np.uint8)  # all thick cloud
 
-    masked_pred, mask = mask_prediction(scene, pred, no_data_value=0)
-    tags = compute_class_stats(masked_pred, mask)
+    tags = class_stats_tags(pred, np.ones(pred.shape, dtype=bool))
 
-    assert tags["OCM_VALID_PIXELS"] == "4"
     assert tags["OCM_CLEAR_PCT"] == "0.00"
-    assert tags["OCM_THICK_CLOUD_PCT"] == "50.00"
-    assert tags["OCM_THIN_CLOUD_PCT"] == "25.00"
-    assert tags["OCM_CLOUD_SHADOW_PCT"] == "25.00"
+    assert tags["OCM_THICK_CLOUD_PCT"] == "100.00"
+    assert tags["OCM_CLOUD_PCT"] == "100.00"
 
 
-def test_compute_class_stats_all_nodata():
+def test_class_stats_tags_all_invalid() -> None:
     pred = np.zeros((1, 2, 2), dtype=np.uint8)
-    nodata_mask = np.zeros((2, 2), dtype=np.uint8)
 
-    tags = compute_class_stats(pred, nodata_mask)
+    tags = class_stats_tags(pred, np.zeros(pred.shape, dtype=bool))
 
     assert tags["OCM_VALID_PIXELS"] == "0"
     assert tags["OCM_CLEAR_PCT"] == "0.00"
     assert tags["OCM_CLOUD_PCT"] == "0.00"
 
 
-def test_compute_class_stats_rounding():
-    # 1 of 3 pixels in each of 3 classes
+def test_class_stats_tags_rounding() -> None:
     pred = np.array([[[0, 1, 3]]], dtype=np.uint8)
 
-    tags = compute_class_stats(pred)
+    tags = class_stats_tags(pred, np.ones(pred.shape, dtype=bool))
 
     assert tags["OCM_CLEAR_PCT"] == "33.33"
     assert tags["OCM_THICK_CLOUD_PCT"] == "33.33"
     assert tags["OCM_CLOUD_SHADOW_PCT"] == "33.33"
 
 
-def _export_profile(pred: np.ndarray) -> Profile:
-    profile = Profile()
-    profile.update(
-        driver="GTiff",
-        dtype=pred.dtype,
-        count=pred.shape[0],
-        height=pred.shape[1],
-        width=pred.shape[2],
-        compress="lzw",
-        nodata=None,
-    )
-    return profile
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+def test_class_stats_tags_cuda_matches_numpy() -> None:
+    rng = np.random.default_rng(0)
+    pred = rng.integers(0, 4, (1, 50, 50), dtype=np.uint8)
+    valid = rng.random((1, 50, 50)) > 0.3
 
-
-def test_save_prediction_writes_class_stats_tags(tmp_path):
-    pred = np.array([[[0, 0, 0, 0, 1], [1, 1, 2, 2, 3]]], dtype=np.uint8)
-    output_path = tmp_path / "mask.tif"
-
-    save_prediction(output_path, _export_profile(pred), pred, nodata_mask=None)
-
-    with rio.open(output_path) as src:
-        tags = src.tags()
-    assert tags["OCM_CLEAR_PCT"] == "40.00"
-    assert tags["OCM_CLOUD_PCT"] == "50.00"
-    assert tags["OCM_CLOUD_SHADOW_PCT"] == "10.00"
-    assert tags["OCM_VALID_PIXELS"] == "10"
-    assert "OCM_CLASSES" in tags
-
-
-def test_save_prediction_tags_respect_nodata_mask(tmp_path):
-    pred = np.array([[[0, 0, 1], [1, 0, 0]]], dtype=np.uint8)
-    nodata_mask = np.array([[0, 0, 1], [1, 1, 1]], dtype=np.uint8)
-    output_path = tmp_path / "mask.tif"
-
-    save_prediction(output_path, _export_profile(pred), pred, nodata_mask)
-
-    with rio.open(output_path) as src:
-        tags = src.tags()
-    assert tags["OCM_VALID_PIXELS"] == "4"
-    assert tags["OCM_CLEAR_PCT"] == "50.00"
-
-
-def test_save_prediction_confidence_output_has_no_class_tags(tmp_path):
-    pred = np.random.rand(4, 3, 3).astype(np.float32)
-    output_path = tmp_path / "confidence.tif"
-
-    save_prediction(output_path, _export_profile(pred), pred, nodata_mask=None)
-
-    with rio.open(output_path) as src:
-        tags = src.tags()
-    assert not any(key.startswith("OCM_") for key in tags), (
-        "Confidence maps should not have class percentage tags"
+    expected = class_stats_tags(pred, valid)
+    result = class_stats_tags(
+        torch.from_numpy(pred).cuda(), torch.from_numpy(valid).cuda()
     )
 
+    assert result == expected
 
-def test_save_prediction_confidence_output_with_class_pred(tmp_path):
-    pred = np.random.rand(4, 2, 5).astype(np.float32)
-    class_pred = np.array([[[0, 0, 0, 0, 1], [1, 1, 2, 2, 3]]], dtype=np.uint8)
-    output_path = tmp_path / "confidence.tif"
+
+@pytest.mark.parametrize("no_data_value", [0, -9999, np.nan])
+def test_scene_valid_mask_matches_mask_prediction(no_data_value) -> None:
+    rng = np.random.default_rng(1)
+    scene = rng.random((3, 6, 6)).astype(np.float32) + 1
+    scene[:, :2, :] = no_data_value  # all bands no data
+    scene[0, 3, :] = no_data_value  # one band only, still valid
+
+    valid = scene_valid_mask(scene, no_data_value)
+    _, mask = mask_prediction(scene, np.ones((1, 6, 6)), no_data_value)
+
+    assert valid.dtype == bool
+    np.testing.assert_array_equal(valid, mask.astype(bool))
+    assert not valid[:2].any() and valid[2:].all()
+
+
+def test_save_prediction_writes_tags(tmp_path) -> None:
+    output_path = tmp_path / "mask.tif"
+    profile = Profile(
+        driver="GTiff", dtype="uint8", count=1, height=2, width=5, nodata=None
+    )
 
     save_prediction(
-        output_path,
-        _export_profile(pred),
-        pred,
-        nodata_mask=None,
-        class_pred=class_pred,
+        output_path, profile, STATS_PRED, nodata_mask=None, tags={"OCM_VERSION": "9"}
     )
 
     with rio.open(output_path) as src:
-        tags = src.tags()
-        assert src.count == 4
-    assert tags["OCM_CLEAR_PCT"] == "40.00"
-    assert tags["OCM_CLOUD_PCT"] == "50.00"
-    assert tags["OCM_VALID_PIXELS"] == "10"
-
-
-def test_compute_class_stats_classes_legend():
-    pred = np.zeros((1, 2, 2), dtype=np.uint8)
-
-    tags = compute_class_stats(pred)
-
-    assert tags["OCM_CLASSES"] == ("0=Clear,1=Thick Cloud,2=Thin Cloud,3=Cloud Shadow")
-
-
-def test_class_names_exported_from_package():
-    from omnicloudmask import CLASS_NAMES
-
-    assert CLASS_NAMES == {
-        0: "CLEAR",
-        1: "THICK_CLOUD",
-        2: "THIN_CLOUD",
-        3: "CLOUD_SHADOW",
-    }
-
-
-def test_save_prediction_write_class_stats_false(tmp_path):
-    pred = np.array([[[0, 0, 0, 0, 1], [1, 1, 2, 2, 3]]], dtype=np.uint8)
-    output_path = tmp_path / "mask.tif"
-
-    save_prediction(
-        output_path,
-        _export_profile(pred),
-        pred,
-        nodata_mask=None,
-        class_pred=pred,
-        write_class_stats=False,
-    )
-
-    with rio.open(output_path) as src:
-        tags = src.tags()
-    assert not any(key.startswith("OCM_") for key in tags), (
-        "No class stats tags should be written when write_class_stats is False"
-    )
+        assert src.tags()["OCM_VERSION"] == "9"
 
 
 if __name__ == "__main__":

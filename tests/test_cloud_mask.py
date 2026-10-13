@@ -2,16 +2,22 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
+import traceback
+from threading import Thread
 
 import numpy as np
 import pytest
 import rasterio as rio
 import torch
+
+from conftest import requires_fastai
 from rasterio.profiles import Profile
 
+from omnicloudmask import __version__
 from omnicloudmask.cloud_mask import (
-    check_patch_size,
     coordinator,
+    check_patch_size,
+    make_output_path,
     predict_from_array,
     predict_from_load_func,
 )
@@ -20,7 +26,7 @@ from omnicloudmask.data_loaders import (
     load_multiband,
     load_s2,
 )
-from omnicloudmask.download_models import get_models
+from omnicloudmask.download_models import get_latest_model_version, get_models
 from omnicloudmask.model_utils import load_model_from_weights
 
 test_dir = Path(__file__).parent.resolve() / "test data"
@@ -80,6 +86,7 @@ def test_predict_from_array_basic():
     )
 
 
+@requires_fastai
 def test_predict_from_array_basic_v1():
     # Create some sample data
     data = np.random.rand(3, 200, 200)
@@ -95,6 +102,7 @@ def test_predict_from_array_basic_v1():
     )
 
 
+@requires_fastai
 def test_predict_from_array_basic_v2():
     # Create some sample data
     data = np.random.rand(3, 200, 200)
@@ -140,6 +148,42 @@ def test_threaded_predict_from_array_basic():
         )
 
 
+def _load_synthetic(input_path: Path) -> tuple[np.ndarray, rio.profiles.Profile]:
+    """Load func returning a fixed random scene per file name, with a minimal
+    export profile."""
+    seed = sum(Path(input_path).name.encode())
+    array = np.random.default_rng(seed).random((3, 1000, 1000), dtype=np.float32)
+    profile = rio.profiles.Profile(
+        width=1000,
+        height=1000,
+        crs="EPSG:32750",
+        transform=rio.transform.from_origin(0, 0, 10, 10),
+    )
+    return array, profile
+
+
+def test_threaded_predict_from_load_func(tmp_path):
+    """Calling predict_from_load_func from several threads at once must not crash,
+    which it did on MPS, and must match single-threaded predictions."""
+    scene_paths = [tmp_path / f"scene_{i}.tif" for i in range(2)]
+
+    def run(worker: int) -> list[Path]:
+        return predict_from_load_func(
+            scene_paths=scene_paths,
+            load_func=_load_synthetic,
+            output_dir=tmp_path / f"worker_{worker}",
+        )
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        results = list(executor.map(run, range(4)))
+
+    for scene_index, scene_path in enumerate(scene_paths):
+        expected = predict_from_array(_load_synthetic(scene_path)[0])
+        for paths in results:
+            with rio.open(paths[scene_index]) as src:
+                np.testing.assert_array_equal(src.read(), expected)
+
+
 def test_predict_from_array_cpu_mosaic():
     # Create some sample data
     data = np.random.rand(3, 200, 200)
@@ -182,6 +226,171 @@ def test_predict_from_array_custom_model():
     assert np.all(np.isin(np.unique(result), [0, 1, 2, 3])), (
         "Unexpected values in result"
     )
+
+
+def test_predict_from_array_custom_model_pred_classes_mismatch():
+    data = np.random.rand(3, 100, 100)
+    model = torch.nn.Conv2d(3, 2, kernel_size=3, padding=1)
+
+    with pytest.raises(ValueError, match="pred_classes"):
+        predict_from_array(
+            data,
+            patch_size=100,
+            patch_overlap=0,
+            inference_device="cpu",
+            custom_models=model,
+        )
+
+    result = predict_from_array(
+        data,
+        patch_size=100,
+        patch_overlap=0,
+        inference_device="cpu",
+        custom_models=model,
+        pred_classes=2,
+        export_confidence=True,
+    )
+    assert result.shape == (2, 100, 100)
+
+
+class FailingModel(torch.nn.Module):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        raise RuntimeError("model failed")
+
+
+def run_with_timeout(func, timeout: float = 120):
+    """Run func in a daemon thread, failing the test if it hangs, otherwise
+    returning its result or re-raising its error."""
+    outcome = {}
+
+    def target():
+        try:
+            outcome["result"] = func()
+        except BaseException as e:
+            # Release the frames' locals as a real caller would, so open
+            # generators are closed here and any hang during cleanup is caught
+            traceback.clear_frames(e.__traceback__)
+            outcome["error"] = e
+
+    thread = Thread(target=target, daemon=True)
+    thread.start()
+    thread.join(timeout)
+    if thread.is_alive():
+        pytest.fail(f"Call did not finish within {timeout}s, it may have deadlocked")
+    if "error" in outcome:
+        raise outcome["error"]
+    return outcome["result"]
+
+
+def test_predict_from_array_model_error_propagates():
+    # many patches with a small batch fills the patch queue; this used to deadlock
+    data = np.random.rand(3, 400, 400)
+    with pytest.raises(RuntimeError, match="model failed"):
+        run_with_timeout(
+            lambda: predict_from_array(
+                data,
+                patch_size=100,
+                patch_overlap=0,
+                batch_size=1,
+                inference_device="cpu",
+                custom_models=FailingModel(),
+            )
+        )
+
+
+def test_predict_from_array_patch_error_propagates(monkeypatch):
+    def failing_get_patch(*args, **kwargs):
+        raise RuntimeError("patch failed")
+
+    monkeypatch.setattr("omnicloudmask.cloud_mask.get_patch", failing_get_patch)
+    data = np.random.rand(3, 400, 400)
+    with pytest.raises(RuntimeError, match="patch failed"):
+        run_with_timeout(
+            lambda: predict_from_array(
+                data,
+                patch_size=100,
+                patch_overlap=0,
+                inference_device="cpu",
+                custom_models=torch.nn.Conv2d(3, 4, kernel_size=1),
+            )
+        )
+
+
+def _write_test_scene(path: Path) -> Path:
+    with rio.open(
+        path,
+        "w",
+        driver="GTiff",
+        height=200,
+        width=200,
+        count=3,
+        dtype="float32",
+        crs="EPSG:32750",
+        transform=rio.transform.from_origin(400000, 6500000, 10, 10),
+    ) as dst:
+        dst.write(np.random.rand(3, 200, 200).astype(np.float32))
+    return path
+
+
+def _load_test_scene(input_path: Path) -> tuple[np.ndarray, dict]:
+    with rio.open(input_path) as src:
+        return src.read(), src.profile
+
+
+def test_predict_from_load_func_skip_existing(tmp_path):
+    scene_paths = [_write_test_scene(tmp_path / f"scene_{i}.tif") for i in range(2)]
+    output_dir = tmp_path / "out"
+    existing = make_output_path(scene_paths[0], output_dir)
+    existing.write_bytes(b"placeholder")
+
+    paths = predict_from_load_func(
+        scene_paths,
+        _load_test_scene,
+        patch_size=100,
+        patch_overlap=0,
+        inference_device="cpu",
+        custom_models=torch.nn.Conv2d(3, 4, kernel_size=1),
+        output_dir=output_dir,
+        overwrite=False,
+    )
+
+    assert paths == [make_output_path(p, output_dir) for p in scene_paths]
+    assert existing.read_bytes() == b"placeholder"
+    assert paths[1].exists()
+
+
+def test_predict_from_load_func_model_error_propagates(tmp_path):
+    scene_paths = [_write_test_scene(tmp_path / f"scene_{i}.tif") for i in range(2)]
+    with pytest.raises(RuntimeError, match="model failed"):
+        run_with_timeout(
+            lambda: predict_from_load_func(
+                scene_paths,
+                _load_test_scene,
+                patch_size=100,
+                patch_overlap=0,
+                inference_device="cpu",
+                custom_models=FailingModel(),
+                output_dir=tmp_path / "out",
+            )
+        )
+
+
+def test_predict_from_load_func_save_error_propagates(tmp_path, monkeypatch):
+    def failing_save(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr("omnicloudmask.cloud_mask.save_prediction", failing_save)
+    scene_paths = [_write_test_scene(tmp_path / "scene.tif")]
+    with pytest.raises(OSError, match="disk full"):
+        predict_from_load_func(
+            scene_paths,
+            _load_test_scene,
+            patch_size=100,
+            patch_overlap=0,
+            inference_device="cpu",
+            custom_models=torch.nn.Conv2d(3, 4, kernel_size=1),
+            output_dir=tmp_path / "out",
+        )
 
 
 def test_predict_from_array_with_confidence():
@@ -232,6 +441,7 @@ def test_predict_from_array_with_mask():
     assert result.shape == (1, 200, 200), "Unexpected shape for result"
 
 
+@pytest.mark.slow
 def test_predict_from_load_func_multiband():
     # Call the function
     load_multiband_maxar = partial(
@@ -292,6 +502,7 @@ def _save_comparison_plot(
     print(f"\nComparison plot saved to: {out_path}")
 
 
+@pytest.mark.slow
 def test_predict_from_load_func_s2_L2():
     # Call the function
     result_paths = predict_from_load_func(
@@ -327,6 +538,7 @@ def test_predict_from_load_func_s2_L2():
         raise
 
 
+@pytest.mark.slow
 def test_predict_from_load_func_s2_L2_with_cpu_mosaic():
     # Call the function
     result_paths = predict_from_load_func(
@@ -347,6 +559,7 @@ def test_predict_from_load_func_s2_L2_with_cpu_mosaic():
     )
 
 
+@pytest.mark.slow
 def test_predict_from_load_func_s2_L2_and_L1():
     # Call the function
     result_paths = predict_from_load_func(
@@ -368,6 +581,7 @@ def test_predict_from_load_func_s2_L2_and_L1():
         )
 
 
+@pytest.mark.slow
 def test_predict_from_load_func_s2_L1():
     # Call the function
     result_paths = predict_from_load_func(
@@ -387,6 +601,7 @@ def test_predict_from_load_func_s2_L1():
     )
 
 
+@pytest.mark.slow
 def test_predict_from_load_func_s2_L1_small_patch():
     # Call the function
     result_paths = predict_from_load_func(
@@ -406,6 +621,7 @@ def test_predict_from_load_func_s2_L1_small_patch():
     )
 
 
+@pytest.mark.slow
 def test_predict_from_load_func_ls():
     # Call the function
     result_paths = predict_from_load_func(
@@ -427,97 +643,13 @@ def test_predict_from_load_func_ls():
     )
 
 
-class PixelwiseModel(torch.nn.Module):
-    """Small stand-in model whose 4 class logits depend on the input pixels."""
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return torch.stack([x[:, 0], x[:, 1], x[:, 2], -x[:, 0]], dim=1)
-
-
-def _run_coordinator(output_path, **kwargs):
-    rng = np.random.default_rng(0)
-    data = rng.random((3, 100, 100)).astype(np.float32) + 0.1
-    data[:, :20, :] = 0  # nodata strip
-    return coordinator(
-        input_array=data,
-        models=[PixelwiseModel()],
-        inference_dtype=torch.float32,
-        softmax_output=True,
-        inference_device=torch.device("cpu"),
-        mosaic_device=torch.device("cpu"),
-        patch_size=50,
-        patch_overlap=10,
-        batch_size=1,
-        profile=Profile(height=100, width=100),
-        output_path=output_path,
-        apply_no_data_mask=True,
-        **kwargs,
-    )
-
-
-def test_coordinator_confidence_stats_match_classified(tmp_path):
-    classified_path = tmp_path / "classified.tif"
-    confidence_path = tmp_path / "confidence.tif"
-
-    classified = _run_coordinator(classified_path, export_confidence=False)
-    _run_coordinator(
-        confidence_path, export_confidence=True, export_confidence_stats=True
-    )
-
-    with rio.open(classified_path) as src:
-        classified_tags = src.tags()
-    with rio.open(confidence_path) as src:
-        confidence_tags = src.tags()
-        assert src.count == 4, "Confidence output should still have 4 bands"
-
-    stat_keys = [k for k in classified_tags if k.startswith("OCM_")]
-    assert stat_keys, "Classified output should have class stats tags"
-    for key in stat_keys:
-        assert confidence_tags[key] == classified_tags[key], (
-            f"{key} differs: {confidence_tags[key]} vs {classified_tags[key]}"
-        )
-    assert classified_tags["OCM_VALID_PIXELS"] == str(80 * 100)
-    assert len(np.unique(classified[:, 20:, :])) > 1, (
-        "Test should cover more than one class"
-    )
-
-
-def test_coordinator_confidence_stats_off_by_default(tmp_path):
-    output_path = tmp_path / "confidence.tif"
-
-    _run_coordinator(output_path, export_confidence=True)
-
-    with rio.open(output_path) as src:
-        tags = src.tags()
-    assert not any(key.startswith("OCM_") for key in tags), (
-        "Confidence output should not have class stats tags unless requested"
-    )
-
-
-@pytest.mark.parametrize("export_confidence", [False, True])
-def test_coordinator_write_class_stats_false(tmp_path, export_confidence):
-    output_path = tmp_path / "mask.tif"
-
-    _run_coordinator(
-        output_path,
-        export_confidence=export_confidence,
-        export_confidence_stats=True,
-        write_class_stats=False,
-    )
-
-    with rio.open(output_path) as src:
-        tags = src.tags()
-    assert not any(key.startswith("OCM_") for key in tags), (
-        "No class stats tags should be written when write_class_stats is False"
-    )
-
-
 def test_check_patch_size():
     patch_size = 300
     patch_overlap = 50
     no_data_value = 0
     channels = 3
-    test_array = np.random.rand(channels, 10000, 10000)
+    # larger than the patch size; the check doesn't depend on the exact size
+    test_array = np.random.rand(channels, 1000, 1000)
     check_patch_size(
         input_array=test_array,
         no_data_value=no_data_value,
@@ -579,7 +711,8 @@ def test_check_patch_size_wrong_dim_input():
     patch_overlap = 50
     no_data_value = 0
     channels = 3
-    test_array_size = 10000
+    # rejected for having 4 dimensions before its size matters
+    test_array_size = 100
     test_array = np.random.rand(1, channels, test_array_size, test_array_size)
     with pytest.raises(ValueError):
         check_patch_size(
@@ -659,3 +792,164 @@ def test_check_patch_size_overlap_larger_than_patch_size():
             patch_size=patch_size,
             patch_overlap=patch_overlap,
         )
+
+
+class PixelwiseModel(torch.nn.Module):
+    """Small stand-in model whose 4 class logits depend on the input pixels."""
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return torch.stack([x[:, 0], x[:, 1], x[:, 2], -x[:, 0]], dim=1)
+
+
+def _run_coordinator(output_path: Path, **kwargs) -> np.ndarray:
+    rng = np.random.default_rng(0)
+    data = rng.random((3, 100, 100)).astype(np.float32) + 0.1
+    data[:, :20, :] = 0  # no data strip
+    kwargs.setdefault("apply_no_data_mask", True)
+    return coordinator(
+        input_array=data,
+        models=[PixelwiseModel()],
+        inference_dtype=torch.float32,
+        softmax_output=True,
+        inference_device=torch.device("cpu"),
+        mosaic_device=torch.device("cpu"),
+        patch_size=50,
+        patch_overlap=10,
+        batch_size=1,
+        profile=Profile(height=100, width=100),
+        output_path=output_path,
+        metadata_tags={"OCM_VERSION": "test"},
+        class_stats=True,
+        **kwargs,
+    )
+
+
+def _ocm_tags(path: Path) -> dict[str, str]:
+    with rio.open(path) as src:
+        return {k: v for k, v in src.tags().items() if k.startswith("OCM_")}
+
+
+def test_coordinator_writes_class_stats(tmp_path):
+    classified = _run_coordinator(tmp_path / "mask.tif", export_confidence=False)
+    tags = _ocm_tags(tmp_path / "mask.tif")
+
+    assert tags["OCM_VERSION"] == "test"
+    assert tags["OCM_VALID_PIXELS"] == str(80 * 100)
+    assert len(np.unique(classified[:, 20:, :])) > 1, "Test should cover >1 class"
+    total = sum(
+        float(tags[f"OCM_{name}_PCT"])
+        for name in ["CLEAR", "THICK_CLOUD", "THIN_CLOUD", "CLOUD_SHADOW"]
+    )
+    assert abs(total - 100) < 0.05
+
+
+def test_coordinator_confidence_stats_match_classified(tmp_path):
+    _run_coordinator(tmp_path / "mask.tif", export_confidence=False)
+    _run_coordinator(tmp_path / "confidence.tif", export_confidence=True)
+
+    assert _ocm_tags(tmp_path / "confidence.tif") == _ocm_tags(tmp_path / "mask.tif")
+    with rio.open(tmp_path / "confidence.tif") as src:
+        assert src.count == 4
+
+
+@pytest.mark.parametrize("export_confidence", [False, True])
+def test_coordinator_stats_ignore_apply_no_data_mask(tmp_path, export_confidence):
+    """Statistics are over valid input pixels whether or not the nodata mask is
+    applied to the prediction, so filtering on them doesn't depend on the flag."""
+    _run_coordinator(
+        tmp_path / "masked.tif",
+        export_confidence=export_confidence,
+        apply_no_data_mask=True,
+    )
+    _run_coordinator(
+        tmp_path / "unmasked.tif",
+        export_confidence=export_confidence,
+        apply_no_data_mask=False,
+    )
+
+    assert _ocm_tags(tmp_path / "masked.tif") == _ocm_tags(tmp_path / "unmasked.tif")
+
+
+def test_coordinator_class_stats_off(tmp_path):
+    rng = np.random.default_rng(0)
+    coordinator(
+        input_array=rng.random((3, 100, 100)).astype(np.float32),
+        models=[PixelwiseModel()],
+        inference_dtype=torch.float32,
+        export_confidence=False,
+        softmax_output=True,
+        inference_device=torch.device("cpu"),
+        mosaic_device=torch.device("cpu"),
+        patch_size=50,
+        patch_overlap=10,
+        batch_size=1,
+        profile=Profile(height=100, width=100),
+        output_path=tmp_path / "mask.tif",
+        metadata_tags={"OCM_VERSION": "test"},
+        class_stats=False,
+    )
+
+    assert _ocm_tags(tmp_path / "mask.tif") == {"OCM_VERSION": "test"}
+
+
+def _write_scene(path: Path) -> Path:
+    data = np.random.default_rng(2).random((3, 100, 100)).astype(np.float32) + 0.1
+    with rio.open(
+        path,
+        "w",
+        driver="GTiff",
+        height=100,
+        width=100,
+        count=3,
+        dtype="float32",
+        crs="EPSG:32750",
+        transform=rio.transform.from_origin(400000, 6500000, 10, 10),
+    ) as dst:
+        dst.write(data)
+    return path
+
+
+def _load_scene(input_path: Path) -> tuple[np.ndarray, dict]:
+    with rio.open(input_path) as src:
+        return src.read(), src.profile
+
+
+@pytest.mark.parametrize("model_version", [None, 4])
+def test_predict_from_load_func_writes_version_tags(tmp_path, model_version):
+    [path] = predict_from_load_func(
+        [_write_scene(tmp_path / "scene.tif")],
+        _load_scene,
+        patch_size=100,
+        patch_overlap=0,
+        inference_device="cpu",
+        output_dir=tmp_path / "out",
+        model_version=model_version,
+    )
+
+    tags = _ocm_tags(path)
+    expected_version = (
+        float(model_version)
+        if model_version is not None
+        else get_latest_model_version()
+    )
+    assert tags["OCM_VERSION"] == __version__
+    assert tags["OCM_MODEL_VERSION"] == str(expected_version)
+    assert "OCM_CLOUD_PCT" in tags
+    assert tags["OCM_VALID_PIXELS"] == str(100 * 100)
+
+
+def test_predict_from_load_func_custom_model_has_no_class_stats(tmp_path):
+    [path] = predict_from_load_func(
+        [_write_scene(tmp_path / "scene.tif")],
+        _load_scene,
+        patch_size=100,
+        patch_overlap=0,
+        inference_device="cpu",
+        output_dir=tmp_path / "out",
+        custom_models=PixelwiseModel(),
+    )
+
+    assert _ocm_tags(path) == {
+        "OCM_VERSION": __version__,
+        "OCM_MODEL_VERSION": "custom",
+    }

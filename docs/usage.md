@@ -29,6 +29,7 @@ import numpy as np
 import rasterio as rio
 from omnicloudmask import predict_from_load_func
 
+
 def load_rgb_only(input_path):
     with rio.open(input_path) as src:
         red = src.read(1)
@@ -36,6 +37,7 @@ def load_rgb_only(input_path):
         profile = src.profile
     nir_placeholder = np.zeros_like(red)
     return np.stack([red, green, nir_placeholder], axis=0), profile
+
 
 pred_paths = predict_from_load_func(scene_paths, load_rgb_only)
 ```
@@ -68,8 +70,8 @@ pred_paths = predict_from_load_func(
     scene_paths=scene_paths,
     load_func=load_s2,
     inference_dtype="bf16",
-    batch_size=4,            # increase for GPUs with more VRAM
-    compile_models=True,     # faster inference for 10+ scenes
+    batch_size=4,  # increase for GPUs with more VRAM
+    compile_models=True,  # faster inference for 10+ scenes
 )
 ```
 
@@ -117,7 +119,7 @@ torch.set_num_threads(4)
 pred_paths = predict_from_load_func(
     scene_paths=scene_paths,
     load_func=load_s2,
-    inference_dtype="fp32",   # important: avoid fp16/bf16 on CPU
+    inference_dtype="fp32",  # important: avoid fp16/bf16 on CPU
     batch_size=1,
     inference_device="cpu",
     mosaic_device="cpu",
@@ -137,6 +139,69 @@ mask = predict_from_array(
 # Output shape: (4, height, width) - one channel per class
 ```
 
+(batch-prediction)=
+## Batch Prediction for Image Datasets
+
+`predict_from_array` and `predict_from_load_func` tile one large scene into patches. If you have many small images instead, such as the chips of an existing training dataset you want to filter for clouds, use `predict_from_batch` to run several images through the model at once:
+
+```python
+import numpy as np
+from omnicloudmask import predict_from_batch
+
+# chips: (N, 3, 512, 512) array of Red, Green, NIR images
+masks = predict_from_batch(chips, batch_size=16)
+# Output shape: (N, 1, 512, 512)
+```
+
+`data` can be any iterable of `(3, height, width)` arrays or tensors: a 4D numpy array or torch tensor, a list, or a generator. Every image in one call must have the same shape. If your dataset has several chip sizes, call `predict_from_batch` once per size.
+
+Each image is predicted as a single patch, so there is no overlap between images and predictions near chip edges have less spatial context than in a tiled scene. Very small chips may not give the model enough context. See [Spatial Context](spatial-context.md).
+
+### Loading from files
+
+Pass a `load_func` and `data` becomes a list of file paths (or anything else your loader accepts). Files are loaded in background threads while the GPU runs inference:
+
+```python
+from functools import partial
+from omnicloudmask import predict_from_batch, load_multiband
+
+loader = partial(load_multiband, band_order=[1, 2, 4])
+masks = predict_from_batch(chip_paths, batch_size=16, load_func=loader)
+```
+
+Set `export_to_disk=True` to save each prediction as a GeoTIFF next to its input (or in `output_dir`) and get the file paths back instead of an array. `overwrite=False` skips chips that already have a prediction, so an interrupted run can be resumed:
+
+```python
+pred_paths = predict_from_batch(
+    chip_paths,
+    batch_size=16,
+    load_func=loader,
+    export_to_disk=True,
+    output_dir="/path/to/masks",
+    overwrite=False,
+)
+```
+
+### Filtering a dataset by cloud cover
+
+No-data pixels are set to `0` in the output, which is also the Clear class. Compute cloud fractions over valid pixels only, and drop chips that are mostly no data, otherwise an empty chip counts as 0% cloud:
+
+```python
+masks = predict_from_batch(chips, batch_size=16)
+
+valid = ~np.all(chips == 0, axis=1, keepdims=True)  # use your no_data_value
+valid_pixels = valid.sum(axis=(1, 2, 3))
+cloudy = np.isin(masks, [1, 2, 3]) & valid  # thick cloud, thin cloud, shadow
+cloud_fraction = cloudy.sum(axis=(1, 2, 3)) / np.maximum(valid_pixels, 1)
+valid_fraction = valid_pixels / valid[0].size
+
+clear_chips = chips[(cloud_fraction < 0.05) & (valid_fraction >= 0.9)]
+```
+
+See the [batch prediction notebook](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/batch_prediction.ipynb) for a full example of each input and output option.
+
+The returned array holds every prediction in memory. For very large datasets, especially with `export_confidence=True`, call `predict_from_batch` on chunks of the dataset or use `export_to_disk=True`.
+
 ## Output Directory
 
 Save predictions to a specific directory:
@@ -148,6 +213,35 @@ pred_paths = predict_from_load_func(
     output_dir="/path/to/output",
 )
 ```
+
+(metadata-tags)=
+## Metadata Tags
+
+Every GeoTIFF written by `predict_from_load_func` or `predict_from_batch(export_to_disk=True)` carries GDAL metadata tags, so you can find cloudy scenes or check how a mask was made without reading the raster:
+
+| Tag | Value |
+|---|---|
+| `OCM_VERSION` | OmniCloudMask version that made the mask |
+| `OCM_MODEL_VERSION` | Model version used, or `custom` for custom models |
+| `OCM_CLEAR_PCT` | Percentage of valid pixels classed as clear |
+| `OCM_THICK_CLOUD_PCT` | Percentage thick cloud |
+| `OCM_THIN_CLOUD_PCT` | Percentage thin cloud |
+| `OCM_CLOUD_SHADOW_PCT` | Percentage cloud shadow |
+| `OCM_CLOUD_PCT` | Total cloud (thick + thin) |
+| `OCM_VALID_PIXELS` | Number of valid pixels the percentages are based on |
+| `OCM_CLASSES` | Class legend, `0=Clear,1=Thick Cloud,2=Thin Cloud,3=Cloud Shadow` |
+
+```python
+import rasterio as rio
+
+with rio.open(pred_paths[0]) as src:
+    tags = src.tags()
+print(tags["OCM_CLOUD_PCT"], tags["OCM_MODEL_VERSION"])
+```
+
+- Percentages are of valid pixels: pixels where every input band equals `no_data_value` are excluded, whether or not `apply_no_data_mask` is set.
+- Confidence outputs (`export_confidence=True`) get the same statistics, using the most likely class at each pixel.
+- Class statistics assume the standard OmniCloudMask classes, so with `custom_models` only the version tags are written.
 
 ## Skip Existing Predictions
 
@@ -171,12 +265,14 @@ import numpy as np
 import rasterio as rio
 from omnicloudmask import predict_from_load_func
 
+
 def my_loader(input_path):
     with rio.open(input_path) as src:
         # Read bands in order: Red, Green, NIR
         data = src.read([4, 3, 5])  # adjust band indices for your sensor
         profile = src.profile
     return data, profile
+
 
 pred_paths = predict_from_load_func(scene_paths, my_loader)
 ```

@@ -1,8 +1,10 @@
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
 import rasterio as rio
+import torch
+from classcounter import count_classes
 from rasterio.profiles import Profile
 
 from .constants import CLASS_NAMES, CLOUD_CLASSES
@@ -84,11 +86,57 @@ def mask_prediction(
     assert scene.shape[1:] == pred_tracker_np.shape[1:], (
         "Scene and prediction tracker must have the same shape"
     )
-    # if all bands at a single pixel are no_data_value,
-    # then it is considered no data
-    mask = (~np.all(scene == no_data_value, axis=0)).astype(np.uint8)
+    mask = scene_valid_mask(scene, no_data_value).astype(np.uint8)
     pred_tracker_np *= mask
     return pred_tracker_np, mask
+
+
+def scene_valid_mask(scene: np.ndarray, no_data_value: int | float = 0) -> np.ndarray:
+    """Boolean (height, width) mask of valid pixels in a (bands, height, width)
+    scene. A pixel is no data if all bands at that location are equal to
+    no_data_value (NaN-aware)."""
+    if isinstance(no_data_value, float) and np.isnan(no_data_value):
+        is_no_data = np.isnan(scene)
+    else:
+        is_no_data = scene == no_data_value
+    return ~np.all(is_no_data, axis=0)
+
+
+def class_stats_tags(
+    class_pred: Union[np.ndarray, torch.Tensor],
+    valid: Union[np.ndarray, torch.Tensor],
+) -> dict[str, str]:
+    """GDAL metadata tags with the percentage of valid pixels in each class.
+
+    class_pred holds class indices and valid is a boolean mask of the same shape
+    (or broadcastable to it). Tensors are counted on their device."""
+    backend = "torch" if isinstance(class_pred, torch.Tensor) else "numpy"
+    counts = count_classes(class_pred, names=CLASS_NAMES, mask=valid, backend=backend)
+    total = sum(counts.values())
+
+    def pct(count: float) -> str:
+        return f"{count / total * 100 if total else 0:.2f}"
+
+    tags = {f"OCM_{name}_PCT": pct(counts[name]) for name in CLASS_NAMES.values()}
+    tags["OCM_CLOUD_PCT"] = pct(sum(counts[name] for name in CLOUD_CLASSES))
+    tags["OCM_VALID_PIXELS"] = str(int(total))
+    tags["OCM_CLASSES"] = ",".join(
+        f"{i}={name.replace('_', ' ').title()}" for i, name in CLASS_NAMES.items()
+    )
+    return tags
+
+
+def batch_nodata_mask(
+    batch: torch.Tensor, no_data_value: int | float = 0
+) -> torch.Tensor:
+    """Create a (B, 1, H, W) boolean valid-data mask for a (B, C, H, W) batch,
+    a pixel is no data if all bands at that location are equal to no_data_value."""
+    assert batch.ndim == 4, "Batch must have 4 dimensions"
+    if isinstance(no_data_value, float) and np.isnan(no_data_value):
+        is_no_data = torch.isnan(batch)
+    else:
+        is_no_data = batch == no_data_value
+    return ~torch.all(is_no_data, dim=1, keepdim=True)
 
 
 def make_patch_indexes(
@@ -127,47 +175,18 @@ def make_patch_indexes(
     return patch_indexes
 
 
-def compute_class_stats(
-    pred: np.ndarray, nodata_mask: Optional[np.ndarray] = None
-) -> dict[str, str]:
-    """Calculate the percentage of valid pixels in each class."""
-    values = pred[0] if nodata_mask is None else pred[0][nodata_mask.astype(bool)]
-    counts = np.bincount(values.ravel(), minlength=len(CLASS_NAMES))
-    total = counts.sum()
-    pct = counts / total * 100 if total else np.zeros(len(counts))
-
-    pct_by_name = {name: pct[i] for i, name in CLASS_NAMES.items()}
-
-    tags = {f"OCM_{name}_PCT": f"{p:.2f}" for name, p in pct_by_name.items()}
-    tags["OCM_CLOUD_PCT"] = f"{sum(pct_by_name[n] for n in CLOUD_CLASSES):.2f}"
-    tags["OCM_VALID_PIXELS"] = str(int(total))
-    tags["OCM_CLASSES"] = ",".join(
-        f"{i}={name.replace('_', ' ').title()}" for i, name in CLASS_NAMES.items()
-    )
-    return tags
-
-
 def save_prediction(
     output_path: Path,
     export_profile: Profile,
     pred_tracker_np: np.ndarray,
     nodata_mask: Optional[np.ndarray],
-    class_pred: Optional[np.ndarray] = None,
-    write_class_stats: bool = True,
+    tags: Optional[dict[str, str]] = None,
 ) -> None:
-    """Save the prediction tracker to a raster file,
-    optionally also saves the nodata mask if not None.
-    If write_class_stats, class statistics tags are written for classified outputs,
-    or for confidence outputs when class_pred (the argmax of the confidence maps)
-    is provided."""
-    if not write_class_stats:
-        class_pred = None
-    elif class_pred is None and pred_tracker_np.shape[0] == 1:
-        class_pred = pred_tracker_np
+    """Save the prediction tracker to a raster file, optionally also saving the
+    nodata mask if not None and GDAL metadata tags if given."""
     with rio.open(output_path, "w", **export_profile) as dst:
         dst.write(pred_tracker_np)
         if nodata_mask is not None:
             dst.write_mask((nodata_mask * 255).astype("uint8"))
-        if class_pred is not None:
-            tags = compute_class_stats(class_pred, nodata_mask)
+        if tags:
             dst.update_tags(**tags)
