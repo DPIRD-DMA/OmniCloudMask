@@ -12,6 +12,9 @@ between runs, e.g. before and after a change:
 
 The "gpu_floor" scenario times only the models on batches that are already
 normalised and on the device, which is the best the pipeline could achieve.
+The "loop_*" scenarios call predict_from_array once per image for comparison:
+"loop_default" with its default patch settings, "loop_tuned" with one patch
+per image (patch_size = image size, no overlap).
 """
 
 import argparse
@@ -27,7 +30,7 @@ import rasterio as rio
 import torch
 from rasterio.transform import from_origin
 
-from omnicloudmask import predict_from_batch
+from omnicloudmask import predict_from_array, predict_from_batch
 from omnicloudmask.cloud_mask import collect_models
 from omnicloudmask.model_utils import get_torch_dtype, infer_batch
 
@@ -40,6 +43,8 @@ SCENARIOS = [
     "files_uint16",
     "confidence_uint16",
     "export_uint16",
+    "loop_default",
+    "loop_tuned",
 ]
 
 
@@ -134,6 +139,22 @@ def build_scenario(
         return lambda: predict_from_batch(paths, load_func=load_tif, **common)
     if name == "confidence_uint16":
         return lambda: predict_from_batch(images, export_confidence=True, **common)
+    if name == "loop_default":
+        return lambda: [
+            predict_from_array(image, inference_device=device, inference_dtype=dtype)
+            for image in images
+        ]
+    if name == "loop_tuned":
+        return lambda: [
+            predict_from_array(
+                image,
+                patch_size=images.shape[-1],
+                patch_overlap=0,
+                inference_device=device,
+                inference_dtype=dtype,
+            )
+            for image in images
+        ]
     if name == "export_uint16":
         return lambda: predict_from_batch(
             paths,
