@@ -9,12 +9,14 @@
 ### Fixed
 - Calling `predict_from_array` or `predict_from_load_func` from several threads on MPS no longer aborts the process; work on MPS is now serialised across threads, since PyTorch's MPS backend isn't thread-safe
 - `predict_from_array` no longer hangs forever when patch extraction raises an error; the error is now raised to the caller
+- No-data masking now works when `no_data_value` is NaN; previously no pixels were masked because NaN never compares equal
 
 ### Added
 - GitHub Actions CI: lint and tests on Linux (Python 3.10, 3.14) and macOS (Python 3.14), plus a non-blocking Python 3.15 job
 - Releases from a version tag: GitHub Actions builds, publishes to PyPI with trusted publishing, and creates a GitHub release
 - `slow` pytest marker for tests that need the downloaded test scenes; CI runs `pytest -m "not slow"`
 - Test for calling `predict_from_load_func` from several threads
+- Test for no-data masking with a NaN `no_data_value`
 
 ## [1.7.1] - Mar 5, 2026
 

@@ -310,6 +310,25 @@ def test_mask_prediction_float_values():
     np.testing.assert_array_equal(mask, expected_mask)
 
 
+def test_mask_prediction_nan_no_data_value():
+    nan = np.nan
+    scene = np.array(
+        [[[1.1, nan, 3.3], [4.4, 5.5, nan]], [[7.7, 8.8, nan], [10.0, 11.1, nan]]]
+    )
+    pred_tracker = np.ones((1, 2, 3))
+    no_data_value = np.nan
+
+    masked_pred_tracker, mask = mask_prediction(scene, pred_tracker, no_data_value)
+
+    # only pixels where all bands are NaN are masked
+    expected = np.array([[[1, 1, 1], [1, 1, 0]]])
+
+    np.testing.assert_array_equal(masked_pred_tracker, expected)
+
+    expected_mask = np.array([[1, 1, 1], [1, 1, 0]], dtype=np.uint8)
+    np.testing.assert_array_equal(mask, expected_mask)
+
+
 def test_mask_prediction_wrong_shapes():
     scene = np.ones((3, 2, 2))
     pred_tracker = np.ones((1, 3, 3))  # Wrong shape
