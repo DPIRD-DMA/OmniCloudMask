@@ -1,12 +1,12 @@
 import os
 import warnings
 from collections import deque
-from contextlib import closing
+from contextlib import AbstractContextManager, closing, nullcontext
 from itertools import chain, islice, repeat
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from queue import Empty, Full, Queue
-from threading import Event, Thread
+from threading import Event, RLock, Thread
 from typing import (
     Any,
     Callable,
@@ -45,6 +45,25 @@ from .raster_utils import (
     mask_prediction,
     save_prediction,
 )
+
+
+# PyTorch's MPS backend shares one command buffer per process, so GPU work encoded
+# from two threads at once fails a Metal assertion and aborts the process.
+_MPS_LOCK = RLock()
+
+
+def device_lock(*devices: torch.device) -> AbstractContextManager:
+    """Serialise work across threads when any of the devices is MPS. Other devices
+    don't need it."""
+    if any(device.type == "mps" for device in devices):
+        return _MPS_LOCK
+    return nullcontext()
+
+
+def locked_coordinator(**kwargs) -> Optional[np.ndarray]:
+    """Run coordinator while holding the device lock for its devices."""
+    with device_lock(kwargs["inference_device"], kwargs["mosaic_device"]):
+        return coordinator(**kwargs)
 
 
 def warn_cpu_reduced_precision(device: torch.device, dtype: torch.dtype) -> None:
@@ -573,36 +592,37 @@ def predict_from_array(
     # Warn if using CPU with reduced precision
     warn_cpu_reduced_precision(inference_device, inference_dtype)
 
-    # if no custom model paths are provided, use the default models
-    models = collect_models(
-        custom_models=custom_models,
-        inference_device=inference_device,
-        inference_dtype=inference_dtype,
-        source=model_download_source,
-        destination_model_dir=destination_model_dir,
-        model_version=model_version,
-        compile_models=compile_models,
-        patch_size=patch_size,
-        batch_size=batch_size,
-        compile_mode=compile_mode,
-    )
+    with device_lock(inference_device, mosaic_device):
+        # if no custom model paths are provided, use the default models
+        models = collect_models(
+            custom_models=custom_models,
+            inference_device=inference_device,
+            inference_dtype=inference_dtype,
+            source=model_download_source,
+            destination_model_dir=destination_model_dir,
+            model_version=model_version,
+            compile_models=compile_models,
+            patch_size=patch_size,
+            batch_size=batch_size,
+            compile_mode=compile_mode,
+        )
 
-    pred_tracker = coordinator(
-        input_array=input_array,
-        models=models,
-        inference_device=inference_device,
-        mosaic_device=mosaic_device,
-        inference_dtype=inference_dtype,
-        export_confidence=export_confidence,
-        softmax_output=softmax_output,
-        patch_size=patch_size,
-        patch_overlap=patch_overlap,
-        batch_size=batch_size,
-        no_data_value=no_data_value,
-        export_to_disk=False,
-        apply_no_data_mask=apply_no_data_mask,
-        pred_classes=pred_classes,
-    )
+        pred_tracker = coordinator(
+            input_array=input_array,
+            models=models,
+            inference_device=inference_device,
+            mosaic_device=mosaic_device,
+            inference_dtype=inference_dtype,
+            export_confidence=export_confidence,
+            softmax_output=softmax_output,
+            patch_size=patch_size,
+            patch_overlap=patch_overlap,
+            batch_size=batch_size,
+            no_data_value=no_data_value,
+            export_to_disk=False,
+            apply_no_data_mask=apply_no_data_mask,
+            pred_classes=pred_classes,
+        )
 
     return pred_tracker
 
@@ -674,18 +694,19 @@ def predict_from_load_func(
     # Warn if using CPU with reduced precision
     warn_cpu_reduced_precision(inference_device, inference_dtype)
 
-    models = collect_models(
-        custom_models=custom_models,
-        inference_device=inference_device,
-        inference_dtype=inference_dtype,
-        destination_model_dir=destination_model_dir,
-        source=model_download_source,
-        model_version=model_version,
-        compile_models=compile_models,
-        patch_size=patch_size,
-        batch_size=batch_size,
-        compile_mode=compile_mode,
-    )
+    with device_lock(inference_device, mosaic_device):
+        models = collect_models(
+            custom_models=custom_models,
+            inference_device=inference_device,
+            inference_dtype=inference_dtype,
+            destination_model_dir=destination_model_dir,
+            source=model_download_source,
+            model_version=model_version,
+            compile_models=compile_models,
+            patch_size=patch_size,
+            batch_size=batch_size,
+            compile_mode=compile_mode,
+        )
 
     pbar = tqdm(
         total=len(scene_paths),
@@ -719,7 +740,7 @@ def predict_from_load_func(
                 inf_future.result()
 
             inf_future = inf_executor.submit(
-                coordinator,
+                locked_coordinator,
                 input_array=input_array,
                 profile=profile,
                 output_path=output_path,
@@ -769,7 +790,8 @@ def _prepare_item(
     item: Any, load_func: Optional[Callable]
 ) -> tuple[Union[np.ndarray, torch.Tensor], Optional[Profile]]:
     """Load an item with load_func if provided. Returns the image in its own dtype
-    and the export profile, if load_func returned one."""
+    and the export profile, if load_func returned one. Tensors are not moved or
+    cast here, since doing that on MPS is MPS work that must hold the device lock."""
     profile = None
     if load_func is not None:
         item = load_func(input_path=item)
@@ -896,6 +918,30 @@ def _to_float32(batch: torch.Tensor, is_uint16: bool) -> torch.Tensor:
     return batch.to(torch.float32)
 
 
+def _batch_devices(batch: Any) -> list[torch.device]:
+    """Devices of the tensors in a batch, collated or not."""
+    if isinstance(batch, torch.Tensor):
+        return [batch.device]
+    if isinstance(batch, list):
+        return [image.device for image in batch if isinstance(image, torch.Tensor)]
+    return []
+
+
+def _collation_touches_mps(images: Any) -> bool:
+    """Whether collating these images would do MPS work (moving, stacking or casting
+    MPS tensors). Since PyTorch's MPS backend isn't thread-safe, such batches are
+    collated by the caller while holding the device lock, not on the prefetch
+    thread."""
+    return any(device.type == "mps" for device in _batch_devices(images))
+
+
+def _batch_image_shape(batch: Any) -> tuple:
+    """Shape of one image in a batch, collated or not."""
+    if isinstance(batch, list):
+        return tuple(batch[0].shape)
+    return tuple(batch.shape[1:])
+
+
 def _prefetch(
     batches: Generator[tuple[Any, list[Optional[Profile]], list[Any]], None, None],
     device: torch.device,
@@ -905,8 +951,10 @@ def _prefetch(
 ]:
     """Collate batches in a background thread so the next batch is ready while the
     current one runs on the device. On CUDA the thread also copies each batch to
-    the device on its own stream, overlapping the copy with compute. Errors are
-    re-raised in the caller, and closing this generator stops the thread."""
+    the device on its own stream, overlapping the copy with compute. Batches whose
+    collation touches MPS are yielded uncollated, with is_uint16 None, for the
+    caller to collate under the device lock. Errors are re-raised in the caller,
+    and closing this generator stops the thread."""
     result_queue: Queue = Queue(maxsize=depth)
     stop = Event()
     copy_stream = torch.cuda.Stream(device=device) if device.type == "cuda" else None
@@ -924,6 +972,10 @@ def _prefetch(
     def producer() -> None:
         try:
             for images, profiles, items in batches:
+                if _collation_touches_mps(images):
+                    if not put((images, None, profiles, items, None)):
+                        return
+                    continue
                 batch, is_uint16 = _collate(images, device)
                 ready = None
                 if copy_stream is not None and batch.device.type == "cpu":
@@ -959,6 +1011,47 @@ def _prefetch(
     finally:
         stop.set()
         thread.join()
+
+
+def _predict_batch(
+    batch: torch.Tensor,
+    is_uint16: bool,
+    models: list[torch.nn.Module],
+    inference_device: torch.device,
+    inference_dtype: torch.dtype,
+    no_data_value: int | float,
+    export_confidence: bool,
+    softmax_output: bool,
+    apply_no_data_mask: bool,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Predict a collated batch on the device. Returns the masked predictions and
+    the (B, 1, H, W) valid data mask, both on the device; intermediate tensors are
+    freed on return."""
+    raw_batch = _to_float32(
+        batch.to(device=inference_device, non_blocking=True), is_uint16
+    )
+    band_valid = band_valid_mask(raw_batch, no_data_value)
+    # a pixel is no data only if every band is no data
+    valid_mask = band_valid.any(dim=1, keepdim=True)
+    norm_batch = channel_norm_torch(raw_batch, valid=band_valid).to(
+        dtype=inference_dtype
+    )
+
+    preds = postprocess_preds(
+        infer_batch(models, norm_batch),
+        export_confidence=export_confidence,
+        softmax_output=softmax_output,
+        class_dim=1,
+    )
+    if apply_no_data_mask:
+        preds.masked_fill_(~valid_mask, 0)
+    # match the tiled path, which skips patches that are entirely no data
+    empty = ~valid_mask.flatten(start_dim=1).any(dim=1)
+    preds.masked_fill_(
+        empty[:, None, None, None],
+        np.nan if export_confidence and not softmax_output else 0,
+    )
+    return preds, valid_mask
 
 
 # The return type depends on export_to_disk: an array of predictions, or the
@@ -1060,7 +1153,7 @@ def predict_from_batch(
     Args:
         data (Iterable): An iterable of (3, height, width) Red, Green and NIR numpy arrays or torch tensors, e.g. a 4D array or tensor, a list of arrays or a generator. If load_func is provided, an iterable of items (usually file paths) to pass to load_func.
         batch_size (int, optional): Number of images to process in a batch. Defaults to 1.
-        load_func (Callable, optional): A function called as load_func(input_path=item) that returns a (3, height, width) array, or an (array, rasterio profile) tuple such as the loaders in data_loaders.py. Defaults to None.
+        load_func (Callable, optional): A function called as load_func(input_path=item) that returns a (3, height, width) array, or an (array, rasterio profile) tuple such as the loaders in data_loaders.py. It runs on background threads, so it should return numpy arrays or CPU tensors; creating MPS tensors inside it isn't serialised with inference. Defaults to None.
         inference_device (Union[str, torch.device], optional): Device to use for inference (e.g., 'cpu', 'cuda', 'mps'). Defaults to None then default_device().
         inference_dtype (Union[torch.dtype, str], optional): Data type for inference. Defaults to torch.float32.
         export_confidence (bool, optional): If True, exports confidence maps instead of predicted classes. Defaults to False.
@@ -1140,20 +1233,21 @@ def predict_from_batch(
             first = next(prefetched, None)
             if first is None:
                 raise ValueError("data is empty, at least one image is required.")
-            image_shape = tuple(first[0].shape[1:])
+            image_shape = _batch_image_shape(first[0])
 
-            models = collect_models(
-                custom_models=custom_models,
-                inference_device=inference_device,
-                inference_dtype=inference_dtype,
-                source=model_download_source,
-                destination_model_dir=destination_model_dir,
-                model_version=model_version,
-                compile_models=compile_models,
-                patch_size=(image_shape[1], image_shape[2]),
-                batch_size=batch_size,
-                compile_mode=compile_mode,
-            )
+            with device_lock(inference_device):
+                models = collect_models(
+                    custom_models=custom_models,
+                    inference_device=inference_device,
+                    inference_dtype=inference_dtype,
+                    source=model_download_source,
+                    destination_model_dir=destination_model_dir,
+                    model_version=model_version,
+                    compile_models=compile_models,
+                    patch_size=(image_shape[1], image_shape[2]),
+                    batch_size=batch_size,
+                    compile_mode=compile_mode,
+                )
 
             model_channels = _get_model_in_channels(models[0])
             if image_shape[0] != model_channels:
@@ -1195,7 +1289,7 @@ def predict_from_batch(
                                 make_output_path(item, output_dir),
                                 build_export_profile(profile, pred),
                                 pred,
-                                nodata_mask,
+                                nodata_mask if apply_no_data_mask else None,
                             )
                         )
                 elif total is not None:
@@ -1237,39 +1331,35 @@ def predict_from_batch(
                     write_out(*batch_outputs)
 
             for batch, is_uint16, profiles, batch_items in chain([first], prefetched):
-                raw_batch = _to_float32(
-                    batch.to(device=inference_device, non_blocking=True), is_uint16
-                )
-                band_valid = band_valid_mask(raw_batch, no_data_value)
-                # a pixel is no data only if every band is no data
-                valid_mask = band_valid.any(dim=1, keepdim=True)
-                norm_batch = channel_norm_torch(raw_batch, valid=band_valid).to(
-                    dtype=inference_dtype
-                )
-
-                preds = postprocess_preds(
-                    infer_batch(models, norm_batch),
-                    export_confidence=export_confidence,
-                    softmax_output=softmax_output,
-                    class_dim=1,
-                )
-                if apply_no_data_mask:
-                    preds.masked_fill_(~valid_mask, 0)
-                # match the tiled path, which skips patches that are entirely no data
-                empty = ~valid_mask.flatten(start_dim=1).any(dim=1)
-                preds.masked_fill_(
-                    empty[:, None, None, None],
-                    np.nan if export_confidence and not softmax_output else 0,
-                )
-
-                done = None
-                if copy_stream is not None:
-                    done = torch.cuda.Event()
-                    done.record()
-
-                # this batch is queued on the device, so finish the previous one
-                finish_pending()
-                pending = (preds, valid_mask, profiles, batch_items, done)
+                # Lock per batch rather than per call, so the lock isn't held while
+                # waiting on loaders, which may run MPS predictions themselves
+                with device_lock(inference_device, *_batch_devices(batch)):
+                    if is_uint16 is None:
+                        # collation touches MPS, so it happens here, under the lock
+                        batch, is_uint16 = _collate(batch, inference_device)
+                    preds, valid_mask = _predict_batch(
+                        batch,
+                        is_uint16,
+                        models,
+                        inference_device=inference_device,
+                        inference_dtype=inference_dtype,
+                        no_data_value=no_data_value,
+                        export_confidence=export_confidence,
+                        softmax_output=softmax_output,
+                        apply_no_data_mask=apply_no_data_mask,
+                    )
+                    if copy_stream is None:
+                        # store now, so device tensors are freed before the lock
+                        # is released
+                        write_out(preds, valid_mask, profiles, batch_items)
+                    else:
+                        done = torch.cuda.Event()
+                        done.record()
+                        # this batch is queued on the device, so finish the
+                        # previous one
+                        finish_pending()
+                        pending = (preds, valid_mask, profiles, batch_items, done)
+                    del batch, preds, valid_mask
 
             finish_pending()
     finally:
