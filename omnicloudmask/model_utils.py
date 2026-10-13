@@ -120,7 +120,9 @@ def store_results(
 
     pred_batch *= gradient[None, None, :, :]
 
-    for pred, index in zip(pred_batch.to(pred_tracker.device), index_batch):
+    for pred, index in zip(
+        pred_batch.to(pred_tracker.device), index_batch, strict=True
+    ):
         pred_tracker[:, index[0] : index[1], index[2] : index[3]] += pred
         if grad_tracker is not None:
             grad_tracker[index[0] : index[1], index[2] : index[3]] += gradient.to(

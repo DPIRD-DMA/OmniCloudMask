@@ -1,6 +1,16 @@
 # Changelog
 
 
+## [Unreleased]
+
+### Changed
+- Requires Python 3.10 or newer (the code already needed 3.10; the package metadata said 3.9)
+
+### Added
+- GitHub Actions CI: lint and tests on Linux (Python 3.10, 3.14) and macOS (Python 3.14), plus a non-blocking Python 3.15 job
+- Releases from a version tag: GitHub Actions builds, publishes to PyPI with trusted publishing, and creates a GitHub release
+- `slow` pytest marker for tests that need the downloaded test scenes; CI runs `pytest -m "not slow"`
+
 ## [1.7.1] - Mar 5, 2026
 
 ### Fixed
