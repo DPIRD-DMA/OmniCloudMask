@@ -1,9 +1,14 @@
 import numpy as np
 import pytest
+import rasterio as rio
 import torch
+from rasterio.profiles import Profile
 
 from omnicloudmask.model_utils import channel_norm
 from omnicloudmask.raster_utils import (
+    class_stats_tags,
+    save_prediction,
+    scene_valid_mask,
     batch_nodata_mask,
     get_patch,
     make_patch_indexes,
@@ -359,6 +364,165 @@ def test_mask_prediction_wrong_shapes():
 
     with pytest.raises(AssertionError):
         mask_prediction(scene, pred_tracker, no_data_value)
+
+
+# 10 pixels: 4 clear, 3 thick cloud, 2 thin cloud, 1 cloud shadow
+STATS_PRED = np.array([[[0, 0, 0, 0, 1], [1, 1, 2, 2, 3]]], dtype=np.uint8)
+
+
+@pytest.mark.parametrize("as_tensor", [False, True])
+def test_class_stats_tags_basic(as_tensor: bool) -> None:
+    pred = torch.from_numpy(STATS_PRED) if as_tensor else STATS_PRED
+    valid = (
+        torch.ones(pred.shape, dtype=torch.bool)
+        if as_tensor
+        else np.ones(pred.shape, dtype=bool)
+    )
+
+    tags = class_stats_tags(pred, valid)
+
+    assert tags["OCM_CLEAR_PCT"] == "40.00"
+    assert tags["OCM_THICK_CLOUD_PCT"] == "30.00"
+    assert tags["OCM_THIN_CLOUD_PCT"] == "20.00"
+    assert tags["OCM_CLOUD_SHADOW_PCT"] == "10.00"
+    assert tags["OCM_CLOUD_PCT"] == "50.00", "Cloud should be thick + thin"
+    assert tags["OCM_VALID_PIXELS"] == "10"
+    assert tags["OCM_NODATA_PCT"] == "0.00"
+    assert tags["OCM_CLASSES"] == "0=Clear,1=Thick Cloud,2=Thin Cloud,3=Cloud Shadow"
+    assert all(isinstance(v, str) for v in tags.values())
+
+
+@pytest.mark.parametrize("as_tensor", [False, True])
+def test_class_stats_tags_excludes_invalid_pixels(as_tensor: bool) -> None:
+    # nodata pixels are 0 in the prediction, which is also the clear class, so
+    # they must not be counted as clear
+    pred = np.array([[[0, 0, 1], [1, 0, 0]]], dtype=np.uint8)
+    valid = np.array([[[False, False, True], [True, True, True]]])
+    if as_tensor:
+        pred, valid = torch.from_numpy(pred), torch.from_numpy(valid)
+
+    tags = class_stats_tags(pred, valid)
+
+    assert tags["OCM_VALID_PIXELS"] == "4"
+    assert tags["OCM_CLEAR_PCT"] == "50.00"
+    assert tags["OCM_THICK_CLOUD_PCT"] == "50.00"
+    assert tags["OCM_NODATA_PCT"] == "33.33", "2 of 6 pixels are no data"
+
+
+def test_class_stats_tags_missing_classes_are_zero() -> None:
+    pred = np.ones((1, 3, 3), dtype=np.uint8)  # all thick cloud
+
+    tags = class_stats_tags(pred, np.ones(pred.shape, dtype=bool))
+
+    assert tags["OCM_CLEAR_PCT"] == "0.00"
+    assert tags["OCM_THICK_CLOUD_PCT"] == "100.00"
+    assert tags["OCM_CLOUD_PCT"] == "100.00"
+
+
+def test_class_stats_tags_all_invalid() -> None:
+    pred = np.zeros((1, 2, 2), dtype=np.uint8)
+
+    tags = class_stats_tags(pred, np.zeros(pred.shape, dtype=bool))
+
+    assert tags["OCM_VALID_PIXELS"] == "0"
+    assert tags["OCM_NODATA_PCT"] == "100.00"
+    assert tags["OCM_CLEAR_PCT"] == "0.00"
+    assert tags["OCM_CLOUD_PCT"] == "0.00"
+
+
+def test_class_stats_tags_rounding() -> None:
+    pred = np.array([[[0, 1, 3]]], dtype=np.uint8)
+
+    tags = class_stats_tags(pred, np.ones(pred.shape, dtype=bool))
+
+    assert tags["OCM_CLEAR_PCT"] == "33.33"
+    assert tags["OCM_THICK_CLOUD_PCT"] == "33.33"
+    assert tags["OCM_CLOUD_SHADOW_PCT"] == "33.33"
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+def test_class_stats_tags_cuda_matches_numpy() -> None:
+    rng = np.random.default_rng(0)
+    pred = rng.integers(0, 4, (1, 50, 50), dtype=np.uint8)
+    valid = rng.random((1, 50, 50)) > 0.3
+
+    expected = class_stats_tags(pred, valid)
+    result = class_stats_tags(
+        torch.from_numpy(pred).cuda(), torch.from_numpy(valid).cuda()
+    )
+
+    assert result == expected
+
+
+@pytest.mark.parametrize("no_data_value", [0, -9999, np.nan])
+def test_scene_valid_mask_matches_mask_prediction(no_data_value) -> None:
+    rng = np.random.default_rng(1)
+    scene = rng.random((3, 6, 6)).astype(np.float32) + 1
+    scene[:, :2, :] = no_data_value  # all bands no data
+    scene[0, 3, :] = no_data_value  # one band only, still valid
+
+    valid = scene_valid_mask(scene, no_data_value)
+    _, mask = mask_prediction(scene, np.ones((1, 6, 6)), no_data_value)
+
+    assert valid.dtype == bool
+    np.testing.assert_array_equal(valid, mask.astype(bool))
+    assert not valid[:2].any() and valid[2:].all()
+
+
+def test_save_prediction_writes_tags(tmp_path) -> None:
+    output_path = tmp_path / "mask.tif"
+    profile = Profile(
+        driver="GTiff", dtype="uint8", count=1, height=2, width=5, nodata=None
+    )
+
+    save_prediction(
+        output_path, profile, STATS_PRED, nodata_mask=None, tags={"OCM_VERSION": "9"}
+    )
+
+    with rio.open(output_path) as src:
+        assert src.tags()["OCM_VERSION"] == "9"
+
+
+@pytest.mark.parametrize("standard_classes", [True, False])
+def test_save_prediction_mask_styling(tmp_path, standard_classes: bool) -> None:
+    output_path = tmp_path / "mask.tif"
+    profile = Profile(
+        driver="GTiff", dtype="uint8", count=1, height=2, width=5, nodata=None
+    )
+
+    save_prediction(
+        output_path, profile, STATS_PRED, None, standard_classes=standard_classes
+    )
+
+    with rio.open(output_path) as src:
+        if standard_classes:
+            colormap = src.colormap(1)
+            assert colormap[0] == (0, 0, 0, 255)
+            assert colormap[1] == (255, 128, 13, 255)
+            assert colormap[3] == (214, 39, 40, 255)
+            assert src.descriptions[0].startswith("OCM class: 0=Clear")
+        else:
+            with pytest.raises(ValueError):
+                src.colormap(1)
+            assert src.descriptions == (None,)
+
+
+def test_save_prediction_confidence_band_descriptions(tmp_path) -> None:
+    output_path = tmp_path / "confidence.tif"
+    pred = np.random.default_rng(0).random((4, 2, 5)).astype(np.float32)
+    profile = Profile(
+        driver="GTiff", dtype="float32", count=4, height=2, width=5, nodata=None
+    )
+
+    save_prediction(output_path, profile, pred, None, standard_classes=True)
+
+    with rio.open(output_path) as src:
+        assert src.descriptions == (
+            "Clear",
+            "Thick Cloud",
+            "Thin Cloud",
+            "Cloud Shadow",
+        )
 
 
 if __name__ == "__main__":

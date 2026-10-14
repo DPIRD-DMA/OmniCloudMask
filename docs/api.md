@@ -101,7 +101,7 @@ All parameters from `predict_from_array` plus:
 
 **Returns:**
 
-`list[Path]` of output prediction file paths.
+`list[Path]` of output prediction file paths. Each file has metadata tags with the OmniCloudMask and model versions and the percentage of valid pixels in each class; see [Metadata Tags](usage.md#metadata-tags).
 
 ---
 
@@ -157,7 +157,7 @@ Predict cloud masks for many same-sized images, such as the chips of an existing
 
 **Returns:**
 
-`np.ndarray` with shape `(N, 1, height, width)` for class predictions, or `(N, classes, height, width)` (4 classes for the default models) if `export_confidence=True`. If `export_to_disk=True`, a `list[Path]` of N output file paths instead.
+`np.ndarray` with shape `(N, 1, height, width)` for class predictions, or `(N, classes, height, width)` (4 classes for the default models) if `export_confidence=True`. If `export_to_disk=True`, a `list[Path]` of N output file paths instead, each with the same [metadata tags](usage.md#metadata-tags) as `predict_from_load_func`.
 
 ---
 

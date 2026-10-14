@@ -9,6 +9,7 @@ dynamic = ["version"]
 description = "Python library for cloud and cloud shadow segmentation in high to moderate resolution satellite imagery"
 requires-python = ">=3.10"
 dependencies = [
+    "classcounter>=0.1",
     "gdown>=5.1.0",
     "huggingface-hub>=0.28.1",
     "platformdirs>=4.0.0",
@@ -80,3 +81,12 @@ exclude = ["training/Train OCM models.ipynb"]
 markers = [
     "slow: needs the downloaded test scenes or other large downloads; deselect with -m 'not slow'",
 ]
+filterwarnings = [
+    # test rasters are often written without a geotransform
+    "ignore::rasterio.errors.NotGeoreferencedWarning",
+]
+
+# TODO: remove once classcounter 0.2 (count_classes mask= and backend=) is on PyPI,
+# and require classcounter>=0.2,<0.3 above
+[tool.uv.sources]
+classcounter = { git = "https://github.com/DPIRD-DMA/ClassCounter", rev = "646a24ad60e2a358b16daea53e52863d3d752886" }
