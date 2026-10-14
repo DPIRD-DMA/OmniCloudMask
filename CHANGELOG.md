@@ -19,6 +19,8 @@
 - A custom model whose class count doesn't match `pred_classes` now raises a `ValueError` explaining the mismatch, instead of an `AssertionError`
 
 ### Fixed
+- `compile_models=True` was slower than not compiling on MPS: about 30× slower with `batch_size` above 8 (Dynamo's recompile limit) and slower at every size with dynamic shapes. Models now compile with static shapes for `batch_size` only, short final batches are padded to reuse the compiled graph, and warm-up is faster on every device (#43)
+- Eager models are no longer reloaded when `patch_size` or `batch_size` changes, and the model cache holds more configurations
 - `predict_from_array` no longer hangs forever when a model or patch extraction raises an error; the error is now raised to the caller
 - `predict_from_load_func` now raises errors from inference and from saving predictions; previously they were printed from a background thread and the function returned paths to files that were never written
 - No-data masking now works when `no_data_value` is NaN; previously no pixels were masked because NaN never compares equal

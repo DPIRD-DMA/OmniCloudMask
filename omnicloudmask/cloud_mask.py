@@ -493,8 +493,10 @@ def collect_models(
                     device=inference_device,
                     dtype=inference_dtype,
                     compile_models=compile_models,
-                    patch_size=patch_size,
-                    batch_size=batch_size,
+                    # only compiled models depend on these, so leave them out of
+                    # the model cache key otherwise
+                    patch_size=patch_size if compile_models else 1000,
+                    batch_size=batch_size if compile_models else 1,
                     compile_mode=compile_mode,
                 )
             )
