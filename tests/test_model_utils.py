@@ -653,6 +653,10 @@ def test_fixed_batch_model_pads_short_batches() -> None:
     assert result.shape == (3, 4, 8, 8)
 
 
+@pytest.mark.skipif(
+    not torch._dynamo.is_dynamo_supported(),
+    reason="torch.compile isn't supported on this Python version",
+)
 def test_compile_torch_model_compiles_one_graph() -> None:
     """A real compile at batch_size: full and short batches reuse one graph and
     match eager. Compiling every size from 1 to batch_size used to hit Dynamo's
