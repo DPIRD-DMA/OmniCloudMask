@@ -247,7 +247,7 @@ print(tags["OCM_CLOUD_PCT"], tags["OCM_MODEL_VERSION"])
 Exported files also open ready to view in a GIS:
 
 - **Masks** have a colour table: clear is black, thick cloud orange, thin cloud green and cloud shadow red. GeoTIFF colour tables can't be transparent, so to overlay a mask on imagery, set value 0 as transparent (in QGIS, Layer Properties → Transparency).
-- **Confidence maps** name each band, e.g. `P(Thick Cloud)`. GIS software may show the first three bands as an RGB image by default; to view one class, choose a single band with a 0–1 colour ramp.
+- **Confidence maps** name each band after its class, e.g. `Thick Cloud`. GIS software may show the first three bands as an RGB image by default; to view one class, choose a single band with a 0–1 colour ramp.
 - Confidence maps are compressed with DEFLATE (level 1) and a floating-point predictor. For a full Sentinel-2 tile that's about a third smaller and a fifth faster to write than LZW.
 
 These apply to the standard OmniCloudMask classes, so they're skipped for `custom_models`.

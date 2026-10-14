@@ -206,4 +206,4 @@ def save_prediction(
                 )
             elif pred_tracker_np.shape[0] == len(CLASS_NAMES):
                 for i, name in CLASS_NAMES.items():
-                    dst.set_band_description(i + 1, f"P({class_label(name)})")
+                    dst.set_band_description(i + 1, class_label(name))

@@ -1153,7 +1153,7 @@ def test_predict_from_batch_export_styling(tmp_path: Path) -> None:
     with rio.open(mask) as src:
         assert src.colormap(1)[1] == (255, 128, 13, 255)
     with rio.open(confidence) as src:
-        assert src.descriptions[0] == "P(Clear)"
+        assert src.descriptions[0] == "Clear"
         assert src.profile["compress"] == "deflate"
     with rio.open(custom) as src:
         # custom models' classes aren't the OmniCloudMask classes

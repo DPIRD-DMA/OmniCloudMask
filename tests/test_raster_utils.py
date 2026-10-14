@@ -518,10 +518,10 @@ def test_save_prediction_confidence_band_descriptions(tmp_path) -> None:
 
     with rio.open(output_path) as src:
         assert src.descriptions == (
-            "P(Clear)",
-            "P(Thick Cloud)",
-            "P(Thin Cloud)",
-            "P(Cloud Shadow)",
+            "Clear",
+            "Thick Cloud",
+            "Thin Cloud",
+            "Cloud Shadow",
         )
 
 
