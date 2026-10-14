@@ -75,7 +75,7 @@ pred_paths = predict_from_load_func(
 )
 ```
 
-Enable `compile_models=True` when processing many scenes. This adds startup overhead but reduces per-scene inference time by 10-20%.
+Enable `compile_models=True` when processing many scenes. Compiling takes about 10–30 s per process, and again for each new patch size, so it only pays off over several scenes. On Apple silicon (MPS) it cut inference time by 25–35%; see [Performance](performance.md).
 
 ## Downscale for Higher Throughput
 

@@ -9,6 +9,7 @@ from omnicloudmask.download_models import get_models
 from omnicloudmask.model_utils import (
     channel_norm,
     channel_norm_torch,
+    FixedBatchModel,
     compile_torch_model,
     create_gradient_mask,
     default_device,
@@ -634,3 +635,49 @@ def test_compile_torch_model_rectangular_patch_size() -> None:
             compile_mode="default",
         )
     assert compiled(torch.zeros((1, 3, 32, 48))).shape == (1, 4, 32, 48)
+
+
+def test_fixed_batch_model_pads_short_batches() -> None:
+    model = torch.nn.Conv2d(3, 4, kernel_size=3, padding=1).eval()
+    seen_shapes = []
+    model.register_forward_hook(lambda m, i, o: seen_shapes.append(tuple(i[0].shape)))
+    wrapped = FixedBatchModel(model, batch_size=4)
+    x = torch.randn(3, 3, 8, 8)
+
+    with torch.no_grad():
+        result = wrapped(x)
+        expected = model(x)
+
+    assert seen_shapes[0] == (4, 3, 8, 8), "short batch should be padded"
+    torch.testing.assert_close(result, expected)
+    assert result.shape == (3, 4, 8, 8)
+
+
+def test_compile_torch_model_compiles_one_graph() -> None:
+    """A real compile at batch_size: full and short batches reuse one graph and
+    match eager. Compiling every size from 1 to batch_size used to hit Dynamo's
+    recompile limit above 8 on MPS."""
+    torch._dynamo.reset()
+    torch._dynamo.utils.counters.clear()
+    model = torch.nn.Sequential(
+        torch.nn.Conv2d(3, 8, kernel_size=3, padding=1),
+        torch.nn.ReLU(),
+        torch.nn.Conv2d(8, 4, kernel_size=1),
+    ).eval()
+    compiled = compile_torch_model(
+        model,
+        patch_size=16,
+        batch_size=12,
+        dtype=torch.float32,
+        device=torch.device("cpu"),
+        compile_mode="default",
+    )
+    assert isinstance(compiled, FixedBatchModel)
+
+    for count in [12, 5, 1]:
+        x = torch.randn(count, 3, 16, 16)
+        with torch.no_grad():
+            torch.testing.assert_close(compiled(x), model(x))
+
+    frames = torch._dynamo.utils.counters["stats"]["unique_graphs"]
+    assert frames == 1, f"expected one compiled graph, got {frames}"
