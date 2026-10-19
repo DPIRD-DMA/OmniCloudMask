@@ -14,6 +14,7 @@ OmniCloudMask is a Python library for cloud and cloud shadow detection in high t
 - Supports CUDA, MPS (Apple Silicon), and CPU inference
 - Optional confidence map export
 - Fast inference with multi-threaded patch-based processing
+- Batch prediction for datasets of same-sized image chips
 
 ## Output Classes
 
