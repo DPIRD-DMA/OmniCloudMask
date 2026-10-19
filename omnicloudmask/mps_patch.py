@@ -1,13 +1,25 @@
 import warnings
 
 import torch
+from torch.torch_version import TorchVersion
 
 
 # This module contains MPS (Apple Silicon) patches for PyTorch models:
 # Conv2d patch: Replaces Conv2d layers with MPS-safe versions that ensure inputs are contiguous  # noqa: E501
 #    - Addresses RuntimeError: "view size is not compatible with input tensor's size and stride"  # noqa: E501
 #    - Required for some model architectures (like timm EdgeNeXt) on MPS devices
+#    - The bug affects torch 2.5 to 2.9 and is fixed in torch 2.10
 #
+
+# First torch version without the MPS bug, where the patch is never needed
+MPS_BUG_FIXED_TORCH = (2, 10)
+
+
+def torch_may_need_mps_fix(torch_version: str = torch.__version__) -> bool:
+    """Whether this torch version may have the MPS contiguity bug, so models need
+    checking with requires_mps_fix. Pre-releases of the fixed version count as
+    affected."""
+    return TorchVersion(torch_version) < MPS_BUG_FIXED_TORCH
 
 
 def _get_model_in_channels(model: torch.nn.Module) -> int:
@@ -101,7 +113,7 @@ def patch_models_for_mps(
     Returns:
         List of patched models
     """
-    if inference_device.type != "mps":
+    if inference_device.type != "mps" or not torch_may_need_mps_fix():
         return models
 
     for model in models:

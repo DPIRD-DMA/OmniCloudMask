@@ -22,6 +22,7 @@
 - `pairwise_argmax` and `optimized_argmax` now support any class dimension
 - `compile_torch_model` accepts a `(height, width)` warm-up size
 - A custom model whose class count doesn't match `pred_classes` now raises a `ValueError` explaining the mismatch, instead of an `AssertionError`
+- On torch 2.10 and newer, models on MPS are no longer test-run to check whether they need the Conv2d contiguity patch, since the bug it works around only affects torch 2.5–2.9 (#45)
 
 ### Fixed
 - `compile_models=True` was slower than not compiling on MPS: about 30× slower with `batch_size` above 8 (Dynamo's recompile limit) and slower at every size with dynamic shapes. Models now compile with static shapes for `batch_size` only, short final batches are padded to reuse the compiled graph, and warm-up is faster on every device (#43)

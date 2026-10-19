@@ -12,6 +12,7 @@ from omnicloudmask.mps_patch import (
     patch_model_for_mps,
     patch_models_for_mps,
     requires_mps_fix,
+    torch_may_need_mps_fix,
 )
 
 CPU = torch.device("cpu")
@@ -83,6 +84,37 @@ class TestPatchModelForMps:
         for module in patched.modules():
             if isinstance(module, torch.nn.Conv2d):
                 assert type(module) is torch.nn.Conv2d
+
+
+# --- torch version check ---
+
+
+@pytest.mark.parametrize(
+    "version,expected",
+    [
+        ("2.3.0", True),
+        ("2.9.1+cu128", True),
+        ("2.10.0a0+git1234", True),
+        ("2.10.0", False),
+        ("2.14.1+cu130", False),
+        ("3.0.0", False),
+    ],
+)
+def test_torch_may_need_mps_fix(version: str, expected: bool) -> None:
+    assert torch_may_need_mps_fix(version) is expected
+
+
+@pytest.mark.parametrize("needs_check", [True, False])
+def test_patch_models_for_mps_skips_check_on_fixed_torch(needs_check: bool) -> None:
+    models = [torch.nn.Sequential(torch.nn.Conv2d(3, 16, 3))]
+    with (
+        patch(
+            "omnicloudmask.mps_patch.torch_may_need_mps_fix", return_value=needs_check
+        ),
+        patch("omnicloudmask.mps_patch.requires_mps_fix", return_value=False) as check,
+    ):
+        patch_models_for_mps(models, torch.device("mps"), DTYPE)
+    assert check.called is needs_check
 
 
 # --- smp models with various backbones and channel counts ---
