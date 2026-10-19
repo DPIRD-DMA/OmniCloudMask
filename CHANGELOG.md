@@ -1,7 +1,7 @@
 # Changelog
 
 
-## [Unreleased]
+## [1.8.0] - 2026-10-19
 
 ### Added
 - `predict_from_batch` for predicting many same-sized images (e.g. dataset chips) several per batch, from arrays, tensors or file paths via a `load_func`, with optional GeoTIFF export
