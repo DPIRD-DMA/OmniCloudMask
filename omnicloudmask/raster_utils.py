@@ -1,11 +1,13 @@
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
 import rasterio as rio
 import torch
+from classcounter import count_classes
 from rasterio.profiles import Profile
 
+from .constants import CLASS_COLOURS, CLASS_NAMES, CLOUD_CLASSES, class_label
 from .model_utils import channel_norm
 
 
@@ -84,15 +86,47 @@ def mask_prediction(
     assert scene.shape[1:] == pred_tracker_np.shape[1:], (
         "Scene and prediction tracker must have the same shape"
     )
-    # if all bands at a single pixel are no_data_value,
-    # then it is considered no data
+    mask = scene_valid_mask(scene, no_data_value).astype(np.uint8)
+    pred_tracker_np *= mask
+    return pred_tracker_np, mask
+
+
+def scene_valid_mask(scene: np.ndarray, no_data_value: int | float = 0) -> np.ndarray:
+    """Boolean (height, width) mask of valid pixels in a (bands, height, width)
+    scene. A pixel is no data if all bands at that location are equal to
+    no_data_value (NaN-aware)."""
     if isinstance(no_data_value, float) and np.isnan(no_data_value):
         is_no_data = np.isnan(scene)
     else:
         is_no_data = scene == no_data_value
-    mask = (~np.all(is_no_data, axis=0)).astype(np.uint8)
-    pred_tracker_np *= mask
-    return pred_tracker_np, mask
+    return ~np.all(is_no_data, axis=0)
+
+
+def class_stats_tags(
+    class_pred: Union[np.ndarray, torch.Tensor],
+    valid: Union[np.ndarray, torch.Tensor],
+) -> dict[str, str]:
+    """GDAL metadata tags with the percentage of valid pixels in each class.
+
+    class_pred holds class indices and valid is a boolean mask of the same shape
+    (or broadcastable to it). Tensors are counted on their device."""
+    backend = "torch" if isinstance(class_pred, torch.Tensor) else "numpy"
+    counts = count_classes(class_pred, names=CLASS_NAMES, mask=valid, backend=backend)
+    total = sum(counts.values())
+
+    def pct(count: float) -> str:
+        return f"{count / total * 100 if total else 0:.2f}"
+
+    tags = {f"OCM_{name}_PCT": pct(counts[name]) for name in CLASS_NAMES.values()}
+    tags["OCM_CLOUD_PCT"] = pct(sum(counts[name] for name in CLOUD_CLASSES))
+    tags["OCM_VALID_PIXELS"] = str(int(total))
+    # unlike the class percentages, this is a percentage of all pixels
+    pixels = valid.numel() if isinstance(valid, torch.Tensor) else valid.size
+    tags["OCM_NODATA_PCT"] = f"{(pixels - total) / pixels * 100 if pixels else 0:.2f}"
+    tags["OCM_CLASSES"] = ",".join(
+        f"{i}={class_label(name)}" for i, name in CLASS_NAMES.items()
+    )
+    return tags
 
 
 def batch_nodata_mask(
@@ -149,10 +183,27 @@ def save_prediction(
     export_profile: Profile,
     pred_tracker_np: np.ndarray,
     nodata_mask: Optional[np.ndarray],
+    tags: Optional[dict[str, str]] = None,
+    standard_classes: bool = False,
 ) -> None:
-    """Save the prediction tracker to a raster file,
-    optionally also saves the nodata mask if not None."""
+    """Save the prediction tracker to a raster file, optionally also saving the
+    nodata mask if not None and GDAL metadata tags if given. If standard_classes,
+    the predictions use the OmniCloudMask classes, so masks get a colour table and
+    confidence maps get a band description per class."""
     with rio.open(output_path, "w", **export_profile) as dst:
         dst.write(pred_tracker_np)
         if nodata_mask is not None:
             dst.write_mask((nodata_mask * 255).astype("uint8"))
+        if tags:
+            dst.update_tags(**tags)
+        if standard_classes:
+            if pred_tracker_np.shape[0] == 1 and pred_tracker_np.dtype == np.uint8:
+                dst.write_colormap(1, CLASS_COLOURS)
+                dst.set_band_description(
+                    1,
+                    "OCM class: "
+                    + ",".join(f"{i}={class_label(n)}" for i, n in CLASS_NAMES.items()),
+                )
+            elif pred_tracker_np.shape[0] == len(CLASS_NAMES):
+                for i, name in CLASS_NAMES.items():
+                    dst.set_band_description(i + 1, class_label(name))

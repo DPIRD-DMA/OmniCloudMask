@@ -11,7 +11,12 @@ import rasterio as rio
 import torch
 
 from conftest import requires_fastai
+from rasterio.profiles import Profile
+
+from omnicloudmask import __version__
 from omnicloudmask.cloud_mask import (
+    build_export_profile,
+    coordinator,
     check_patch_size,
     make_output_path,
     predict_from_array,
@@ -22,7 +27,7 @@ from omnicloudmask.data_loaders import (
     load_multiband,
     load_s2,
 )
-from omnicloudmask.download_models import get_models
+from omnicloudmask.download_models import get_latest_model_version, get_models
 from omnicloudmask.model_utils import load_model_from_weights
 
 test_dir = Path(__file__).parent.resolve() / "test data"
@@ -788,6 +793,181 @@ def test_check_patch_size_overlap_larger_than_patch_size():
             patch_size=patch_size,
             patch_overlap=patch_overlap,
         )
+
+
+class PixelwiseModel(torch.nn.Module):
+    """Small stand-in model whose 4 class logits depend on the input pixels."""
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return torch.stack([x[:, 0], x[:, 1], x[:, 2], -x[:, 0]], dim=1)
+
+
+def _run_coordinator(output_path: Path, **kwargs) -> np.ndarray:
+    rng = np.random.default_rng(0)
+    data = rng.random((3, 100, 100)).astype(np.float32) + 0.1
+    data[:, :20, :] = 0  # no data strip
+    kwargs.setdefault("apply_no_data_mask", True)
+    return coordinator(
+        input_array=data,
+        models=[PixelwiseModel()],
+        inference_dtype=torch.float32,
+        softmax_output=True,
+        inference_device=torch.device("cpu"),
+        mosaic_device=torch.device("cpu"),
+        patch_size=50,
+        patch_overlap=10,
+        batch_size=1,
+        profile=Profile(height=100, width=100),
+        output_path=output_path,
+        metadata_tags={"OCM_VERSION": "test"},
+        class_stats=True,
+        **kwargs,
+    )
+
+
+def _ocm_tags(path: Path) -> dict[str, str]:
+    with rio.open(path) as src:
+        return {k: v for k, v in src.tags().items() if k.startswith("OCM_")}
+
+
+def test_coordinator_writes_class_stats(tmp_path):
+    classified = _run_coordinator(tmp_path / "mask.tif", export_confidence=False)
+    tags = _ocm_tags(tmp_path / "mask.tif")
+
+    assert tags["OCM_VERSION"] == "test"
+    assert tags["OCM_VALID_PIXELS"] == str(80 * 100)
+    assert len(np.unique(classified[:, 20:, :])) > 1, "Test should cover >1 class"
+    total = sum(
+        float(tags[f"OCM_{name}_PCT"])
+        for name in ["CLEAR", "THICK_CLOUD", "THIN_CLOUD", "CLOUD_SHADOW"]
+    )
+    assert abs(total - 100) < 0.05
+
+
+def test_coordinator_confidence_stats_match_classified(tmp_path):
+    _run_coordinator(tmp_path / "mask.tif", export_confidence=False)
+    _run_coordinator(tmp_path / "confidence.tif", export_confidence=True)
+
+    assert _ocm_tags(tmp_path / "confidence.tif") == _ocm_tags(tmp_path / "mask.tif")
+    with rio.open(tmp_path / "confidence.tif") as src:
+        assert src.count == 4
+
+
+@pytest.mark.parametrize("export_confidence", [False, True])
+def test_coordinator_stats_ignore_apply_no_data_mask(tmp_path, export_confidence):
+    """Statistics are over valid input pixels whether or not the nodata mask is
+    applied to the prediction, so filtering on them doesn't depend on the flag."""
+    _run_coordinator(
+        tmp_path / "masked.tif",
+        export_confidence=export_confidence,
+        apply_no_data_mask=True,
+    )
+    _run_coordinator(
+        tmp_path / "unmasked.tif",
+        export_confidence=export_confidence,
+        apply_no_data_mask=False,
+    )
+
+    assert _ocm_tags(tmp_path / "masked.tif") == _ocm_tags(tmp_path / "unmasked.tif")
+
+
+def test_coordinator_class_stats_off(tmp_path):
+    rng = np.random.default_rng(0)
+    coordinator(
+        input_array=rng.random((3, 100, 100)).astype(np.float32),
+        models=[PixelwiseModel()],
+        inference_dtype=torch.float32,
+        export_confidence=False,
+        softmax_output=True,
+        inference_device=torch.device("cpu"),
+        mosaic_device=torch.device("cpu"),
+        patch_size=50,
+        patch_overlap=10,
+        batch_size=1,
+        profile=Profile(height=100, width=100),
+        output_path=tmp_path / "mask.tif",
+        metadata_tags={"OCM_VERSION": "test"},
+        class_stats=False,
+    )
+
+    assert _ocm_tags(tmp_path / "mask.tif") == {"OCM_VERSION": "test"}
+
+
+def _write_scene(path: Path) -> Path:
+    data = np.random.default_rng(2).random((3, 100, 100)).astype(np.float32) + 0.1
+    with rio.open(
+        path,
+        "w",
+        driver="GTiff",
+        height=100,
+        width=100,
+        count=3,
+        dtype="float32",
+        crs="EPSG:32750",
+        transform=rio.transform.from_origin(400000, 6500000, 10, 10),
+    ) as dst:
+        dst.write(data)
+    return path
+
+
+def _load_scene(input_path: Path) -> tuple[np.ndarray, dict]:
+    with rio.open(input_path) as src:
+        return src.read(), src.profile
+
+
+@pytest.mark.parametrize("model_version", [None, 4])
+def test_predict_from_load_func_writes_version_tags(tmp_path, model_version):
+    [path] = predict_from_load_func(
+        [_write_scene(tmp_path / "scene.tif")],
+        _load_scene,
+        patch_size=100,
+        patch_overlap=0,
+        inference_device="cpu",
+        output_dir=tmp_path / "out",
+        model_version=model_version,
+    )
+
+    tags = _ocm_tags(path)
+    expected_version = (
+        float(model_version)
+        if model_version is not None
+        else get_latest_model_version()
+    )
+    assert tags["OCM_VERSION"] == __version__
+    assert tags["OCM_MODEL_VERSION"] == str(expected_version)
+    assert "OCM_CLOUD_PCT" in tags
+    assert tags["OCM_VALID_PIXELS"] == str(100 * 100)
+
+
+def test_predict_from_load_func_custom_model_has_no_class_stats(tmp_path):
+    [path] = predict_from_load_func(
+        [_write_scene(tmp_path / "scene.tif")],
+        _load_scene,
+        patch_size=100,
+        patch_overlap=0,
+        inference_device="cpu",
+        output_dir=tmp_path / "out",
+        custom_models=PixelwiseModel(),
+    )
+
+    assert _ocm_tags(path) == {
+        "OCM_VERSION": __version__,
+        "OCM_MODEL_VERSION": "custom",
+    }
+
+
+@pytest.mark.parametrize(
+    "dtype, compress, predictor",
+    [(np.uint8, "lzw", None), (np.float32, "deflate", 3)],
+)
+def test_build_export_profile_compression(dtype, compress, predictor):
+    pred = np.zeros((1, 4, 4), dtype=dtype)
+    # a loader profile with its own predictor must not leak into the output
+    profile = build_export_profile(Profile(predictor=2, zlevel=9), pred)
+
+    assert profile["compress"] == compress
+    assert profile.get("predictor") == predictor
+    assert profile.get("zlevel") == (1 if compress == "deflate" else None)
 
 
 def test_collect_models_shares_eager_models_across_sizes():
