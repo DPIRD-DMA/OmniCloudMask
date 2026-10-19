@@ -599,8 +599,8 @@ def collect_models(
                 for model in models
             ]
 
-    # Patch models for MPS if needed
-    if inference_device.type == "mps":
+    # Patch models for MPS if needed. Compiled models were patched before compiling.
+    if inference_device.type == "mps" and not compile_models:
         models = patch_models_for_mps(
             models=models,
             inference_device=inference_device,
