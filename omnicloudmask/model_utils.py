@@ -294,7 +294,9 @@ def build_fastai_model(
     return model
 
 
-@lru_cache(maxsize=2)
+# Room for a few configurations of the two default models, e.g. compiled for
+# different patch sizes, so alternating between them doesn't reload or recompile
+@lru_cache(maxsize=8)
 def load_model_from_weights(
     model_name: str,
     weights_path: Union[Path, str],
@@ -353,6 +355,24 @@ def load_model_from_weights(
     return model
 
 
+class FixedBatchModel(torch.nn.Module):
+    """Runs a model compiled for a fixed batch size, padding smaller batches with
+    zeros and dropping their outputs, so every call has the same shape and the
+    model is never recompiled for a short final batch."""
+
+    def __init__(self, model: torch.nn.Module, batch_size: int) -> None:
+        super().__init__()
+        self.model = model
+        self.batch_size = batch_size
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        count = x.shape[0]
+        if count >= self.batch_size:
+            return self.model(x)
+        padding = x.new_zeros((self.batch_size - count, *x.shape[1:]))
+        return self.model(torch.cat([x, padding]))[:count]
+
+
 def compile_torch_model(
     model: torch.nn.Module,
     patch_size: int | tuple[int, int],
@@ -361,23 +381,26 @@ def compile_torch_model(
     device: torch.device,
     compile_mode: str,
 ) -> torch.nn.Module:
-    """Compile a PyTorch model for inference with dynamic batch sizes.
-    patch_size is the warm-up input size, either square or (height, width)."""
+    """Compile a PyTorch model for inference on batches of batch_size, warming it
+    up at patch_size, either square or (height, width).
+
+    Shapes are static: dynamic shapes are slower than eager on MPS, and compiling
+    every batch size from 1 to batch_size hits Dynamo's recompile limit above 8 on
+    MPS. Smaller batches are padded to batch_size instead. A different patch size
+    compiles a new graph."""
     if isinstance(patch_size, int):
         patch_size = (patch_size, patch_size)
 
     try:
-        # Try to compile the model with dynamic batch size
         # We use cast as torch.compile returns a Any, not a Module
         compiled_model = cast(
             torch.nn.Module,
-            torch.compile(model, mode=compile_mode, fullgraph=False, dynamic=True),
+            torch.compile(model, mode=compile_mode, fullgraph=False, dynamic=False),
         )
-        for i in range(1, batch_size + 1):
-            dummy_temp = torch.zeros((i, 3, *patch_size), dtype=dtype, device=device)
-            with torch.no_grad():
-                _ = compiled_model(dummy_temp)
-        return compiled_model
+        dummy = torch.zeros((batch_size, 3, *patch_size), dtype=dtype, device=device)
+        with torch.no_grad():
+            _ = compiled_model(dummy)
+        return FixedBatchModel(compiled_model, batch_size)
     except Exception as e:
         warnings.warn(
             f"Failed to compile model with torch.compile: {e}. "

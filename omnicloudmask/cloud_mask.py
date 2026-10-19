@@ -25,7 +25,8 @@ from rasterio.profiles import Profile
 from tqdm.auto import tqdm
 
 from .__version__ import __version__
-from .download_models import get_models
+from .constants import CLASS_NAMES
+from .download_models import get_latest_model_version, get_models
 from .model_utils import (
     band_valid_mask,
     channel_norm_torch,
@@ -43,8 +44,10 @@ from .optimizations import optimized_argmax
 from .raster_utils import (
     get_patch,
     make_patch_indexes,
+    class_stats_tags,
     mask_prediction,
     save_prediction,
+    scene_valid_mask,
 )
 
 
@@ -347,6 +350,14 @@ def build_export_profile(profile: Optional[Profile], pred: np.ndarray) -> Profil
         nodata=None,
         driver="GTiff",
     )
+    if np.issubdtype(pred.dtype, np.floating):
+        # For a full Sentinel-2 tile of confidence maps, DEFLATE level 1 with the
+        # floating point predictor is 36% smaller and 19% faster to write than LZW;
+        # higher levels are barely smaller and much slower
+        export_profile.update(compress="deflate", predictor=3, zlevel=1)
+    else:
+        export_profile.pop("predictor", None)
+        export_profile.pop("zlevel", None)
     return export_profile
 
 
@@ -362,6 +373,55 @@ def make_output_path(
         return scene_path.parent / file_name
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     return Path(output_dir) / file_name
+
+
+def export_metadata(
+    custom_models: Optional[Union[list[torch.nn.Module], torch.nn.Module]],
+    model_version: Optional[float],
+    pred_classes: int = len(CLASS_NAMES),
+) -> tuple[dict[str, str], bool]:
+    """Version tags written to every exported prediction, and whether class
+    statistics tags can be written too. Class statistics assume the standard
+    OmniCloudMask classes, so they're skipped for custom models."""
+    if custom_models is not None:
+        resolved_version = "custom"
+    elif model_version is None:
+        resolved_version = str(get_latest_model_version())
+    else:
+        resolved_version = str(float(model_version))
+    tags = {"OCM_VERSION": __version__, "OCM_MODEL_VERSION": resolved_version}
+    return tags, custom_models is None and pred_classes == len(CLASS_NAMES)
+
+
+def save_tiled_prediction(
+    output_path: Path,
+    export_profile: Profile,
+    pred_tracker_np: np.ndarray,
+    nodata_mask: Optional[np.ndarray],
+    tags: Optional[dict[str, str]],
+    class_pred: Optional[np.ndarray],
+    scene: np.ndarray,
+    no_data_value: int | float,
+) -> None:
+    """Save a prediction, adding class statistics tags when class_pred is given.
+    Statistics are counted over the valid pixels of the input scene, whether or
+    not the nodata mask was applied to the prediction. Runs on the save thread,
+    so counting doesn't delay inference."""
+    if class_pred is not None:
+        valid = (
+            nodata_mask.astype(bool)
+            if nodata_mask is not None
+            else scene_valid_mask(scene, no_data_value)
+        )
+        tags = {**(tags or {}), **class_stats_tags(class_pred, valid[None])}
+    save_prediction(
+        output_path,
+        export_profile,
+        pred_tracker_np,
+        nodata_mask,
+        tags,
+        standard_classes=class_pred is not None,
+    )
 
 
 def coordinator(
@@ -384,10 +444,13 @@ def coordinator(
     save_executor: Optional[ThreadPoolExecutor] = None,
     pred_classes: int = 4,
     save_futures: Optional[list[Future]] = None,
+    metadata_tags: Optional[dict[str, str]] = None,
+    class_stats: bool = False,
 ) -> np.ndarray:
     """Used to coordinate the process of predicting from an input array.
     If save_futures is provided, futures for saves submitted to save_executor are
-    appended to it so the caller can check them for errors."""
+    appended to it so the caller can check them for errors. Exported files get
+    metadata_tags, plus class statistics tags if class_stats."""
 
     patch_overlap, patch_size = check_patch_size(
         input_array, no_data_value, patch_size, patch_overlap
@@ -418,11 +481,21 @@ def coordinator(
         batch_size=batch_size,
     )
 
+    class_pred_np = None
     if export_confidence:
         if grad_tracker is None:
             raise ValueError(
                 "Gradient tracker is required for confidence maps, "
                 "but was not provided."
+            )
+        if export_to_disk and class_stats:
+            # Classes for the statistics, from the tracker before it's divided by
+            # the gradient, as the classified output is. Dividing doesn't change
+            # the highest class, except where nothing was predicted (0 / 0).
+            class_pred_np = (
+                optimized_argmax(pred_tracker, dim=0, keepdim=True)
+                .to(dtype=torch.uint8)
+                .numpy(force=True)
             )
         pred_tracker = pred_tracker / grad_tracker
 
@@ -440,29 +513,31 @@ def coordinator(
     else:
         nodata_mask = None
 
+    if export_to_disk and class_stats and not export_confidence:
+        class_pred_np = pred_tracker_np
+
     if export_to_disk:
         export_profile = build_export_profile(profile, pred_tracker_np)
+        save_args = (
+            output_path,
+            export_profile,
+            pred_tracker_np,
+            nodata_mask,
+            metadata_tags,
+            class_pred_np,
+            input_array,
+            no_data_value,
+        )
         # if executer has been passed, submit the save_prediction function to it,
         # to avoid blocking the main thread
         if save_executor:
-            save_future = save_executor.submit(
-                save_prediction,
-                output_path,
-                export_profile,
-                pred_tracker_np,
-                nodata_mask,
-            )
+            save_future = save_executor.submit(save_tiled_prediction, *save_args)
             if save_futures is not None:
                 save_futures.append(save_future)
         # otherwise save the prediction directly
 
         else:
-            save_prediction(
-                output_path=output_path,
-                export_profile=export_profile,
-                pred_tracker_np=pred_tracker_np,
-                nodata_mask=nodata_mask,
-            )
+            save_tiled_prediction(*save_args)
 
     if pbar:
         pbar.update(1)
@@ -494,8 +569,10 @@ def collect_models(
                     device=inference_device,
                     dtype=inference_dtype,
                     compile_models=compile_models,
-                    patch_size=patch_size,
-                    batch_size=batch_size,
+                    # only compiled models depend on these, so leave them out of
+                    # the model cache key otherwise
+                    patch_size=patch_size if compile_models else 1000,
+                    batch_size=batch_size if compile_models else 1,
                     compile_mode=compile_mode,
                 )
             )
@@ -715,6 +792,10 @@ def predict_from_load_func(
         f"{str(inference_dtype).split('.')[-1]}",
     )
 
+    metadata_tags, class_stats = export_metadata(
+        custom_models, model_version, pred_classes
+    )
+
     # Inference runs in a background worker so the next scene loads in parallel,
     # future.result() re-raises any error from the worker in this thread
     inf_executor = ThreadPoolExecutor(max_workers=1)
@@ -760,6 +841,8 @@ def predict_from_load_func(
                 save_executor=save_executor,
                 pred_classes=pred_classes,
                 save_futures=save_futures,
+                metadata_tags=metadata_tags,
+                class_stats=class_stats,
             )
 
         if inf_future is not None:
@@ -1226,6 +1309,7 @@ def predict_from_batch(
     warn_cpu_reduced_precision(inference_device, inference_dtype)
 
     save_executor = ThreadPoolExecutor(max_workers=1) if export_to_disk else None
+    metadata_tags, class_stats = export_metadata(custom_models, model_version)
     pending_saves: deque[Future] = deque()
     results: list[np.ndarray] = []
     output: Optional[np.ndarray] = None
@@ -1288,14 +1372,32 @@ def predict_from_batch(
                 """Copy a batch of predictions to the host and store or save them."""
                 nonlocal output, written
                 if save_executor is not None:
+                    batch_tags = [dict(metadata_tags)] * len(preds)
+                    if class_stats:
+                        # counted on the device, over valid input pixels whether or
+                        # not the nodata mask is applied
+                        class_preds = (
+                            preds
+                            if preds.dtype == torch.uint8
+                            else optimized_argmax(preds, dim=1, keepdim=True)
+                        )
+                        batch_tags = [
+                            {**metadata_tags, **class_stats_tags(pred, valid)}
+                            for pred, valid in zip(class_preds, valid_mask, strict=True)
+                        ]
                     batch_preds = preds.numpy(force=True)
                     nodata_masks = (
                         valid_mask[:, 0].to(dtype=torch.uint8).numpy(force=True)
                         if apply_no_data_mask
                         else [None] * len(batch_preds)
                     )
-                    for pred, profile, item, nodata_mask in zip(
-                        batch_preds, profiles, batch_items, nodata_masks, strict=True
+                    for pred, profile, item, nodata_mask, tags in zip(
+                        batch_preds,
+                        profiles,
+                        batch_items,
+                        nodata_masks,
+                        batch_tags,
+                        strict=True,
                     ):
                         while len(pending_saves) >= _MAX_SAVES_IN_FLIGHT:
                             pending_saves.popleft().result()
@@ -1306,6 +1408,8 @@ def predict_from_batch(
                                 build_export_profile(profile, pred),
                                 pred,
                                 nodata_mask if apply_no_data_mask else None,
+                                tags,
+                                class_stats,
                             )
                         )
                 elif total is not None:

@@ -1,0 +1,10 @@
+/* Let table cells wrap instead of making wide tables scroll sideways */
+.wy-table-responsive table td,
+.wy-table-responsive table th {
+    white-space: normal;
+}
+
+.wy-table-responsive table.dataset-table td:nth-child(n + 3),
+.wy-table-responsive table.dataset-table th:nth-child(n + 3) {
+    text-align: center;
+}

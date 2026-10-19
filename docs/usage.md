@@ -75,7 +75,7 @@ pred_paths = predict_from_load_func(
 )
 ```
 
-Enable `compile_models=True` when processing many scenes. This adds startup overhead but reduces per-scene inference time by 10-20%.
+Enable `compile_models=True` when processing many scenes. Compiling takes about 10–30 s per process, and again for each new patch size, so it only pays off over several scenes. On Apple silicon (MPS) it cut inference time by 25–35%; see [Performance](performance.md).
 
 ## Downscale for Higher Throughput
 
@@ -213,6 +213,44 @@ pred_paths = predict_from_load_func(
     output_dir="/path/to/output",
 )
 ```
+
+(metadata-tags)=
+## Metadata Tags
+
+Every GeoTIFF written by `predict_from_load_func` or `predict_from_batch(export_to_disk=True)` carries GDAL metadata tags, so you can find cloudy scenes or check how a mask was made without reading the raster:
+
+| Tag | Value |
+|---|---|
+| `OCM_VERSION` | OmniCloudMask version that made the mask |
+| `OCM_MODEL_VERSION` | Model version used, or `custom` for custom models |
+| `OCM_CLEAR_PCT` | Percentage of valid pixels classed as clear |
+| `OCM_THICK_CLOUD_PCT` | Percentage thick cloud |
+| `OCM_THIN_CLOUD_PCT` | Percentage thin cloud |
+| `OCM_CLOUD_SHADOW_PCT` | Percentage cloud shadow |
+| `OCM_CLOUD_PCT` | Total cloud (thick + thin) |
+| `OCM_VALID_PIXELS` | Number of valid pixels the percentages are based on |
+| `OCM_NODATA_PCT` | Percentage of all pixels that are no data, e.g. outside the satellite's swath |
+| `OCM_CLASSES` | Class legend, `0=Clear,1=Thick Cloud,2=Thin Cloud,3=Cloud Shadow` |
+
+```python
+import rasterio as rio
+
+with rio.open(pred_paths[0]) as src:
+    tags = src.tags()
+print(tags["OCM_CLOUD_PCT"], tags["OCM_MODEL_VERSION"])
+```
+
+- Class percentages are of valid pixels: pixels where every input band equals `no_data_value` are excluded, whether or not `apply_no_data_mask` is set. `OCM_NODATA_PCT` is the share of all pixels that were excluded, so you can also drop scenes that are mostly empty.
+- Confidence outputs (`export_confidence=True`) get the same statistics, using the most likely class at each pixel.
+- Class statistics assume the standard OmniCloudMask classes, so with `custom_models` only the version tags are written.
+
+Exported files also open ready to view in a GIS:
+
+- **Masks** have a colour table: clear is black, thick cloud orange, thin cloud green and cloud shadow red. GeoTIFF colour tables can't be transparent, so to overlay a mask on imagery, set value 0 as transparent (in QGIS, Layer Properties → Transparency).
+- **Confidence maps** name each band after its class, e.g. `Thick Cloud`. GIS software may show the first three bands as an RGB image by default; to view one class, choose a single band with a 0–1 colour ramp.
+- Confidence maps are compressed with DEFLATE (level 1) and a floating-point predictor. For a full Sentinel-2 tile that's about a third smaller and a fifth faster to write than LZW.
+
+These apply to the standard OmniCloudMask classes, so they're skipped for `custom_models`.
 
 ## Skip Existing Predictions
 

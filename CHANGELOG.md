@@ -11,14 +11,21 @@
 - `slow` pytest marker for tests that need the downloaded test scenes; CI runs `pytest -m "not slow"`
 - Tests for calling `predict_from_load_func` and `predict_from_batch` from several threads
 - Test for no-data masking with a NaN `no_data_value`
+- Exported masks carry GDAL metadata tags: the OmniCloudMask and model versions, the percentage of valid pixels in each class and total cloud, the percentage of no-data pixels, and the class legend, so scenes can be filtered without reading the rasters (thanks @becryan, #39)
+- `CLASS_NAMES`, the model's output classes
+- Exported masks have a colour table and confidence maps have a band description per class, so both display without styling in GIS software
+- Depends on `classcounter` for counting classes
 
 ### Changed
+- Confidence maps are written with DEFLATE (level 1) and a floating-point predictor instead of LZW: 36% smaller and 19% faster to write for a full Sentinel-2 tile
 - Requires Python 3.10 or newer (the code already needed 3.10; the package metadata said 3.9)
 - `pairwise_argmax` and `optimized_argmax` now support any class dimension
 - `compile_torch_model` accepts a `(height, width)` warm-up size
 - A custom model whose class count doesn't match `pred_classes` now raises a `ValueError` explaining the mismatch, instead of an `AssertionError`
 
 ### Fixed
+- `compile_models=True` was slower than not compiling on MPS: about 30× slower with `batch_size` above 8 (Dynamo's recompile limit) and slower at every size with dynamic shapes. Models now compile with static shapes for `batch_size` only, short final batches are padded to reuse the compiled graph, and warm-up is faster on every device (#43)
+- Eager models are no longer reloaded when `patch_size` or `batch_size` changes, and the model cache holds more configurations
 - `predict_from_array` no longer hangs forever when a model or patch extraction raises an error; the error is now raised to the caller
 - `predict_from_load_func` now raises errors from inference and from saving predictions; previously they were printed from a background thread and the function returned paths to files that were never written
 - No-data masking now works when `no_data_value` is NaN; previously no pixels were masked because NaN never compares equal
