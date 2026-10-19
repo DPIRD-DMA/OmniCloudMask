@@ -6,7 +6,7 @@ import rasterio as rio
 import torch
 from rasterio.profiles import Profile
 
-from .model_utils import channel_norm
+from .model_utils import channel_norm, is_nodata, is_nodata_torch
 
 
 def get_patch(
@@ -23,29 +23,37 @@ def get_patch(
     top, bottom, left, right = index
     patch = input_array[:, top:bottom, left:right]
 
+    patch_nodata = is_nodata(patch, no_data_value)
+
     #  If the entire patch is nodata, return None
-    if np.all(patch == no_data_value):
+    if np.all(patch_nodata):
         return None, None
 
     # If patch edges include nodata, shift inward until nodata is found on edge
-    # Only perform this if no_data_value is in the patch
-    if no_data_value is not None and np.any(patch == no_data_value):
+    # Only perform this if there is nodata in the patch
+    if np.any(patch_nodata):
         # don't move outside the bounds of the input array
         max_bottom, max_right = input_array.shape[1:3]
 
         # Used to avoid back-and-forth shifting
         moved_vert = False
         # If nodata is on the top edge, move down until it's not
-        if bottom < max_bottom and np.all(patch[:, 0, :] == no_data_value):
-            while bottom < max_bottom and np.all(patch[:, 0, :] == no_data_value):
+        if bottom < max_bottom and np.all(is_nodata(patch[:, 0, :], no_data_value)):
+            while bottom < max_bottom and np.all(
+                is_nodata(patch[:, 0, :], no_data_value)
+            ):
                 top += 1
                 bottom += 1
                 patch = input_array[:, top:bottom, left:right]
             moved_vert = True
 
         # If we didn't move down, see if the bottom edge contains nodata and move up
-        if not moved_vert and top > 0 and np.all(patch[:, -1, :] == no_data_value):
-            while top > 0 and np.all(patch[:, -1, :] == no_data_value):
+        if (
+            not moved_vert
+            and top > 0
+            and np.all(is_nodata(patch[:, -1, :], no_data_value))
+        ):
+            while top > 0 and np.all(is_nodata(patch[:, -1, :], no_data_value)):
                 top -= 1
                 bottom -= 1
                 patch = input_array[:, top:bottom, left:right]
@@ -53,15 +61,21 @@ def get_patch(
         #  Same logic for left and right edges
         moved_horiz = False
 
-        if right < max_right and np.all(patch[:, :, 0] == no_data_value):
-            while right < max_right and np.all(patch[:, :, 0] == no_data_value):
+        if right < max_right and np.all(is_nodata(patch[:, :, 0], no_data_value)):
+            while right < max_right and np.all(
+                is_nodata(patch[:, :, 0], no_data_value)
+            ):
                 left += 1
                 right += 1
                 patch = input_array[:, top:bottom, left:right]
             moved_horiz = True
 
-        if not moved_horiz and left > 0 and np.all(patch[:, :, -1] == no_data_value):
-            while left > 0 and np.all(patch[:, :, -1] == no_data_value):
+        if (
+            not moved_horiz
+            and left > 0
+            and np.all(is_nodata(patch[:, :, -1], no_data_value))
+        ):
+            while left > 0 and np.all(is_nodata(patch[:, :, -1], no_data_value)):
                 left -= 1
                 right -= 1
                 patch = input_array[:, top:bottom, left:right]
@@ -76,7 +90,7 @@ def mask_prediction(
     scene: np.ndarray, pred_tracker_np: np.ndarray, no_data_value: int | float = 0
 ) -> tuple[np.ndarray, np.ndarray]:
     """Create a no data mask from a raster scene,
-    all bands at a pixel location must be equal to no_data_value,
+    all bands at a pixel location must be no data (NaN or equal to no_data_value),
     apply this mask to the prediction tracker,
     then return the masked prediction tracker and the mask."""
     assert scene.ndim == 3, "Scene must have 3 dimensions"
@@ -84,13 +98,9 @@ def mask_prediction(
     assert scene.shape[1:] == pred_tracker_np.shape[1:], (
         "Scene and prediction tracker must have the same shape"
     )
-    # if all bands at a single pixel are no_data_value,
+    # if all bands at a single pixel are no data,
     # then it is considered no data
-    if isinstance(no_data_value, float) and np.isnan(no_data_value):
-        is_no_data = np.isnan(scene)
-    else:
-        is_no_data = scene == no_data_value
-    mask = (~np.all(is_no_data, axis=0)).astype(np.uint8)
+    mask = (~np.all(is_nodata(scene, no_data_value), axis=0)).astype(np.uint8)
     pred_tracker_np *= mask
     return pred_tracker_np, mask
 
@@ -99,13 +109,10 @@ def batch_nodata_mask(
     batch: torch.Tensor, no_data_value: int | float = 0
 ) -> torch.Tensor:
     """Create a (B, 1, H, W) boolean valid-data mask for a (B, C, H, W) batch,
-    a pixel is no data if all bands at that location are equal to no_data_value."""
+    a pixel is no data if all bands at that location are no data (NaN or equal to
+    no_data_value)."""
     assert batch.ndim == 4, "Batch must have 4 dimensions"
-    if isinstance(no_data_value, float) and np.isnan(no_data_value):
-        is_no_data = torch.isnan(batch)
-    else:
-        is_no_data = batch == no_data_value
-    return ~torch.all(is_no_data, dim=1, keepdim=True)
+    return ~torch.all(is_nodata_torch(batch, no_data_value), dim=1, keepdim=True)
 
 
 def make_patch_indexes(

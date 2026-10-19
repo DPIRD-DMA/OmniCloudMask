@@ -181,6 +181,27 @@ def test_predict_from_batch_nan_no_data(images: np.ndarray) -> None:
     assert np.all(result[0, :, :10, :] == 0)
 
 
+def test_predict_from_batch_nan_pixels_with_zero_nodata(images: np.ndarray) -> None:
+    torch.manual_seed(0)
+    model = torch.nn.Conv2d(3, 4, 3, padding=1)
+    data = images[:2].copy()
+    data[0, :, :10, :10] = np.nan
+    kwargs = {
+        "inference_device": "cpu",
+        "export_confidence": True,
+        "softmax_output": False,
+        "custom_models": model,
+    }
+
+    result = predict_from_batch(data, batch_size=2, **kwargs)
+    assert not np.isnan(result).any()
+    # pixels that are NaN in every band are no data
+    assert np.all(result[0, :, :10, :10] == 0)
+    # NaN is ignored like no_data_value when normalising
+    nan_as_nodata = predict_from_batch(data, no_data_value=np.nan, **kwargs)
+    np.testing.assert_allclose(result, nan_as_nodata, atol=1e-5)
+
+
 def test_predict_from_batch_load_func(
     tif_paths: list[Path], reference_masks: np.ndarray
 ) -> None:

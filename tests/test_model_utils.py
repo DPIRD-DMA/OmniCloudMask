@@ -7,6 +7,7 @@ import torch
 
 from omnicloudmask.download_models import get_models
 from omnicloudmask.model_utils import (
+    band_valid_mask,
     channel_norm,
     channel_norm_torch,
     compile_torch_model,
@@ -14,6 +15,8 @@ from omnicloudmask.model_utils import (
     default_device,
     get_torch_dtype,
     infer_batch,
+    is_nodata,
+    is_nodata_torch,
     load_model_from_weights,
     store_results,
 )
@@ -600,6 +603,54 @@ def test_channel_norm_torch_nan_nodata() -> None:
     result = channel_norm_torch(torch.from_numpy(batch), np.nan).numpy()
     np.testing.assert_allclose(result, expected, atol=1e-5)
     assert not np.isnan(result).any()
+
+
+@pytest.mark.parametrize("nodata_value", [0, -9999, np.nan, None])
+def test_is_nodata_nan_always_nodata(nodata_value) -> None:
+    array = np.array([1.0, np.nan, 0.0, -9999.0], dtype=np.float32)
+    expected = np.isnan(array)
+    if nodata_value is not None and not np.isnan(nodata_value):
+        expected |= array == nodata_value
+
+    np.testing.assert_array_equal(is_nodata(array, nodata_value), expected)
+    np.testing.assert_array_equal(
+        is_nodata_torch(torch.from_numpy(array), nodata_value).numpy(), expected
+    )
+
+
+@pytest.mark.parametrize("nodata_value", [0, np.nan, None])
+def test_is_nodata_integer_input(nodata_value) -> None:
+    array = np.array([0, 1, 2], dtype=np.uint16)
+    expected = array == 0 if nodata_value == 0 else np.zeros(3, dtype=bool)
+
+    np.testing.assert_array_equal(is_nodata(array, nodata_value), expected)
+    np.testing.assert_array_equal(
+        is_nodata_torch(torch.from_numpy(array), nodata_value).numpy(), expected
+    )
+
+
+@pytest.mark.parametrize("nodata_value", [0, None])
+def test_channel_norm_ignores_nan_with_other_nodata_value(nodata_value) -> None:
+    rng = np.random.default_rng(0)
+    patch = rng.random((3, 32, 32)).astype(np.float32) + 0.1
+    with_nan = patch.copy()
+    with_nan[:, :10, :10] = np.nan
+    # the same patch with the NaN pixels left out of the statistics
+    nan_as_nodata = channel_norm(with_nan, np.nan)
+
+    result = channel_norm(with_nan, nodata_value)
+    assert not np.isnan(result).any()
+    np.testing.assert_allclose(result, nan_as_nodata, atol=1e-6)
+
+    torch_result = channel_norm_torch(torch.from_numpy(with_nan[None]), nodata_value)
+    np.testing.assert_allclose(torch_result.numpy()[0], nan_as_nodata, atol=1e-5)
+
+
+def test_band_valid_mask_nan_with_zero_nodata() -> None:
+    batch = torch.tensor([[[[1.0, 0.0, np.nan]]]])
+    np.testing.assert_array_equal(
+        band_valid_mask(batch, 0).numpy(), [[[[True, False, False]]]]
+    )
 
 
 def test_channel_norm_torch_all_nodata() -> None:

@@ -756,6 +756,76 @@ def test_check_patch_size_large_nodata_warning():
     assert new_patch_size == 500, f"Unexpected patch size, got {new_patch_size}"
 
 
+def test_check_patch_size_large_nan_nodata_warning():
+    test_array = np.random.rand(3, 1000, 1000)
+    test_array[:, :700, :700] = np.nan
+    with pytest.warns(UserWarning, match="no-data"):
+        new_patch_overlap, new_patch_size = check_patch_size(
+            input_array=test_array,
+            no_data_value=np.nan,
+            patch_size=600,
+            patch_overlap=300,
+        )
+    assert (new_patch_overlap, new_patch_size) == (250, 500)
+
+
+class PatchCountingModel(torch.nn.Module):
+    """Tiny stand-in for the OCM models that counts the patches it sees."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        torch.manual_seed(0)
+        self.conv = torch.nn.Conv2d(3, 4, 3, padding=1)
+        self.patches = 0
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        self.patches += x.shape[0]
+        return self.conv(x)
+
+
+def test_predict_from_array_nan_nodata_matches_zero_nodata():
+    model = PatchCountingModel()
+    rng = np.random.default_rng(0)
+    scene = rng.random((3, 512, 512)).astype(np.float32) + 0.1
+    scene[:, :, :256] = 0
+    nan_scene = scene.copy()
+    nan_scene[:, :, :256] = np.nan
+    kwargs = dict(
+        patch_size=128,
+        patch_overlap=32,
+        inference_device="cpu",
+        export_confidence=True,
+        softmax_output=False,
+        custom_models=model,
+    )
+
+    zero = predict_from_array(scene, no_data_value=0, **kwargs)
+    zero_patches, model.patches = model.patches, 0
+    nan = predict_from_array(nan_scene, no_data_value=np.nan, **kwargs)
+
+    assert model.patches == zero_patches
+    np.testing.assert_allclose(nan, zero, atol=1e-5)
+
+
+def test_predict_from_array_nan_pixels_with_zero_nodata():
+    rng = np.random.default_rng(0)
+    scene = rng.random((3, 256, 256)).astype(np.float32) + 0.1
+    scene[:, :10, :10] = np.nan
+
+    result = predict_from_array(
+        scene,
+        patch_size=128,
+        patch_overlap=32,
+        inference_device="cpu",
+        export_confidence=True,
+        softmax_output=False,
+        custom_models=PatchCountingModel(),
+    )
+    assert not np.isnan(result).any()
+    # pixels that are NaN in every band are no data
+    assert np.all(result[:, :10, :10] == 0)
+
+
 def test_check_patch_size_too_large_patch_warning():
     patch_size = 600
     patch_overlap = 50

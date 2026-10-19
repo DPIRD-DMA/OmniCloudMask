@@ -75,6 +75,39 @@ def create_gradient_mask(
     return combined_gradient.to(dtype)
 
 
+def _compares_to_nodata(nodata_value: Optional[int | float]) -> bool:
+    """Whether values must also be compared with nodata_value, on top of the NaN
+    check: not when it is None or NaN itself."""
+    return nodata_value is not None and not np.isnan(nodata_value)
+
+
+def is_nodata(array: np.ndarray, nodata_value: Optional[int | float] = 0) -> np.ndarray:
+    """Boolean mask of the nodata values in array. NaN is always nodata, as it can
+    never be a valid reflectance, and so is any value equal to nodata_value."""
+    if np.issubdtype(array.dtype, np.floating):
+        nodata = np.isnan(array)
+        if _compares_to_nodata(nodata_value):
+            nodata |= array == nodata_value
+        return nodata
+    if _compares_to_nodata(nodata_value):
+        return array == nodata_value
+    return np.zeros(array.shape, dtype=bool)
+
+
+def is_nodata_torch(
+    tensor: torch.Tensor, nodata_value: Optional[int | float] = 0
+) -> torch.Tensor:
+    """Torch version of is_nodata."""
+    if tensor.is_floating_point():
+        nodata = torch.isnan(tensor)
+        if _compares_to_nodata(nodata_value):
+            nodata |= tensor == nodata_value
+        return nodata
+    if _compares_to_nodata(nodata_value):
+        return tensor == nodata_value
+    return torch.zeros_like(tensor, dtype=torch.bool)
+
+
 def channel_norm(
     patch: np.ndarray, nodata_value: Optional[int | float] = 0
 ) -> np.ndarray:
@@ -82,12 +115,9 @@ def channel_norm(
     dividing by the nonzero standard deviation then fill nodata values with 0."""
     out_array = np.zeros(patch.shape, dtype=np.float32)
     for id, band in enumerate(patch):
-        # Mask for non-zero values
-        if isinstance(nodata_value, float) and np.isnan(nodata_value):
-            mask = ~np.isnan(band)
-        else:
-            mask = band != nodata_value
-        # Check if there are any non-zero values
+        # Mask for valid values
+        mask = ~is_nodata(band, nodata_value)
+        # Check if there are any valid values
         if np.any(mask):
             masked_values = band[mask]
             mean = masked_values.mean()
@@ -105,12 +135,8 @@ def channel_norm(
 def band_valid_mask(
     batch: torch.Tensor, nodata_value: Optional[int | float] = 0
 ) -> torch.Tensor:
-    """Boolean mask of values in batch that are not nodata_value (NaN-aware)."""
-    if nodata_value is None:
-        return torch.ones_like(batch, dtype=torch.bool)
-    if isinstance(nodata_value, float) and np.isnan(nodata_value):
-        return ~torch.isnan(batch)
-    return batch != nodata_value
+    """Boolean mask of values in batch that are not nodata (see is_nodata)."""
+    return ~is_nodata_torch(batch, nodata_value)
 
 
 def channel_norm_torch(

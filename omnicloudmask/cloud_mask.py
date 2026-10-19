@@ -36,6 +36,7 @@ from .model_utils import (
     inference_and_store,
     load_model_from_weights,
     compile_torch_model,
+    is_nodata,
 )
 from .mps_patch import _get_model_in_channels, patch_models_for_mps
 from .optimizations import optimized_argmax
@@ -256,7 +257,7 @@ def check_patch_size(
 
     # if the input has a lot of no data values and the patch size is larger than
     # half the image size, we reduce the patch size and overlap
-    if np.count_nonzero(input_array == no_data_value) / input_array.size > 0.3:
+    if np.count_nonzero(is_nodata(input_array, no_data_value)) / input_array.size > 0.3:
         if patch_size > min(input_array.shape[1], input_array.shape[2]) / 2:
             patch_size = max(
                 min(input_array.shape[1], input_array.shape[2]) // 2,
