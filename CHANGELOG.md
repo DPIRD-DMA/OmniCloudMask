@@ -29,6 +29,8 @@
 - `predict_from_array` no longer hangs forever when a model or patch extraction raises an error; the error is now raised to the caller
 - `predict_from_load_func` now raises errors from inference and from saving predictions; previously they were printed from a background thread and the function returned paths to files that were never written
 - No-data masking now works when `no_data_value` is NaN; previously no pixels were masked because NaN never compares equal
+- Tiled prediction with a NaN `no_data_value` now skips patches that are entirely no data, shifts patches off no-data edges and reduces the patch size for scenes that are mostly no data, as it already did for other no-data values
+- NaN pixels are now always treated as no data, whatever `no_data_value` is. Previously a single NaN with the default `no_data_value=0` made the whole patch (or the whole image in `predict_from_batch`) NaN, which came out as cloud shadow in class predictions
 - Calling `predict_from_array`, `predict_from_load_func` or `predict_from_batch` from several threads on MPS no longer aborts the process; work on MPS is now serialised across threads, since PyTorch's MPS backend isn't thread-safe
 - `predict_from_batch` now also serialises casting and copying MPS tensor inputs, including when inference runs on the CPU, and holds the MPS lock per batch so a `load_func` can run its own MPS prediction without deadlocking
 

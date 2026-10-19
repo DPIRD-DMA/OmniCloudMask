@@ -132,6 +132,41 @@ def test_get_patch_move_away_from_nodata():
     )
 
 
+def test_get_patch_all_nan_nodata():
+    input_array = np.full((3, 100, 100), np.nan)
+    patch, returned_index = get_patch(input_array, (0, 50, 0, 50), np.nan)
+    assert patch is None
+    assert returned_index is None
+
+
+@pytest.mark.parametrize("no_data_value", [np.nan, 0])
+def test_get_patch_move_away_from_nan_nodata(no_data_value):
+    rng = np.random.default_rng(0)
+    input_array = rng.random((3, 100, 100)) + 0.1
+    input_array[:, :2, :] = np.nan
+    input_array[:, :, :3] = np.nan
+
+    patch, returned_index = get_patch(input_array, (0, 50, 0, 50), no_data_value)
+    # NaN is always no data, whatever no_data_value is
+    assert returned_index == (2, 52, 3, 53)
+    assert patch is not None
+    assert not np.isnan(patch).any()
+
+
+def test_get_patch_nan_shifts_like_zero():
+    rng = np.random.default_rng(0)
+    zero_array = rng.random((3, 100, 100)) + 0.1
+    zero_array[:, 70:, :] = 0
+    zero_array[:, :, 80:] = 0
+    nan_array = np.where(zero_array == 0, np.nan, zero_array)
+
+    for index in [(50, 100, 50, 100), (60, 110, 0, 50), (0, 50, 60, 110)]:
+        zero_patch, zero_index = get_patch(zero_array, index, 0)
+        nan_patch, nan_index = get_patch(nan_array, index, np.nan)
+        assert zero_index == nan_index
+        np.testing.assert_allclose(zero_patch, nan_patch)
+
+
 def test_make_patch_indexes_count_first_and_last():
     array_width = 100
     array_height = 100
@@ -334,6 +369,22 @@ def test_mask_prediction_nan_no_data_value():
 
     expected_mask = np.array([[1, 1, 1], [1, 1, 0]], dtype=np.uint8)
     np.testing.assert_array_equal(mask, expected_mask)
+
+
+def test_mask_prediction_nan_with_zero_no_data_value():
+    scene = np.ones((2, 2, 2))
+    scene[:, 0, 0] = np.nan
+    scene[:, 1, 1] = 0
+    scene[0, 0, 1] = np.nan  # only one band is NaN, so still valid
+
+    _, mask = mask_prediction(scene, np.ones((1, 2, 2)), 0)
+    np.testing.assert_array_equal(mask, [[0, 1], [1, 0]])
+
+    batch_mask = batch_nodata_mask(torch.from_numpy(scene[None]), 0).numpy()
+    np.testing.assert_array_equal(batch_mask[0, 0], mask.astype(bool))
+
+    # so NaN pixels also count towards OCM_NODATA_PCT
+    np.testing.assert_array_equal(scene_valid_mask(scene, 0), mask.astype(bool))
 
 
 def test_batch_nodata_mask_matches_mask_prediction():
