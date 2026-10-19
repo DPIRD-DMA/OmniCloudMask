@@ -240,7 +240,7 @@ with rio.open(pred_paths[0]) as src:
 print(tags["OCM_CLOUD_PCT"], tags["OCM_MODEL_VERSION"])
 ```
 
-- Class percentages are of valid pixels: pixels where every input band equals `no_data_value` are excluded, whether or not `apply_no_data_mask` is set. `OCM_NODATA_PCT` is the share of all pixels that were excluded, so you can also drop scenes that are mostly empty.
+- Class percentages are of valid pixels: pixels where every input band is no data (equal to `no_data_value`, or NaN) are excluded, whether or not `apply_no_data_mask` is set. `OCM_NODATA_PCT` is the share of all pixels that were excluded, so you can also drop scenes that are mostly empty.
 - Confidence outputs (`export_confidence=True`) get the same statistics, using the most likely class at each pixel.
 - Class statistics assume the standard OmniCloudMask classes, so with `custom_models` only the version tags are written.
 
