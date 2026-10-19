@@ -788,3 +788,20 @@ def test_check_patch_size_overlap_larger_than_patch_size():
             patch_size=patch_size,
             patch_overlap=patch_overlap,
         )
+
+
+def test_collect_models_shares_eager_models_across_sizes():
+    """Patch and batch size only matter to compiled models, so eager models are
+    loaded once and shared."""
+    from omnicloudmask.cloud_mask import collect_models
+
+    kwargs = {
+        "custom_models": None,
+        "inference_device": torch.device("cpu"),
+        "inference_dtype": torch.float32,
+        "source": "hugging_face",
+    }
+    first = collect_models(patch_size=1000, batch_size=1, **kwargs)
+    second = collect_models(patch_size=(256, 512), batch_size=16, **kwargs)
+
+    assert all(a is b for a, b in zip(first, second, strict=True))
