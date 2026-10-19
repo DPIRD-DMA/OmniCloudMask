@@ -50,15 +50,74 @@ We suggest that **other remote sensing deep learning models could benefit from s
 
 ## Training Data
 
-OmniCloudMask is trained on Sentinel-2 imagery from multiple datasets:
+OmniCloudMask is trained on Sentinel-2 imagery from multiple datasets. The primary source is **[CloudSEN12](https://cloudsen12.github.io/)**, which provides expert-labeled cloud masks for Sentinel-2 scenes globally. Each model version adds to the training data of the one before it:
 
-- **[CloudSEN12](https://cloudsen12.github.io/)** - The primary training dataset, containing expert-labeled cloud masks for Sentinel-2 scenes globally. Includes "high quality", "scribble", and "2k" label subsets.
-- **[KappaSet](https://doi.org/10.5281/zenodo.7100327)** - Additional training data used in model versions 3.0+.
-- **OCM Hard Negatives** - Curated challenging scenes to improve edge cases.
+```{list-table}
+:header-rows: 1
+:widths: 30 46 6 6 6 6
+:class: dataset-table
+
+* - Dataset
+  - Description
+  - V1
+  - V2
+  - V3
+  - V4
+* - [CloudSEN12](https://cloudsen12.github.io/) High
+  - CloudSEN12 high-quality labels
+  - ✓
+  - ✓
+  - ✓
+  - ✓
+* - CloudSEN12 High (Planetary Computer)
+  - The same labels on imagery re-sourced from Planetary Computer
+  -
+  -
+  - ✓
+  - ✓
+* - CloudSEN12 High SR
+  - The same labels on Sentinel-2 imagery super-resolved to 2× (see [resolution](resolution.md))
+  -
+  -
+  - ✓
+  - ✓
+* - [KappaSet](https://doi.org/10.5281/zenodo.7100327)
+  - Labeled Sentinel-2 cloud masks from KappaZeta
+  -
+  -
+  - ✓
+  - ✓
+* - OCM Hard Negatives
+  - Tiles that earlier OmniCloudMask versions falsely labeled as cloud or shadow
+  -
+  -
+  - ✓
+  - ✓
+* - [CloudSEN12](https://cloudsen12.github.io/) Scribble
+  - CloudSEN12 scribble labels
+  -
+  -
+  -
+  - ✓
+* - [CloudSEN12](https://cloudsen12.github.io/) 2k
+  - Dense labels on 2k × 2k pixel tiles from CloudSEN12+
+  -
+  -
+  -
+  - ✓
+* - OCM Scribble
+  - Scribble labels on difficult tiles
+  -
+  -
+  -
+  - ✓
+```
+
+The OCM datasets are not yet publicly released.
 
 The training data covers diverse geographic regions, cloud types, and atmospheric conditions. You can explore the spatial distribution of training samples on the **[Training Data Distribution Map](https://dpird-dma.github.io/OCM-training-data-map/)**.
 
-See the [model changelog](model-changelog.md) for which datasets were used in each model version.
+See the [model changelog](model-changelog.md) for other changes in each model version.
 
 ## Architecture
 

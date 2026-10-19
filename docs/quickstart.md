@@ -72,6 +72,21 @@ loader = partial(load_multiband, band_order=[4, 3, 5])
 pred_paths = predict_from_load_func(scene_paths, loader)
 ```
 
+## Predict many small images
+
+Use `predict_from_batch` for a dataset of same-sized image chips, such as an existing training dataset you want to filter for clouds. It runs several chips through the model at once instead of tiling one large scene:
+
+```python
+from omnicloudmask import predict_from_batch
+
+# chips: (N, 3, 512, 512) array of Red, Green, NIR images
+masks = predict_from_batch(chips, batch_size=16)
+
+# masks shape: (N, 1, 512, 512)
+```
+
+See [Batch Prediction for Image Datasets](#batch-prediction) for loading chips from files, exporting GeoTIFFs and filtering by cloud cover.
+
 ## Try in Google Colab
 
 [![Open In Colab](https://img.shields.io/badge/Try%20in%20Colab-grey?style=for-the-badge&logo=google-colab)](https://colab.research.google.com/drive/1d53lg2yiSbqhrzDWlJoS5rjHgRLRJ3WY?usp=sharing)
@@ -84,3 +99,4 @@ pred_paths = predict_from_load_func(scene_paths, loader)
 - [PlanetScope](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/planetscope.ipynb)
 - [PlanetScope Hyperspectral](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/planetscope_hyperspectral.ipynb)
 - [Maxar](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/maxar.ipynb)
+- [Batch prediction for image datasets](https://github.com/DPIRD-DMA/OmniCloudMask/blob/main/examples/batch_prediction.ipynb)
