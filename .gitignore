@@ -30,3 +30,6 @@ validation dataset/Throughput/speed test scenes/*
 uv.lock
 
 examples/Batch data/*
+
+# setuptools-scm generated version file
+omnicloudmask/_version.py

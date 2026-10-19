@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 import torch
 
-from omnicloudmask.download_models import get_models
+from omnicloudmask.download_models import get_models, release_version
 from omnicloudmask.model_utils import (
     load_model_from_weights,
 )
@@ -84,3 +84,18 @@ def test_load_model_from_weights_google_drive():
     assert len(models) == 2
     for model in models:
         assert isinstance(model, torch.nn.Module)
+
+
+@pytest.mark.parametrize(
+    "version,expected",
+    [
+        ("1.8.0", "1.8.0"),
+        ("1.8.1.dev3+g1234abc", "1.8.1"),
+        ("1.8.1.dev3+g1234abc.d20261019", "1.8.1"),
+        ("2.0.0rc1", "2.0.0"),
+        ("0.0.0+unknown", "0.0.0"),
+    ],
+)
+def test_release_version(version: str, expected: str) -> None:
+    """Dev builds share the model directory of their release."""
+    assert release_version(version) == expected

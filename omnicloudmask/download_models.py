@@ -1,4 +1,5 @@
 import csv
+import re
 from importlib import resources
 from pathlib import Path
 from typing import Union
@@ -74,11 +75,18 @@ def download_file(file_id: str, destination: Path, source: str) -> None:
         )
 
 
+def release_version(version: str = omnicloudmask_version) -> str:
+    """The release part of a version, e.g. 1.8.1 for the dev version
+    1.8.1.dev3+g1234abc, so dev builds share one model directory."""
+    match = re.match(r"\d+(\.\d+)*", version)
+    return match.group() if match else version
+
+
 def get_model_data_dir() -> Path:
     """Get the user data directory for model files"""
     data_dir = Path(
         platformdirs.user_data_dir(
-            "omnicloudmask", version=omnicloudmask_version, ensure_exists=True
+            "omnicloudmask", version=release_version(), ensure_exists=True
         )
     )
     return data_dir

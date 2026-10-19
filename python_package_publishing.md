@@ -24,11 +24,11 @@ tokens are needed.
    uv run pytest tests/
    ```
 
-2. Update `omnicloudmask/__version__.py` and move the `[Unreleased]` entries in
-   `CHANGELOG.md` under the new version.
+2. Move the `[Unreleased]` entries in `CHANGELOG.md` under the new version. There
+   is no version file to bump: setuptools-scm takes the version from the git tag.
 3. Merge to `main` and wait for CI to pass.
-4. Tag the release on `main` and push the tag. The tag must be `v` followed by the
-   version in `__version__.py`, or the workflow stops before publishing.
+4. Tag the release on `main` and push the tag. The tag is `v` followed by the
+   version; a suffix such as `v1.8.0rc1` publishes a prerelease.
 
    ```bash
    git tag v1.8.0
@@ -37,6 +37,18 @@ tokens are needed.
 
 The workflow builds the sdist and wheel, publishes them to PyPI, and creates a
 GitHub release with the files attached and generated release notes.
+
+## conda-forge
+
+The [conda-forge feedstock](https://github.com/conda-forge/omnicloudmask-feedstock)
+builds from the PyPI sdist with `--no-build-isolation`, so it doesn't read the
+build requirements from `pyproject.toml`. Its recipe must list them as host
+requirements, currently `setuptools >=77` and `setuptools-scm >=8`. Without
+setuptools-scm the build doesn't fail: the package installs as version 0.0.0,
+which then fails `pip check` or a downstream `omnicloudmask>=...` requirement.
+
+When a release changes the build or runtime requirements, update the recipe in the
+bot's version PR, as the bot only changes the version and checksum.
 
 ## Manual fallback
 

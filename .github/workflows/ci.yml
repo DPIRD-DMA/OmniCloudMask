@@ -43,6 +43,8 @@ jobs:
       UV_NO_SYNC: "1"
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # full history so setuptools-scm can read tags
 
       - uses: actions/setup-python@v6
         with:
@@ -76,14 +78,17 @@ jobs:
         timeout-minutes: 18
 
       # Model weights are downloaded from Hugging Face into the platformdirs user
-      # data directory, keyed by package version
+      # data directory, named for the release the version belongs to
+      - name: Find model directory
+        id: models
+        run: |
+          echo "dir=$(uv run python -c 'from omnicloudmask.download_models import get_model_data_dir; print(get_model_data_dir())')" >> "$GITHUB_OUTPUT"
+
       - name: Cache model weights
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.local/share/omnicloudmask
-            ~/Library/Application Support/omnicloudmask
-          key: models-${{ runner.os }}-${{ hashFiles('omnicloudmask/model_download_links.csv', 'omnicloudmask/__version__.py') }}
+          path: ${{ steps.models.outputs.dir }}
+          key: models-${{ runner.os }}-${{ steps.models.outputs.dir }}-${{ hashFiles('omnicloudmask/model_download_links.csv') }}
 
       - name: Show devices
         run: uv run python -c "import torch; print('torch', torch.__version__, '| CUDA', torch.cuda.is_available(), '| MPS', torch.backends.mps.is_available())"

@@ -1,0 +1,17 @@
+# setuptools-scm puts every git-tracked file in the sdist, which sweeps in the
+# example notebooks, docs images and research folders: over 15 MB of content
+# nobody installing the package needs. They stay on GitHub. The wheel is not
+# affected; it only holds the omnicloudmask package.
+prune examples
+prune docs
+prune training
+prune validation?dataset
+prune benchmarking
+prune docker
+prune .github
+prune .vscode
+exclude .python-version .readthedocs.yaml CLAUDE.md python_package_publishing.md
+
+# tests/ is kept for downstream packagers such as conda-forge, minus the files
+# only the slow tests and manual checks use
+exclude tests/*.tif tests/*.ipynb
