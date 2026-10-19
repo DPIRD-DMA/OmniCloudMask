@@ -688,6 +688,34 @@ def test_compile_torch_model_rectangular_patch_size() -> None:
     assert compiled(torch.zeros((1, 3, 32, 48))).shape == (1, 4, 32, 48)
 
 
+def test_compile_torch_model_patches_for_mps_before_compiling() -> None:
+    """Checking a compiled model for the MPS patch would run it at another shape
+    and compile it again, so the eager model is patched first."""
+    calls = []
+
+    def fake_patch(models, **_):
+        calls.append("patch")
+        return models
+
+    def fake_compile(model, **_):
+        calls.append("compile")
+        return model
+
+    with (
+        patch("omnicloudmask.model_utils.patch_models_for_mps", side_effect=fake_patch),
+        patch("omnicloudmask.model_utils.torch.compile", side_effect=fake_compile),
+    ):
+        compile_torch_model(
+            torch.nn.Conv2d(3, 4, kernel_size=3, padding=1),
+            patch_size=32,
+            batch_size=1,
+            dtype=torch.float32,
+            device=torch.device("cpu"),
+            compile_mode="default",
+        )
+    assert calls == ["patch", "compile"]
+
+
 def test_fixed_batch_model_pads_short_batches() -> None:
     model = torch.nn.Conv2d(3, 4, kernel_size=3, padding=1).eval()
     seen_shapes = []

@@ -9,6 +9,8 @@ import timm
 import torch
 from safetensors.torch import load_file
 
+from .mps_patch import patch_models_for_mps
+
 
 def get_torch_dtype(dtype: Union[torch.dtype, str]) -> torch.dtype:
     """Return a torch.dtype from a string or torch.dtype."""
@@ -387,9 +389,16 @@ def compile_torch_model(
     Shapes are static: dynamic shapes are slower than eager on MPS, and compiling
     every batch size from 1 to batch_size hits Dynamo's recompile limit above 8 on
     MPS. Smaller batches are padded to batch_size instead. A different patch size
-    compiles a new graph."""
+    compiles a new graph.
+
+    On MPS the model is patched before compiling, as checking a compiled model runs
+    it at another shape, which would compile it again."""
     if isinstance(patch_size, int):
         patch_size = (patch_size, patch_size)
+
+    model = patch_models_for_mps(
+        [model], inference_device=device, inference_dtype=dtype
+    )[0]
 
     try:
         # We use cast as torch.compile returns a Any, not a Module

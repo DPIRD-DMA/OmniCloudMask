@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools >= 61.0"]
+requires = ["setuptools>=77", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -24,8 +24,10 @@ license = "MIT"
 readme = {file = "README.md", content-type = "text/markdown"}
 keywords = ["sentinel-2", "landsat", "maxar", "planetscope", "satellite", "cloud", "remote-sensing", "mask", "shadow"]
 
-[tool.setuptools.dynamic]
-version = {attr = "omnicloudmask.__version__.__version__"}
+# The version comes from the git tag (e.g. v1.8.0), written to _version.py at
+# build time; between tags it is a dev version such as 1.8.1.dev3+g1234abc
+[tool.setuptools_scm]
+version_file = "omnicloudmask/_version.py"
 
 [dependency-groups]
 # what CI needs to lint and run the tests
@@ -75,7 +77,7 @@ packages = ["omnicloudmask"]
 select = ["E", "F", "B"]
 
 [tool.ruff]
-exclude = ["training/Train OCM models.ipynb"]
+exclude = ["training/Train OCM models.ipynb", "omnicloudmask/_version.py"]
 
 [tool.pytest.ini_options]
 markers = [
