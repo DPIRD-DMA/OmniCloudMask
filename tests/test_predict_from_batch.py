@@ -997,6 +997,7 @@ def test_predict_from_batch_compile_warm_up_uses_image_shape(monkeypatch) -> Non
     monkeypatch.setattr(
         "omnicloudmask.model_utils.torch.compile", lambda model, **kwargs: model
     )
+    # 4 images in batches of 3, so the final batch is short
     data = np.random.default_rng(5).random((4, 3, height, width)).astype(np.float32)
     predict_from_batch(
         data,
@@ -1006,9 +1007,9 @@ def test_predict_from_batch_compile_warm_up_uses_image_shape(monkeypatch) -> Non
         compile_models=True,
     )
 
-    # warm-up runs every batch size from 1 to batch_size at the image's (H, W)
-    expected = [(i, 3, height, width) for i in range(1, batch_size + 1)]
-    assert warm_up_shapes[:batch_size] == expected
+    # one warm-up at batch_size and the image's (H, W), then two batches, the
+    # short one padded, so the model only ever sees a single shape
+    assert warm_up_shapes == [(batch_size, 3, height, width)] * 3
 
 
 @pytest.mark.parametrize("device", ALL_DEVICES)

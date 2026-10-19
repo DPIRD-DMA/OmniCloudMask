@@ -344,6 +344,7 @@ def main() -> None:
             "- **Tiling and scaling**: Scenes up to 1000x1000 px (1 MP) are processed as a single tile. On GPUs, small scenes are dominated by fixed overhead so times stay nearly flat up to 1 MP. Above 1 MP the scene is split into 1000x1000 px tiles with 300 px overlap, and inference time scales roughly linearly with megapixels.",  # noqa: E501
             "- **Batch size**: For tiled scenes (>1 MP), processing multiple tiles per batch can significantly speed up GPU inference.",  # noqa: E501
             "- **fp16 vs fp32**: On CUDA and MPS, fp16 inference is typically faster than fp32 with no meaningful change in output quality.",  # noqa: E501
+            "- **Compiling (`compile_models=True`)**: compiles the models for one patch size and batch size, which costs about 10–30 s per process (and again for each new patch size). On Apple M2 (MPS) it makes inference 25–35% faster, so for a 5490×5490 px scene it pays off from about the third scene in a process. Batch prediction pads a short final batch so it reuses the compiled graph. The gain depends on the device and model, so measure it on yours before relying on it.",  # noqa: E501
             "",
             "Inference time for a square scene at various sizes. Results show mean seconds over multiple runs."  # noqa: E501
             " Batch size was selected automatically by searching for the fastest value on each device."  # noqa: E501
