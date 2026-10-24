@@ -1,3 +1,7 @@
+import threading
+import time
+from typing import Callable
+
 import numpy as np
 import pytest
 import rasterio as rio
@@ -5,7 +9,9 @@ import torch
 from rasterio.profiles import Profile
 
 from omnicloudmask.model_utils import channel_norm
+from omnicloudmask import raster_utils
 from omnicloudmask.raster_utils import (
+    ReadWriteLock,
     class_stats_tags,
     save_prediction,
     scene_valid_mask,
@@ -574,6 +580,192 @@ def test_save_prediction_confidence_band_descriptions(tmp_path) -> None:
             "Thin Cloud",
             "Cloud Shadow",
         )
+
+
+def run_threads(*targets: Callable[[], None]) -> None:
+    """Run each target in a thread, failing on a hang or re-raising the first error."""
+    errors = []
+
+    def wrap(target: Callable[[], None]) -> Callable[[], None]:
+        def run() -> None:
+            try:
+                target()
+            except BaseException as e:
+                errors.append(e)
+
+        return run
+
+    threads = [threading.Thread(target=wrap(t), daemon=True) for t in targets]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(5)
+        assert not thread.is_alive(), "thread hung"
+    if errors:
+        raise errors[0]
+
+
+def wait_for(condition: Callable[[], bool], timeout: float = 5) -> None:
+    deadline = time.monotonic() + timeout
+    while not condition():
+        assert time.monotonic() < deadline, "timed out"
+        time.sleep(0.001)
+
+
+def test_read_write_lock_readers_share() -> None:
+    lock = ReadWriteLock()
+    both_in = threading.Barrier(2, timeout=5)
+
+    def reader() -> None:
+        with lock.read():
+            # raises unless both readers hold the lock at once
+            both_in.wait()
+
+    run_threads(reader, reader)
+
+
+def test_read_write_lock_writer_waits_for_readers() -> None:
+    lock = ReadWriteLock()
+    events = []
+    release = threading.Event()
+
+    def reader() -> None:
+        with lock.read():
+            release.wait(5)
+            events.append("read done")
+
+    def writer() -> None:
+        wait_for(lambda: lock._readers == 1)
+        with lock.write():
+            events.append("write")
+
+    def releaser() -> None:
+        wait_for(lambda: lock._writers_waiting == 1)
+        release.set()
+
+    run_threads(reader, writer, releaser)
+    assert events == ["read done", "write"]
+
+
+def test_read_write_lock_waiting_writer_holds_back_new_readers() -> None:
+    """So a steady stream of loads can't starve saves."""
+    lock = ReadWriteLock()
+    events = []
+    release = threading.Event()
+
+    def first_reader() -> None:
+        with lock.read():
+            release.wait(5)
+
+    def writer() -> None:
+        wait_for(lambda: lock._readers == 1)
+        with lock.write():
+            events.append("write")
+
+    def late_reader() -> None:
+        wait_for(lambda: lock._writers_waiting == 1)
+        with lock.read():
+            events.append("late read")
+
+    def releaser() -> None:
+        wait_for(lambda: lock._writers_waiting == 1)
+        # let the late reader reach its wait before the first reader leaves
+        time.sleep(0.05)
+        assert events == []
+        release.set()
+
+    run_threads(first_reader, writer, late_reader, releaser)
+    assert events == ["write", "late read"]
+
+
+def test_read_write_lock_nested_read_passes_waiting_writer() -> None:
+    """A load_func that runs an in-memory prediction, which loads too, mustn't
+    deadlock against a save waiting for the outer load."""
+    lock = ReadWriteLock()
+    events = []
+
+    def reader() -> None:
+        with lock.read():
+            wait_for(lambda: lock._writers_waiting == 1)
+            with lock.read():
+                events.append("nested read")
+
+    def writer() -> None:
+        wait_for(lambda: lock._readers == 1)
+        with lock.write():
+            events.append("write")
+
+    run_threads(reader, writer)
+    assert events == ["nested read", "write"]
+
+
+def test_read_write_lock_write_while_reading_raises() -> None:
+    lock = ReadWriteLock()
+    with lock.read():
+        with pytest.raises(RuntimeError, match="while loading"):
+            with lock.write():
+                pass
+    # the lock is still usable
+    with lock.write():
+        pass
+
+
+def test_save_prediction_same_path_concurrently(tmp_path) -> None:
+    output_path = tmp_path / "mask.tif"
+
+    def save() -> None:
+        for _ in range(10):
+            save_prediction(output_path, SAVE_PROFILE, STATS_PRED, None)
+
+    run_threads(save, save, save)
+    assert [p.name for p in tmp_path.iterdir()] == ["mask.tif"]
+
+
+SAVE_PROFILE = Profile(
+    driver="GTiff", dtype="uint8", count=1, height=2, width=5, nodata=None
+)
+
+
+def test_save_prediction_replaces_truncated_file(tmp_path) -> None:
+    """A crash mid-save used to leave a truncated GeoTIFF that GDAL couldn't open,
+    so the next run failed to overwrite it (#52)."""
+    output_path = tmp_path / "mask.tif"
+    output_path.write_bytes(b"II*\x00truncated")
+    (tmp_path / "mask.tif.partial").write_bytes(b"II*\x00truncated")
+
+    save_prediction(output_path, SAVE_PROFILE, STATS_PRED, np.ones((2, 5)))
+
+    with rio.open(output_path) as src:
+        np.testing.assert_array_equal(src.read(), STATS_PRED)
+    assert [p.name for p in tmp_path.iterdir()] == ["mask.tif"]
+
+
+def test_save_prediction_failure_leaves_no_file(tmp_path, monkeypatch) -> None:
+    output_path = tmp_path / "mask.tif"
+
+    def fail_mid_write(path, *args) -> None:
+        path.write_bytes(b"II*\x00truncated")
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr(raster_utils, "_write_prediction", fail_mid_write)
+    with pytest.raises(RuntimeError, match="disk full"):
+        save_prediction(output_path, SAVE_PROFILE, STATS_PRED, None)
+
+    # nothing under the final name, so overwrite=False won't skip the scene
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_save_prediction_mask_is_internal(tmp_path) -> None:
+    output_path = tmp_path / "mask.tif"
+    nodata_mask = np.array([[1, 1, 0, 0, 1], [1, 1, 1, 1, 0]], dtype=np.uint8)
+
+    # GDAL before 3.9 writes an external .msk unless told otherwise
+    with rio.Env(GDAL_TIFF_INTERNAL_MASK=False):
+        save_prediction(output_path, SAVE_PROFILE, STATS_PRED, nodata_mask)
+
+    assert [p.name for p in tmp_path.iterdir()] == ["mask.tif"]
+    with rio.open(output_path) as src:
+        np.testing.assert_array_equal(src.read_masks(1), nodata_mask * 255)
 
 
 if __name__ == "__main__":
