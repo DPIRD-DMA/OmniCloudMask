@@ -2,8 +2,10 @@ import itertools
 import threading
 import time
 import traceback
+from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import Callable, Generator
 
 import numpy as np
 import pytest
@@ -11,7 +13,12 @@ import rasterio as rio
 import torch
 from rasterio.transform import from_origin
 
-from omnicloudmask import predict_from_array, predict_from_batch, predict_from_load_func
+from omnicloudmask import (
+    predict_from_array,
+    predict_from_batch,
+    predict_from_load_func,
+    raster_utils,
+)
 from omnicloudmask.cloud_mask import (
     _collate,
     _prefetch,
@@ -1181,3 +1188,80 @@ def test_predict_from_batch_export_styling(tmp_path: Path) -> None:
         # custom models' classes aren't the OmniCloudMask classes
         with pytest.raises(ValueError):
             src.colormap(1)
+
+
+class IOTracker:
+    """Counts load_func calls that ran while a prediction was being written, or
+    the other way round. Each call sleeps so overlaps can't be missed."""
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.active = {"load": 0, "save": 0}
+        self.calls = {"load": 0, "save": 0}
+        self.overlaps = 0
+
+    @contextmanager
+    def track(self, kind: str) -> Generator[None, None, None]:
+        with self.lock:
+            self.active[kind] += 1
+            self.calls[kind] += 1
+            if self.active["load"] and self.active["save"]:
+                self.overlaps += 1
+        try:
+            time.sleep(0.05)
+            yield
+        finally:
+            with self.lock:
+                self.active[kind] -= 1
+
+
+@pytest.fixture
+def io_tracker(monkeypatch) -> IOTracker:
+    tracker = IOTracker()
+    write = raster_utils._write_prediction
+
+    def tracked_write(*args) -> None:
+        with tracker.track("save"):
+            write(*args)
+
+    monkeypatch.setattr(raster_utils, "_write_prediction", tracked_write)
+    return tracker
+
+
+def tracked_load(tracker: IOTracker) -> Callable[[Path], tuple[np.ndarray, dict]]:
+    def load(input_path: Path) -> tuple[np.ndarray, dict]:
+        with tracker.track("load"):
+            return load_tif(input_path)
+
+    return load
+
+
+@pytest.mark.parametrize("function", ["load_func", "batch"])
+def test_loads_never_overlap_saves(
+    tif_paths: list[Path], tmp_path: Path, io_tracker: IOTracker, function: str
+) -> None:
+    """GDAL can crash when one thread reads a JPEG2000 file while another writes
+    a GeoTIFF (#52), so loading and saving must take turns."""
+    paths = tif_paths
+    if function == "load_func":
+        predict_from_load_func(
+            paths,
+            tracked_load(io_tracker),
+            patch_size=IMAGE_SIZE,
+            patch_overlap=0,
+            output_dir=tmp_path / "out",
+            inference_device="cpu",
+        )
+    else:
+        predict_from_batch(
+            paths,
+            batch_size=2,
+            load_func=tracked_load(io_tracker),
+            inference_device="cpu",
+            export_to_disk=True,
+            output_dir=tmp_path / "out",
+        )
+
+    assert io_tracker.calls["load"] == len(paths)
+    assert io_tracker.calls["save"] == len(paths)
+    assert io_tracker.overlaps == 0

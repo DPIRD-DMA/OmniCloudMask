@@ -42,6 +42,7 @@ from .model_utils import (
 from .mps_patch import _get_model_in_channels, patch_models_for_mps
 from .optimizations import optimized_argmax
 from .raster_utils import (
+    GDAL_IO_LOCK,
     get_patch,
     make_patch_indexes,
     class_stats_tags,
@@ -733,7 +734,7 @@ def predict_from_load_func(
 
     Args:
         scene_paths (Union[list[Path], list[str]]): A list of paths to the scene files to be processed.
-        load_func (Callable): A function to load the scene data. This function should take an input_path parameter and return a R,G,NIR numpy array and a rasterio for export profile, several load func are provided within data_loaders.py
+        load_func (Callable): A function to load the scene data. This function should take an input_path parameter and return a R,G,NIR numpy array and a rasterio for export profile, several load func are provided within data_loaders.py. It runs while saves are held back, as GDAL can crash when a JPEG2000 file is read during a GeoTIFF save, so it mustn't save predictions or wait on a call that does.
         patch_size (int, optional): Size of the patches for inference. Defaults to 1000.
         patch_overlap (int, optional): Overlap between patches for inference. Defaults to 300.
         batch_size (int, optional): Number of patches to process in a batch. Defaults to 1.
@@ -815,7 +816,8 @@ def predict_from_load_func(
                 pbar.refresh()
                 continue
 
-            input_array, profile = load_func(input_path=scene_path)
+            with GDAL_IO_LOCK.read():
+                input_array, profile = load_func(input_path=scene_path)
 
             # wait for the previous scene before starting the next
             if inf_future is not None:
@@ -878,7 +880,8 @@ def _prepare_item(
     cast here, since doing that on MPS is MPS work that must hold the device lock."""
     profile = None
     if load_func is not None:
-        item = load_func(input_path=item)
+        with GDAL_IO_LOCK.read():
+            item = load_func(input_path=item)
         if isinstance(item, tuple):
             item, profile = item[0], item[1]
 
@@ -1248,7 +1251,7 @@ def predict_from_batch(
     Args:
         data (Iterable): An iterable of (3, height, width) Red, Green and NIR numpy arrays or torch tensors, e.g. a 4D array or tensor, a list of arrays or a generator. If load_func is provided, an iterable of items (usually file paths) to pass to load_func.
         batch_size (int, optional): Number of images to process in a batch. Defaults to 1.
-        load_func (Callable, optional): A function called as load_func(input_path=item) that returns a (3, height, width) array, or an (array, rasterio profile) tuple such as the loaders in data_loaders.py. It runs on background threads, so it should return numpy arrays or CPU tensors; creating MPS tensors inside it isn't serialised with inference. Defaults to None.
+        load_func (Callable, optional): A function called as load_func(input_path=item) that returns a (3, height, width) array, or an (array, rasterio profile) tuple such as the loaders in data_loaders.py. It runs on background threads, so it should return numpy arrays or CPU tensors; creating MPS tensors inside it isn't serialised with inference. It runs while saves are held back, as GDAL can crash when a JPEG2000 file is read during a GeoTIFF save, so it mustn't save predictions or wait on a call that does. Defaults to None.
         inference_device (Union[str, torch.device], optional): Device to use for inference (e.g., 'cpu', 'cuda', 'mps'). Defaults to None then default_device().
         inference_dtype (Union[torch.dtype, str], optional): Data type for inference. Defaults to torch.float32.
         export_confidence (bool, optional): If True, exports confidence maps instead of predicted classes. Defaults to False.
