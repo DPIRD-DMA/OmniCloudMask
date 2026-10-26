@@ -1,3 +1,4 @@
+import os
 import threading
 import time
 from typing import Callable
@@ -708,6 +709,40 @@ def test_read_write_lock_write_while_reading_raises() -> None:
     # the lock is still usable
     with lock.write():
         pass
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="needs os.fork")
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
+def test_read_write_lock_free_after_fork() -> None:
+    """A child forked while another thread holds the lock doesn't get that thread,
+    so it must not inherit the held lock."""
+    lock = ReadWriteLock()
+    entered = threading.Event()
+    release = threading.Event()
+
+    def reader() -> None:
+        with lock.read():
+            entered.set()
+            release.wait(5)
+
+    thread = threading.Thread(target=reader, daemon=True)
+    thread.start()
+    assert entered.wait(5)
+    pid = os.fork()
+    if pid == 0:
+        # child: exit 0 if a write gets the lock, without running pytest teardown
+        def write() -> None:
+            with lock.write():
+                pass
+
+        child = threading.Thread(target=write, daemon=True)
+        child.start()
+        child.join(5)
+        os._exit(1 if child.is_alive() else 0)
+    release.set()
+    thread.join(5)
+    _, status = os.waitpid(pid, 0)
+    assert os.waitstatus_to_exitcode(status) == 0
 
 
 def test_save_prediction_same_path_concurrently(tmp_path) -> None:

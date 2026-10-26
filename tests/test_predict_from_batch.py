@@ -14,6 +14,7 @@ import torch
 from rasterio.transform import from_origin
 
 from omnicloudmask import (
+    cloud_mask,
     predict_from_array,
     predict_from_batch,
     predict_from_load_func,
@@ -1199,6 +1200,16 @@ class IOTracker:
         self.active = {"load": 0, "save": 0}
         self.calls = {"load": 0, "save": 0}
         self.overlaps = 0
+        self.save_requested = threading.Event()
+
+    def wait_for_save(self) -> None:
+        """Once a save has been requested, hold this load open until the save is
+        writing, so the two overlap whenever nothing makes them take turns. Waits
+        are bounded, as the lock keeps the save out."""
+        self.save_requested.wait(1)
+        deadline = time.monotonic() + 0.2
+        while not self.active["save"] and time.monotonic() < deadline:
+            time.sleep(0.005)
 
     @contextmanager
     def track(self, kind: str) -> Generator[None, None, None]:
@@ -1225,12 +1236,23 @@ def io_tracker(monkeypatch) -> IOTracker:
             write(*args)
 
     monkeypatch.setattr(raster_utils, "_write_prediction", tracked_write)
+
+    save = cloud_mask.save_prediction
+
+    def requested_save(*args, **kwargs) -> None:
+        tracker.save_requested.set()
+        save(*args, **kwargs)
+
+    monkeypatch.setattr(cloud_mask, "save_prediction", requested_save)
     return tracker
 
 
 def tracked_load(tracker: IOTracker) -> Callable[[Path], tuple[np.ndarray, dict]]:
     def load(input_path: Path) -> tuple[np.ndarray, dict]:
+        first = tracker.calls["load"] == 0
         with tracker.track("load"):
+            if not first:
+                tracker.wait_for_save()
             return load_tif(input_path)
 
     return load

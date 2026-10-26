@@ -21,6 +21,13 @@ class ReadWriteLock:
     that is waiting for it."""
 
     def __init__(self) -> None:
+        self._reset()
+        if hasattr(os, "register_at_fork"):
+            # a forked child gets the counts but not the threads that would
+            # release them, so it starts with the lock free
+            os.register_at_fork(after_in_child=self._reset)
+
+    def _reset(self) -> None:
         self._condition = Condition()
         self._readers = 0
         self._writing = False
