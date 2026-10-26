@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- `predict_from_load_func` and `predict_from_batch` could segfault, abort or hang on multi-scene Sentinel-2 L1C runs, since 1.8.0 made it far more likely. GDAL's JPEG2000 driver flushes every open dataset before decoding, including a GeoTIFF being saved on another thread. Loading and saving now take turns behind a process-wide lock; inference still overlaps both (#52)
+- Predictions are written to `<name>.partial` and renamed into place, so a crash can't leave a truncated file that `overwrite=False` skips or `overwrite=True` fails to replace. The no-data mask is always stored inside the GeoTIFF, as GDAL before 3.9 otherwise wrote it to a `.msk` sidecar file
 
 ## [1.8.0] - 2026-10-19
 

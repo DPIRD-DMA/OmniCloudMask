@@ -1,5 +1,8 @@
+import os
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Optional, Union
+from threading import Condition, local
+from typing import Generator, Optional, Union
 
 import numpy as np
 import rasterio as rio
@@ -9,6 +12,82 @@ from rasterio.profiles import Profile
 
 from .constants import CLASS_COLOURS, CLASS_NAMES, CLOUD_CLASSES, class_label
 from .model_utils import channel_norm, is_nodata, is_nodata_torch
+
+
+class ReadWriteLock:
+    """Lets any number of readers in at once, or one writer. A waiting writer
+    blocks new readers, so a steady stream of reads can't starve it. Reads are
+    re-entrant, so a thread already reading isn't held back by a waiting writer
+    that is waiting for it."""
+
+    def __init__(self) -> None:
+        self._reset()
+        if hasattr(os, "register_at_fork"):
+            # a forked child gets the counts but not the threads that would
+            # release them, so it starts with the lock free
+            os.register_at_fork(after_in_child=self._reset)
+
+    def _reset(self) -> None:
+        self._condition = Condition()
+        self._readers = 0
+        self._writing = False
+        self._writers_waiting = 0
+        self._local = local()
+
+    def _read_depth(self) -> int:
+        return getattr(self._local, "depth", 0)
+
+    @contextmanager
+    def read(self) -> Generator[None, None, None]:
+        depth = self._read_depth()
+        if not depth:
+            with self._condition:
+                while self._writing or self._writers_waiting:
+                    self._condition.wait()
+                self._readers += 1
+        self._local.depth = depth + 1
+        try:
+            yield
+        finally:
+            self._local.depth = depth
+            if not depth:
+                with self._condition:
+                    self._readers -= 1
+                    if not self._readers:
+                        self._condition.notify_all()
+
+    @contextmanager
+    def write(self) -> Generator[None, None, None]:
+        if self._read_depth():
+            # it would wait forever for this thread's own read to end
+            raise RuntimeError(
+                "Can't save a prediction while loading, e.g. from inside a "
+                "load_func, as loads and saves take turns."
+            )
+        with self._condition:
+            self._writers_waiting += 1
+            try:
+                while self._writing or self._readers:
+                    self._condition.wait()
+            finally:
+                self._writers_waiting -= 1
+                # wake readers held back by this writer if the wait was interrupted
+                self._condition.notify_all()
+            self._writing = True
+        try:
+            yield
+        finally:
+            with self._condition:
+                self._writing = False
+                self._condition.notify_all()
+
+
+# Process-wide lock so scene loads (read side) and prediction saves (write side)
+# take turns. GDAL's JPEG2000 driver flushes the dirty blocks of every open
+# dataset before decoding, including a GeoTIFF another thread is closing, which
+# can crash the process (#52). Loads may still run together, and inference still
+# overlaps both.
+GDAL_IO_LOCK = ReadWriteLock()
 
 
 def get_patch(
@@ -196,7 +275,42 @@ def save_prediction(
     """Save the prediction tracker to a raster file, optionally also saving the
     nodata mask if not None and GDAL metadata tags if given. If standard_classes,
     the predictions use the OmniCloudMask classes, so masks get a colour table and
-    confidence maps get a band description per class."""
+    confidence maps get a band description per class.
+
+    The file is written under a temporary name and renamed into place, so a crash
+    mid-write can't leave a truncated file at output_path."""
+    output_path = Path(output_path)
+    partial_path = output_path.with_name(output_path.name + ".partial")
+    # the rename and cleanup are inside the lock too, so concurrent saves to the
+    # same path can't remove each other's partial file
+    with GDAL_IO_LOCK.write():
+        try:
+            # internal mask, as an external .msk sidecar would keep the temporary name
+            with rio.Env(GDAL_TIFF_INTERNAL_MASK=True):
+                # a truncated leftover can't be opened, so GDAL can't replace it
+                partial_path.unlink(missing_ok=True)
+                _write_prediction(
+                    partial_path,
+                    export_profile,
+                    pred_tracker_np,
+                    nodata_mask,
+                    tags,
+                    standard_classes,
+                )
+            os.replace(partial_path, output_path)
+        except BaseException:
+            partial_path.unlink(missing_ok=True)
+            raise
+
+
+def _write_prediction(
+    output_path: Path,
+    export_profile: Profile,
+    pred_tracker_np: np.ndarray,
+    nodata_mask: Optional[np.ndarray],
+    tags: Optional[dict[str, str]],
+    standard_classes: bool,
+) -> None:
     with rio.open(output_path, "w", **export_profile) as dst:
         dst.write(pred_tracker_np)
         if nodata_mask is not None:
