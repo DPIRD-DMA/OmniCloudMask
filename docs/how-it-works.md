@@ -113,7 +113,7 @@ OmniCloudMask is trained on Sentinel-2 imagery from multiple datasets. The prima
   - ✓
 ```
 
-The OCM datasets are not yet publicly released.
+The OCM datasets are published, together with the rest of the V4 training data, as the [OmniCloudMask Combined Training Dataset](https://huggingface.co/datasets/NickWright/OmniCloudMask-Combined-Training-Dataset) on Hugging Face.
 
 The training data covers diverse geographic regions, cloud types, and atmospheric conditions. You can explore the spatial distribution of training samples on the **[Training Data Distribution Map](https://dpird-dma.github.io/OCM-training-data-map/)**.
 
