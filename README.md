@@ -77,4 +77,6 @@ See the [quickstart guide](https://omnicloudmask.readthedocs.io/en/latest/quicks
 
 ## License
 
-MIT License
+The OmniCloudMask code is released under the [MIT License](LICENSE).
+
+The model weights are licensed separately. V2, V3 and V4 are MIT, and V1 is CC BY-NC 4.0 (non-commercial use only). See the [model weight licences](https://huggingface.co/NickWright/OmniCloudMask/blob/main/LICENSES.md) for details.
